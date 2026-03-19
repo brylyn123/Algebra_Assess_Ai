@@ -1,0 +1,69 @@
+<?php
+include 'db_connect.php';
+
+$data = json_decode(file_get_contents("php://input"), true);
+
+$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$rubric_name = trim($data['name'] ?? '');
+$criteria = trim($data['criteria'] ?? '');
+$items = is_array($data['items']) ? $data['items'] : [];
+
+if (!$teacher_id || !$rubric_name || !$criteria) {
+    http_response_code(400);
+    echo json_encode(["status" => "error", "message" => "Missing required rubric information."]);
+    exit;
+}
+
+if (count($items) === 0) {
+    http_response_code(400);
+    echo json_encode(["status" => "error", "message" => "Please provide at least one rubric item."]);
+    exit;
+}
+
+try {
+    $teacherStmt = $conn->prepare("SELECT teacher_id FROM Teacher WHERE teacher_id = ? LIMIT 1");
+    $teacherStmt->bind_param("s", $teacher_id);
+    $teacherStmt->execute();
+    $result = $teacherStmt->get_result();
+    $teacherStmt->close();
+
+    if (!$result || $result->num_rows === 0) {
+        throw new Exception("Teacher not found.");
+    }
+
+    $conn->begin_transaction();
+
+    $setStmt = $conn->prepare(
+        "INSERT INTO rubric_sets (teacher_id, rubric_name, criteria)
+         VALUES (?, ?, ?)"
+    );
+    $setStmt->bind_param("sss", $teacher_id, $rubric_name, $criteria);
+    $setStmt->execute();
+    $rubricSetId = $conn->insert_id;
+    $setStmt->close();
+
+    $itemStmt = $conn->prepare(
+        "INSERT INTO rubric_set_items (rubric_set_id, description, points)
+         VALUES (?, ?, ?)"
+    );
+    foreach ($items as $item) {
+        $description = trim($item['description'] ?? '');
+        if ($description === '') {
+            continue;
+        }
+        $points = floatval($item['points'] ?? 0);
+        $itemStmt->bind_param("isd", $rubricSetId, $description, $points);
+        $itemStmt->execute();
+    }
+    $itemStmt->close();
+
+    $conn->commit();
+    echo json_encode(["status" => "success", "message" => "Rubric saved.", "rubric_set_id" => $rubricSetId]);
+} catch (Exception $e) {
+    $conn->rollback();
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+}
+
+$conn->close();
+?>

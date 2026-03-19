@@ -55,29 +55,21 @@ const ManageAssessments = () => {
                         </button>
                     </div>
                     {/* 2. View Assessments Section */}
-                    <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 flex flex-col text-center transition-transform hover:scale-[1.02]">
-                        <div className="flex-grow flex flex-col items-center justify-center space-y-4 mb-6">
-                            <span className="text-5xl">📋</span>
-                            <h2 className="text-xl font-bold text-slate-900">View Assessments</h2>
-                            <p className="text-slate-500">
-                                See history, status, and results for every assessment you’ve created.
-                            </p>
+                    <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 transition-transform hover:scale-[1.02]">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Quick Glance</p>
+                                <h2 className="text-xl font-bold text-slate-900">View Assessments & Rubrics</h2>
+                            </div>
+                            <button
+                                onClick={() => navigate('/teacher/assessments')}
+                                className="rounded-full border border-indigo-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-indigo-600"
+                            >
+                                View All
+                            </button>
                         </div>
-                        <button
-                            onClick={() => navigate('/teacher/assessments')}
-                            className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-md hover:bg-indigo-700 transition"
-                        >
-                            View Your Assessments
-                        </button>
+                        <ViewAssessments compact />
                     </div>
-                </div>
-
-                {/* 2. Existing Assessments List */}
-                <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                        <span>🗂️</span> Your History
-                    </h3>
-                    <ViewAssessments />
                 </div>
 
             </div>

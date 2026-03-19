@@ -42,7 +42,7 @@ try {
     $conn->begin_transaction();
 
     $problemStmt = $conn->prepare(
-        "INSERT INTO excercises_problem (subject_id, title, description, topic, date_created)
+        "INSERT INTO exercises_problem (subject_id, title, description, topic, date_created)
          VALUES (?, ?, ?, ?, NOW())"
     );
     $problemStmt->bind_param("isss", $subject_id, $title, $description, $topic);
@@ -51,7 +51,7 @@ try {
     $problemStmt->close();
 
     $itemStmt = $conn->prepare(
-        "INSERT INTO excercise_items (excercise_id, item_no, score_per_item, max_score_per_item, question_type, question_content, `option`, correct_answer)
+        "INSERT INTO exercises_items (exercise_id, item_no, score_per_item, max_score_per_item, question_type, question_content, options, correct_answer)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
     $rubricStmt = $conn->prepare(

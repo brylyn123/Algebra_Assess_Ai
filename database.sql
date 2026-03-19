@@ -3,7 +3,7 @@ USE algebraassess;
 
 -- Disable checks to allow clean wiping of tables
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `Score`, `Rubrics`, `Captured_Solution`, `Exercises_items`, `Exercises_Problem`, `Subject`, `Student`, `Section`, `Teacher`, `Year`, `College`, `Users`, `Course`;
+DROP TABLE IF EXISTS `Score`, `Rubrics`, `Captured_Solution`, `Exercises_items`, `Exercises_Problem`, `Subject`, `Student`, `Section`, `teacher`, `Teacher`, `Year`, `College`, `Users`, `Course`, `rubric_set_items`, `rubric_sets`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 
@@ -30,8 +30,8 @@ CREATE TABLE Year (
 ) ENGINE=InnoDB;
 
 -- 4. Create Teacher (Parent of Section and Subject)
-CREATE TABLE Teacher (
-    teacher_id VARCHAR(50) PRIMARY KEY,
+CREATE TABLE teacher (
+    teacher_id INT PRIMARY KEY,
     first_name VARCHAR(100),
     middle_name VARCHAR(100),
     last_name VARCHAR(100),
@@ -48,7 +48,7 @@ CREATE TABLE Section (
     section_id INT PRIMARY KEY,
     section_name VARCHAR(100),
     teacher_id INT,
-    CONSTRAINT fk_section_teacher FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id)
+    CONSTRAINT fk_section_teacher FOREIGN KEY (teacher_id) REFERENCES teacher(teacher_id)
 ) ENGINE=InnoDB;
 
 -- 6. Create Student (Parent of Subject and Captured_Solution)
@@ -73,7 +73,7 @@ CREATE TABLE Subject (
     course VARCHAR(255),
     year INT,
     section VARCHAR(255),
-    CONSTRAINT fk_subject_teacher FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id),
+    CONSTRAINT fk_subject_teacher FOREIGN KEY (teacher_id) REFERENCES teacher(teacher_id),
 ) ENGINE=InnoDB;
 
 -- 8. Create Exercises/Problem (Parent of Exercise_Items and Captured_Solution)
@@ -141,4 +141,23 @@ CREATE TABLE Enrollments (
     date_enrolled DATETIME,
     CONSTRAINT fk_enrollment_subject FOREIGN KEY (subject_id) REFERENCES Subject(subject_id),
     CONSTRAINT fk_enrollment_student FOREIGN KEY (student_id) REFERENCES Student(student_id)
+) ENGINE=InnoDB;
+
+-- 14. Create Rubric Sets
+CREATE TABLE rubric_sets (
+    rubric_set_id INT AUTO_INCREMENT PRIMARY KEY,
+    teacher_id INT,
+    rubric_name VARCHAR(255) NOT NULL,
+    criteria TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_rubric_sets_teacher FOREIGN KEY (teacher_id) REFERENCES teacher(teacher_id)
+) ENGINE=InnoDB;
+
+-- 15. Create Rubric Set Items
+CREATE TABLE rubric_set_items (
+    rubric_item_id INT AUTO_INCREMENT PRIMARY KEY,
+    rubric_set_id INT,
+    description TEXT,
+    points DECIMAL(10,2),
+    CONSTRAINT fk_rubric_set_item_set FOREIGN KEY (rubric_set_id) REFERENCES rubric_sets(rubric_set_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

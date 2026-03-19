@@ -106,14 +106,6 @@ const NewAssessment = () => {
 
   const mathfieldRef = useRef(null);
 
-  const [rubricCriteria, setRubricCriteria] = useState('');
-
-  const [rubricPoints, setRubricPoints] = useState('');
-
-  const [rubricDescription, setRubricDescription] = useState('');
-
-  const [rubricsList, setRubricsList] = useState([]);
-
 
 
   const normalizeSubjectRecord = (raw) => ({
@@ -255,56 +247,6 @@ const NewAssessment = () => {
       return nextValue;
 
     });
-
-  };
-
-
-
-  const handleAddRubric = () => {
-
-    const criteria = rubricCriteria.trim();
-
-    if (!criteria) {
-
-      alert('Enter a rubric criterion before saving.');
-
-      return;
-
-    }
-
-    const pointsValue = parseFloat(rubricPoints);
-
-    const normalizedPoints = Number.isNaN(pointsValue) ? 0 : pointsValue;
-
-    setRubricsList((prev) => [
-
-      ...prev,
-
-      {
-
-        criteria_name: criteria,
-
-        points: normalizedPoints,
-
-        description: rubricDescription.trim(),
-
-      },
-
-    ]);
-
-    setRubricCriteria('');
-
-    setRubricPoints('');
-
-    setRubricDescription('');
-
-  };
-
-
-
-  const handleRemoveRubric = (index) => {
-
-    setRubricsList((prev) => prev.filter((_, idx) => idx !== index));
 
   };
 
@@ -470,8 +412,6 @@ const NewAssessment = () => {
 
           correct_answer: mcCorrectAnswer,
 
-          rubrics: rubricsList,
-
         },
 
       ]);
@@ -483,14 +423,6 @@ const NewAssessment = () => {
       setMcCorrectAnswer('');
 
       setMcOptions([]);
-
-      setRubricsList([]);
-
-      setRubricCriteria('');
-
-      setRubricPoints('');
-
-      setRubricDescription('');
 
       return;
 
@@ -525,9 +457,6 @@ const NewAssessment = () => {
         options: '',
 
         correct_answer: '',
-
-        rubrics: rubricsList,
-
       },
 
     ]);
@@ -538,13 +467,6 @@ const NewAssessment = () => {
 
     }
 
-    setRubricsList([]);
-
-    setRubricCriteria('');
-
-    setRubricPoints('');
-
-    setRubricDescription('');
 
   };
 
@@ -608,7 +530,7 @@ const NewAssessment = () => {
 
           correct_answer: item.correct_answer,
 
-          rubrics: item.rubrics || [],
+          rubrics: [],
 
         })),
 
@@ -1027,130 +949,6 @@ const NewAssessment = () => {
                   </div>
 
                 )}
-
-              </div>
-
-            )}
-
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-
-            <div className="flex items-center justify-between">
-
-              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Rubrics</p>
-
-              <span className="text-xs text-slate-500">{rubricsList.length} added</span>
-
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3">
-
-              <input
-
-                type="text"
-
-                value={rubricCriteria}
-
-                onChange={(e) => setRubricCriteria(e.target.value)}
-
-                placeholder="Criteria name"
-
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700"
-
-              />
-
-              <input
-
-                type="number"
-
-                min="0"
-
-                step="0.1"
-
-                value={rubricPoints}
-
-                onChange={(e) => setRubricPoints(e.target.value)}
-
-                placeholder="Points"
-
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700"
-
-              />
-
-              <input
-
-                type="text"
-
-                value={rubricDescription}
-
-                onChange={(e) => setRubricDescription(e.target.value)}
-
-                placeholder="Description (optional)"
-
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700"
-
-              />
-
-            </div>
-
-            <div className="flex justify-end">
-
-              <button
-
-                type="button"
-
-                onClick={handleAddRubric}
-
-                className="rounded-full bg-slate-900 text-white px-4 py-2 text-xs font-semibold tracking-[0.3em] uppercase hover:bg-slate-800 transition"
-
-              >
-
-                + Add rubric
-
-              </button>
-
-            </div>
-
-            {rubricsList.length > 0 && (
-
-              <div className="space-y-2">
-
-                {rubricsList.map((rubric, index) => (
-
-                  <div
-
-                    key={`${rubric.criteria_name}-${index}`}
-
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700"
-
-                  >
-
-                    <div>
-
-                      <p className="font-semibold text-slate-900">{rubric.criteria_name}</p>
-
-                      <p className="text-xs text-slate-500">{rubric.points.toFixed(1)} pts - {rubric.description || 'No description'}</p>
-
-                    </div>
-
-                    <button
-
-                      type="button"
-
-                      onClick={() => handleRemoveRubric(index)}
-
-                      className="text-xs font-semibold uppercase tracking-[0.3em] text-rose-500 hover:text-rose-700"
-
-                    >
-
-                      Remove
-
-                    </button>
-
-                  </div>
-
-                ))}
 
               </div>
 

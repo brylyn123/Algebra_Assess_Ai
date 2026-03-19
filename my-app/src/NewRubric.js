@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 
 const NewRubric = () => {
     const navigate = useNavigate();
@@ -10,6 +12,19 @@ const NewRubric = () => {
     const [rubricItems, setRubricItems] = useState([]);
     const [itemDescription, setItemDescription] = useState('');
     const [itemPoints, setItemPoints] = useState('');
+    const [teacherId, setTeacherId] = useState(null);
+
+    const currentEmail = getCurrentLocalUserEmail();
+
+    useEffect(() => {
+        if (!currentEmail) {
+            setTeacherId(null);
+            return;
+        }
+        const storedTeacher = findLocalUser(currentEmail);
+        const id = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
+        setTeacherId(id);
+    }, [currentEmail]);
 
     const handleRubricChange = (e) => {
         const { name, value } = e.target;
@@ -42,7 +57,7 @@ const NewRubric = () => {
         setRubricItems(prevItems => prevItems.filter((_, i) => i !== index));
     };
 
-    const handleAddRubric = (e) => {
+    const handleAddRubric = async (e) => {
         e.preventDefault();
         if (!newRubric.name || !newRubric.criteria) {
             alert('Please fill out all rubric fields.');
@@ -52,16 +67,42 @@ const NewRubric = () => {
             alert('Please add at least one rubric item with max points.');
             return;
         }
+        if (!teacherId) {
+            alert('Unable to determine the teacher account. Please log in again.');
+            return;
+        }
         const itemSummary = rubricItems
             .map((item, index) => `${index + 1}. ${item.description} (${item.points} pts)`)
             .join('\n');
-        alert(
-            `New Rubric Created:\nName: ${newRubric.name}\nCriteria: ${newRubric.criteria}\nItems:\n${itemSummary}`
-        );
-        setNewRubric({ name: '', criteria: '' });
-        setRubricItems([]);
-        setItemDescription('');
-        setItemPoints('');
+        try {
+            const payload = {
+                teacher_id: teacherId,
+                name: newRubric.name.trim(),
+                criteria: newRubric.criteria.trim(),
+                items: rubricItems
+            };
+            const response = await axios.post(
+                'http://localhost/Algebra_Assess_Ai/algebra-api/create_rubric.php',
+                payload,
+                {
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
+            const data = response.data;
+            if (data.status !== 'success') {
+                throw new Error(data.message || 'Unable to save the rubric.');
+            }
+            alert(
+                `Rubric stored! Name: ${newRubric.name}\nCriteria: ${newRubric.criteria}\nItems:\n${itemSummary}`
+            );
+            setNewRubric({ name: '', criteria: '' });
+            setRubricItems([]);
+            setItemDescription('');
+            setItemPoints('');
+        } catch (error) {
+            console.error('Failed to save rubric', error);
+            alert(error.message || 'Failed to save rubric. Please try again.');
+        }
     };
 
     return (
