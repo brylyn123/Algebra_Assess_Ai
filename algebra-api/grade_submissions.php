@@ -2,60 +2,30 @@
 require_once 'cors.php';
 require_once 'db_connection.php';
 
-// Ensure table exists before querying.
-$ensureTable = "
-CREATE TABLE IF NOT EXISTS grade_submissions (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    student_name VARCHAR(200) NOT NULL,
-    student_id VARCHAR(64) NOT NULL DEFAULT 'STU000',
-    assessment_title VARCHAR(200) NOT NULL,
-    subject VARCHAR(200) NOT NULL,
-    submission_date DATE NOT NULL,
-    status ENUM('Pending','Graded','Needs Review') NOT NULL DEFAULT 'Pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+$query = "
+SELECT
+    gs.id,
+    gs.student_name,
+    gs.student_id,
+    gs.assessment_title,
+    gs.subject_id,
+    gs.rubric_set_id,
+    DATE_FORMAT(gs.submission_date, '%b %e, %Y') AS submission_date,
+    COALESCE(NULLIF(s.subject_name, ''), 'Unassigned Subject') AS subject_display,
+    s.course AS subject_course,
+    s.year AS subject_year,
+    s.section AS subject_section,
+    s.semester AS subject_semester,
+    rs.rubric_name,
+    rs.criteria AS rubric_criteria,
+    gs.status
+FROM grade_submissions gs
+LEFT JOIN subject s ON s.subject_id = gs.subject_id
+LEFT JOIN rubric_sets rs ON rs.rubric_set_id = gs.rubric_set_id
+ORDER BY gs.submission_date DESC, gs.id DESC;
 ";
 
-if (!$conn->query($ensureTable)) {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Unable to prepare grade submissions table: ' . $conn->error]);
-    exit();
-}
-
-$countResult = $conn->query("SELECT COUNT(*) AS total FROM grade_submissions");
-if ($countResult) {
-    $row = $countResult->fetch_assoc();
-    $countResult->free();
-    if ((int)$row['total'] === 0) {
-        $sampleData = [
-            ['Sarah Johnson', 'STU001', 'Linear Equations Quiz', 'Algebra I - Period 3', '2026-03-06', 'Pending'],
-            ['Michael Chen', 'STU002', 'Quadratic Functions Test', 'Algebra I - Period 3', '2026-03-05', 'Pending'],
-            ['Emma Davis', 'STU003', 'Linear Equations Quiz', 'Algebra II - Period 1', '2026-03-04', 'Graded'],
-        ];
-
-        $stmt = $conn->prepare("INSERT INTO grade_submissions (student_name, student_id, assessment_title, subject, submission_date, status) VALUES (?, ?, ?, ?, ?, ?)");
-        if ($stmt) {
-            foreach ($sampleData as $entry) {
-                [$student, $studentId, $assessment, $subject, $date, $status] = $entry;
-                $stmt->bind_param('ssssss', $student, $studentId, $assessment, $subject, $date, $status);
-                $stmt->execute();
-            }
-            $stmt->close();
-        }
-    }
-} else {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Unable to count grade submissions: ' . $conn->error]);
-    exit();
-}
-
-$result = $conn->query(
-    "SELECT id, student_name, student_id, assessment_title, subject,
-            DATE_FORMAT(submission_date, '%b %e, %Y') AS submission_date,
-            status
-     FROM grade_submissions
-     ORDER BY submission_date DESC, id DESC"
-);
+$result = $conn->query($query);
 
 if (!$result) {
     http_response_code(500);
@@ -65,10 +35,31 @@ if (!$result) {
 
 $submissions = [];
 while ($row = $result->fetch_assoc()) {
-    $submissions[] = $row;
+    $subjectMeta = [];
+    foreach (['subject_course', 'subject_year', 'subject_section', 'subject_semester'] as $field) {
+        if (!empty($row[$field])) {
+            $subjectMeta[] = $row[$field];
+        }
+    }
+
+    $submissions[] = [
+        'id' => (int)$row['id'],
+        'student_name' => $row['student_name'],
+        'student_id' => $row['student_id'],
+        'assessment_title' => $row['assessment_title'],
+        'subject_id' => $row['subject_id'] !== null ? (int)$row['subject_id'] : null,
+        'subject_display' => $row['subject_display'],
+        'subject_meta' => implode(' • ', $subjectMeta),
+        'rubric_set_id' => $row['rubric_set_id'] !== null ? (int)$row['rubric_set_id'] : null,
+        'rubric_name' => $row['rubric_name'],
+        'rubric_criteria' => $row['rubric_criteria'],
+        'submission_date' => $row['submission_date'],
+        'status' => $row['status'],
+    ];
 }
 $result->free();
 
+header('Content-Type: application/json');
 echo json_encode([
     'status' => 'success',
     'submissions' => $submissions,

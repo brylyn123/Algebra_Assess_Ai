@@ -1,6 +1,7 @@
-import React from 'react';
+﻿import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ViewAssessments from './ViewAssessments';
+import ViewHistoryCard from './ViewHistoryCard';
 
 const ManageAssessments = () => {
     const navigate = useNavigate();
@@ -22,7 +23,7 @@ const ManageAssessments = () => {
                 <div className="grid gap-8 md:grid-cols-3">
                     <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 flex flex-col text-center transition-transform hover:scale-[1.02]">
                         <div className="flex-grow flex flex-col items-center justify-center space-y-4 mb-6">
-                            <span className="text-5xl">📝</span>
+                            <span className="text-5xl">📄</span>
                             <h2 className="text-xl font-bold text-slate-900">New Assessment</h2>
                             <p className="text-slate-500">
                                 Create a new quiz, homework, or exam.
@@ -40,7 +41,7 @@ const ManageAssessments = () => {
                     {/* 1. New Rubric Section */}
                     <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 flex flex-col text-center transition-transform hover:scale-[1.02]">
                         <div className="flex-grow flex flex-col items-center justify-center space-y-4 mb-6">
-                            <span className="text-5xl">✍️</span>
+                            <span className="text-5xl">✏️</span>
                             <h2 className="text-xl font-bold text-slate-900">New Rubric</h2>
                             <p className="text-slate-500">
                                 Create a new rubric for grading assessments.
@@ -61,15 +62,21 @@ const ManageAssessments = () => {
                                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Quick Glance</p>
                                 <h2 className="text-xl font-bold text-slate-900">View Assessments & Rubrics</h2>
                             </div>
+                        </div>
+                        <ViewAssessments compact />
+                        <div className="mt-4">
                             <button
-                                onClick={() => navigate('/teacher/assessments')}
-                                className="rounded-full border border-indigo-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-indigo-600"
+                                onClick={() => navigate('/teacher/assessments/view')}
+                                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-md hover:bg-indigo-700 transition"
                             >
                                 View All
                             </button>
                         </div>
-                        <ViewAssessments compact />
                     </div>
+                </div>
+
+                <div className="mt-10">
+                    <ViewHistoryCard maxHeight="280px" />
                 </div>
 
             </div>
@@ -78,3 +85,4 @@ const ManageAssessments = () => {
 };
 
 export default ManageAssessments;
+

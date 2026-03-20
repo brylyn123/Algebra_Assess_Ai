@@ -7,6 +7,11 @@ $teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
 $rubric_name = trim($data['name'] ?? '');
 $criteria = trim($data['criteria'] ?? '');
 $items = is_array($data['items']) ? $data['items'] : [];
+$ai_instructions = trim($data['ai_instructions'] ?? '');
+$level_definitions = null;
+if (is_array($data['level_definitions']) && count($data['level_definitions']) > 0) {
+    $level_definitions = json_encode(array_values($data['level_definitions']));
+}
 
 if (!$teacher_id || !$rubric_name || !$criteria) {
     http_response_code(400);
@@ -34,10 +39,17 @@ try {
     $conn->begin_transaction();
 
     $setStmt = $conn->prepare(
-        "INSERT INTO rubric_sets (teacher_id, rubric_name, criteria)
-         VALUES (?, ?, ?)"
+        "INSERT INTO rubric_sets (teacher_id, rubric_name, criteria, ai_instructions, level_definitions)
+         VALUES (?, ?, ?, ?, ?)"
     );
-    $setStmt->bind_param("sss", $teacher_id, $rubric_name, $criteria);
+    $setStmt->bind_param(
+        "sssss",
+        $teacher_id,
+        $rubric_name,
+        $criteria,
+        $ai_instructions,
+        $level_definitions
+    );
     $setStmt->execute();
     $rubricSetId = $conn->insert_id;
     $setStmt->close();

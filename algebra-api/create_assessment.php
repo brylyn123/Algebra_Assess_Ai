@@ -12,6 +12,10 @@ $subject_id = $data['subject_id'] ?? null;
 $title = trim($data['title'] ?? '');
 $topic = trim($data['topic'] ?? '');
 $description = trim($data['description'] ?? '');
+$difficulty = in_array($data['difficulty'] ?? '', ['Easy', 'Medium', 'Hard'], true)
+    ? $data['difficulty']
+    : 'Medium';
+$ideal_solution = trim($data['ideal_solution'] ?? '');
 $items = is_array($data['items']) ? $data['items'] : [];
 
 if (!$teacher_id || !$subject_id || !$title) {
@@ -42,10 +46,18 @@ try {
     $conn->begin_transaction();
 
     $problemStmt = $conn->prepare(
-        "INSERT INTO exercises_problem (subject_id, title, description, topic, date_created)
-         VALUES (?, ?, ?, ?, NOW())"
+        "INSERT INTO exercises_problem (subject_id, title, description, topic, difficulty, ideal_solution, date_created)
+         VALUES (?, ?, ?, ?, ?, ?, NOW())"
     );
-    $problemStmt->bind_param("isss", $subject_id, $title, $description, $topic);
+    $problemStmt->bind_param(
+        "isssss",
+        $subject_id,
+        $title,
+        $description,
+        $topic,
+        $difficulty,
+        $ideal_solution
+    );
     $problemStmt->execute();
     $excerciseId = $conn->insert_id;
     $problemStmt->close();

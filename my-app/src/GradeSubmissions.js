@@ -1,35 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-const fallbackSubmissions = [
-  {
-    id: 1,
-    student_name: 'Sarah Johnson',
-    student_id: 'STU001',
-    assessment_title: 'Linear Equations Quiz',
-    submission_date: 'Mar 6, 2026',
-    subject: 'Algebra I - Period 3',
-    status: 'Pending',
-  },
-  {
-    id: 2,
-    student_name: 'Michael Chen',
-    student_id: 'STU002',
-    assessment_title: 'Quadratic Functions Test',
-    submission_date: 'Mar 5, 2026',
-    subject: 'Algebra I - Period 3',
-    status: 'Pending',
-  },
-  {
-    id: 3,
-    student_name: 'Emma Davis',
-    student_id: 'STU003',
-    assessment_title: 'Linear Equations Quiz',
-    submission_date: 'Mar 4, 2026',
-    subject: 'Algebra II - Period 1',
-    status: 'Graded',
-  },
-];
-
 const statusStyle = {
   Pending: 'bg-amber-100 text-amber-700',
   Graded: 'bg-emerald-100 text-emerald-700',
@@ -37,9 +7,9 @@ const statusStyle = {
 };
 
 const GradeSubmissions = () => {
-  const [submissions, setSubmissions] = useState(fallbackSubmissions);
+  const [submissions, setSubmissions] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState('all');
-  const [selectedSubmission, setSelectedSubmission] = useState(fallbackSubmissions[0]);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [aiScore, setAiScore] = useState(null);
@@ -79,10 +49,16 @@ const GradeSubmissions = () => {
   }, []);
 
   const subjectOptions = useMemo(() => {
-    const uniqueSubjects = Array.from(new Set(submissions.map((submission) => submission.subject)));
+    const map = new Map();
+    submissions.forEach((submission) => {
+      const id = submission.subject_id ?? 'unassigned';
+      if (!map.has(id)) {
+        map.set(id, submission.subject_display || 'Unassigned Subject');
+      }
+    });
     return [
       { value: 'all', label: 'All Subjects' },
-      ...uniqueSubjects.map((subject) => ({ value: subject, label: subject })),
+      ...Array.from(map.entries()).map(([value, label]) => ({ value: String(value), label })),
     ];
   }, [submissions]);
 
@@ -91,7 +67,9 @@ const GradeSubmissions = () => {
       return submissions;
     }
 
-    return submissions.filter((submission) => submission.subject === selectedSubject);
+    return submissions.filter(
+      (submission) => String(submission.subject_id ?? 'unassigned') === selectedSubject
+    );
   }, [selectedSubject, submissions]);
 
   useEffect(() => {
@@ -117,7 +95,7 @@ const GradeSubmissions = () => {
     }, 900);
   };
 
-  const info = selectedSubmission || fallbackSubmissions[0];
+  const info = selectedSubmission;
 
   return (
     <div className="min-h-screen bg-slate-50 py-10">
@@ -174,30 +152,31 @@ const GradeSubmissions = () => {
                       type="button"
                       onClick={() => setSelectedSubmission(submission)}
                       className={`w-full text-left flex flex-col gap-2 rounded-2xl border p-4 shadow-sm transition ${
-                        isActive
-                          ? 'border-blue-300 bg-blue-50'
-                          : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/40'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{submission.student_name}</p>
-                          <p className="text-sm text-slate-500">{submission.assessment_title}</p>
-                        </div>
-                        <span
-                          className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                            statusStyle[submission.status] ?? 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {submission.status}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-500 flex flex-wrap gap-3">
-                        <span>Date: {submission.submission_date}</span>
-                        <span>Subject: {submission.subject}</span>
-                      </div>
-                    </button>
-                  );
+      isActive
+        ? 'border-blue-300 bg-blue-50'
+        : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/40'
+    }`}
+  >
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-semibold text-slate-900">{submission.student_name}</p>
+        <p className="text-sm text-slate-500">{submission.assessment_title}</p>
+      </div>
+      <span
+        className={`text-xs font-semibold px-3 py-1 rounded-full ${
+          statusStyle[submission.status] ?? 'bg-slate-100 text-slate-600'
+        }`}
+      >
+        {submission.status}
+      </span>
+    </div>
+    <div className="text-xs text-slate-500 flex flex-wrap gap-3">
+      <span>Date: {submission.submission_date}</span>
+      <span>Subject: {submission.subject_display}</span>
+      {submission.subject_meta && <span>{submission.subject_meta}</span>}
+    </div>
+  </button>
+);
                 })}
               </div>
             </div>
@@ -210,20 +189,31 @@ const GradeSubmissions = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm text-slate-700">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student</p>
-                    <p className="font-semibold text-slate-900">{info.student_name}</p>
-                    <p className="text-xs text-slate-500">Assessment: {info.assessment_title}</p>
+                    <p className="font-semibold text-slate-900">{info?.student_name ?? 'Select a submission'}</p>
+                    <p className="text-xs text-slate-500">Assessment: {info?.assessment_title ?? '—'}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student ID</p>
-                    <p className="font-semibold text-slate-900">{info.student_id}</p>
-                    <p className="text-xs text-slate-500">Submitted: {info.submission_date}</p>
+                    <p className="font-semibold text-slate-900">{info?.student_id ?? '—'}</p>
+                    <p className="text-xs text-slate-500">
+                      Submitted: {info?.submission_date ?? '—'}
+                    </p>
                   </div>
                 </div>
               </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800">
-                <p className="font-semibold">Select Grading Rubric</p>
-                <p>No rubrics found. Please create a rubric first in the Manage Assessments section.</p>
-              </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800">
+              <p className="font-semibold">Select Grading Rubric</p>
+              {selectedSubmission?.rubric_name ? (
+                <div>
+                  <p className="text-slate-900 font-semibold">{selectedSubmission.rubric_name}</p>
+                  {selectedSubmission.rubric_criteria && (
+                    <p className="text-xs text-slate-600 mt-1">{selectedSubmission.rubric_criteria}</p>
+                  )}
+                </div>
+              ) : (
+                <p>No rubrics assigned yet. Please create a rubric first in the Manage Assessments section.</p>
+              )}
+            </div>
             </div>
 
             <div className="space-y-4">

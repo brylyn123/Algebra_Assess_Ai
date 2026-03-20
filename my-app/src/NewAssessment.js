@@ -62,6 +62,8 @@ const QUESTION_TYPE_OPTIONS = [
 
 ];
 
+const DIFFICULTY_LEVELS = ['Easy', 'Medium', 'Hard'];
+
 
 
 const NewAssessment = () => {
@@ -82,6 +84,10 @@ const NewAssessment = () => {
 
     description: '',
 
+    difficulty: 'Medium',
+
+    idealSolution: '',
+
   });
 
   const [testItems, setTestItems] = useState([]);
@@ -101,6 +107,8 @@ const NewAssessment = () => {
     typeof window !== 'undefined' && !!window.MathfieldElement
 
   );
+
+  const [previewValue, setPreviewValue] = useState('');
 
   const itemInputRef = useRef(null);
 
@@ -151,6 +159,8 @@ const NewAssessment = () => {
       setMcCorrectAnswer('');
 
     }
+
+    setPreviewValue('');
 
   };
 
@@ -234,20 +244,39 @@ const NewAssessment = () => {
 
       setTimeout(() => {
 
-        if (input.setSelectionRange) {
+      if (input.setSelectionRange) {
 
-          input.setSelectionRange(caretPosition, caretPosition);
+        input.setSelectionRange(caretPosition, caretPosition);
 
-        }
+      }
 
-        input.focus();
+      input.focus();
 
-      }, 0);
+    }, 0);
 
-      return nextValue;
+    return nextValue;
 
-    });
+  });
 
+};
+
+  const handlePreview = () => {
+    let previewText = '';
+    if (questionType === 'handwritten_algebra') {
+      const mathValue = mathfieldRef.current?.getValue?.() ?? '';
+      if (!mathValue.trim()) {
+        alert('Enter an equation before previewing.');
+        return;
+      }
+      previewText = mathValue;
+    } else {
+      if (!itemEntry.trim()) {
+        alert('Add a question description before previewing.');
+        return;
+      }
+      previewText = itemEntry.trim();
+    }
+    setPreviewValue(previewText);
   };
 
 
@@ -467,6 +496,8 @@ const NewAssessment = () => {
 
     }
 
+    setPreviewValue('');
+
 
   };
 
@@ -514,6 +545,10 @@ const NewAssessment = () => {
 
         description: newAssessment.description,
 
+        difficulty: newAssessment.difficulty,
+
+        ideal_solution: newAssessment.idealSolution,
+
         items: testItems.map((item, index) => ({
 
           item_no: index + 1,
@@ -540,7 +575,21 @@ const NewAssessment = () => {
 
       alert('Assessment created successfully!');
 
-      setNewAssessment({ title: '', subjectId: '', topic: '', description: '' });
+      setNewAssessment({
+
+        title: '',
+
+        subjectId: '',
+
+        topic: '',
+
+        description: '',
+
+        difficulty: 'Medium',
+
+        idealSolution: '',
+
+      });
 
       setTestItems([]);
 
@@ -551,6 +600,8 @@ const NewAssessment = () => {
         mathfieldRef.current.setValue('');
 
       }
+
+      setPreviewValue('');
 
       navigate('/teacher/assessments');
 
@@ -576,7 +627,7 @@ const NewAssessment = () => {
 
           onClick={() => navigate('/teacher/assessments')}
 
-          className="text-sm font-semibold text-blue-600 hover:underline"
+          className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-lg transition hover:bg-blue-700"
 
         >
 
@@ -678,25 +729,83 @@ const NewAssessment = () => {
 
             <div>
 
-              <label className="block text-sm font-medium text-slate-600 mb-1">Description</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Difficulty Level</label>
 
-              <textarea
+              <select
 
-                name="description"
+                name="difficulty"
 
-                value={newAssessment.description}
+                value={newAssessment.difficulty}
 
                 onChange={handleAssessmentChange}
 
-                placeholder="Provide a short description for this assessment."
-
-                rows={3}
-
                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
 
-              />
+              >
+
+                {DIFFICULTY_LEVELS.map((level) => (
+
+                  <option key={level} value={level}>
+
+                    {level}
+
+                  </option>
+
+                ))}
+
+              </select>
+
+              <p className="text-xs text-slate-400 mt-1">
+
+                Difficulty tags help your AI analytics highlight questions that were easy, medium, or hard.
+
+              </p>
 
             </div>
+
+          </div>
+
+          <div>
+
+            <label className="block text-sm font-medium text-slate-600 mb-1">Description</label>
+
+            <textarea
+
+              name="description"
+
+              value={newAssessment.description}
+
+              onChange={handleAssessmentChange}
+
+              placeholder="Provide a short description for this assessment."
+
+              rows={3}
+
+              className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+
+            />
+
+          </div>
+
+          <div>
+
+            <label className="block text-sm font-medium text-slate-600 mb-1">Correct Answer / Ideal Solution</label>
+
+            <textarea
+
+              name="idealSolution"
+
+              value={newAssessment.idealSolution}
+
+              onChange={handleAssessmentChange}
+
+              placeholder="Provide the answer or method the AI should use as a reference."
+
+              rows={3}
+
+              className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+
+            />
 
           </div>
 
@@ -953,6 +1062,78 @@ const NewAssessment = () => {
               </div>
 
             )}
+
+          </div>
+
+          <div className="space-y-3 pt-2">
+
+            <div className="flex items-center justify-between">
+
+              <p className="text-sm font-semibold text-slate-700">Preview</p>
+
+              <button
+
+                type="button"
+
+                onClick={handlePreview}
+
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-800 transition"
+
+              >
+
+                Preview
+
+              </button>
+
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+
+              {previewValue ? (
+
+                questionType === 'handwritten_algebra' ? (
+
+                  mathLiveReady ? (
+
+                    <math-field
+
+                      value={previewValue}
+
+                      read-only
+
+                      className="w-full text-lg"
+
+                      virtual-keyboard-mode="manual"
+
+                      smart-mode="auto"
+
+                      style={{ minHeight: '3rem' }}
+
+                    />
+
+                  ) : (
+
+                    <p className="text-xs text-slate-500">Math editor is still loading. Preview will appear once ready.</p>
+
+                  )
+
+                ) : (
+
+                  <p className="text-slate-900">{previewValue}</p>
+
+                )
+
+              ) : (
+
+                <p className="text-xs text-slate-400">
+
+                  Tap Preview to see how this question will look for students.
+
+                </p>
+
+              )}
+
+            </div>
 
           </div>
 

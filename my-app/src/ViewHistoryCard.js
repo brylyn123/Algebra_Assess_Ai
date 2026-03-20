@@ -1,0 +1,139 @@
+﻿import React from 'react';
+import { useTeacherRecords } from './hooks/useTeacherRecords';
+
+const ViewHistoryCard = ({ maxHeight = '260px' }) => {
+    const { assessments, rubrics, loading, statusMessage, deleteAssessment, deleteRubric } = useTeacherRecords();
+
+    const formatDate = (value) => {
+        if (!value) return '—';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+            return value;
+        }
+        return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    };
+
+    const handleDeleteAssessment = async (exerciseId) => {
+        if (!window.confirm('Delete this assessment? This cannot be undone.')) {
+            return;
+        }
+        await deleteAssessment(exerciseId);
+    };
+
+    const handleDeleteRubric = async (rubricSetId) => {
+        if (!window.confirm('Delete this rubric? This cannot be undone.')) {
+            return;
+        }
+        await deleteRubric(rubricSetId);
+    };
+
+    const renderStatusBadge = (value) => {
+        const normalized = (value || 'Draft').toLowerCase();
+        const base = 'px-2 py-1 rounded-full text-[10px] uppercase tracking-[0.3em] font-semibold';
+        if (normalized === 'graded') {
+            return `${base} bg-blue-50 text-blue-700`;
+        }
+        if (normalized === 'pending') {
+            return `${base} bg-blue-100 text-blue-800`;
+        }
+        return `${base} bg-blue-50 text-blue-700`;
+    };
+
+    return (
+        <section className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-xs uppercase tracking-[0.4em] text-slate-400">History</p>
+                    <h2 className="text-2xl font-semibold text-slate-900">All created assessments & rubrics</h2>
+                </div>
+                {loading && (
+                    <span className="text-xs font-semibold uppercase tracking-[0.4em] text-blue-600">
+                        Loading...
+                    </span>
+                )}
+            </div>
+            {statusMessage && !loading ? (
+                <p className="mt-4 text-sm text-rose-600">{statusMessage}</p>
+            ) : (
+                <div
+                    className="mt-4 space-y-4 overflow-y-auto pr-1"
+                    style={{ maxHeight }}
+                >
+                    <div className="space-y-2">
+                        <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Assessments</p>
+                        <div className="space-y-2">
+                            {assessments.length === 0 ? (
+                                <p className="text-xs text-slate-400">No assessments recorded yet.</p>
+                            ) : (
+                                assessments.map((item) => (
+                                    <div
+                                        key={item.exercise_id}
+                                        className="space-y-2 rounded-2xl border border-slate-200 bg-white/90 p-3"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-semibold text-slate-900">{item.title}</p>
+                                                <p className="text-xs text-slate-500">{item.subject || '—'}</p>
+                                            </div>
+                                            <span className={renderStatusBadge(item.assessment_status)}>
+                                                {item.assessment_status || 'Draft'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                                            <span>Topic: {item.topic || '—'}</span>
+                                            <span>{formatDate(item.date_created)}</span>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <button
+                                                className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white shadow-sm transition hover:bg-blue-700"
+                                                onClick={() => handleDeleteAssessment(item.exercise_id)}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Rubrics</p>
+                        <div className="space-y-2">
+                            {rubrics.length === 0 ? (
+                                <p className="text-xs text-slate-400">No rubrics stored yet.</p>
+                            ) : (
+                                rubrics.map((rubric) => (
+                                    <div
+                                        key={rubric.rubric_set_id}
+                                        className="space-y-2 rounded-2xl border border-slate-200 bg-white/90 p-3"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-semibold text-slate-900">{rubric.rubric_name}</p>
+                                                <p className="text-[11px] text-slate-500">{formatDate(rubric.created_at)}</p>
+                                            </div>
+                                            <span className="text-[10px] uppercase tracking-[0.4em] text-slate-500">
+                                                Criteria
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500">{rubric.criteria}</p>
+                                        <div className="flex justify-end">
+                                            <button
+                                                className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white shadow-sm transition hover:bg-blue-700"
+                                                onClick={() => handleDeleteRubric(rubric.rubric_set_id)}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+};
+
+export default ViewHistoryCard;

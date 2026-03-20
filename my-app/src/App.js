@@ -12,6 +12,7 @@ import ManageSubjects from './ManageSubjects';
 import ManageAssessments from './ManageAssessments';
 import NewAssessment from './NewAssessment';
 import NewRubric from './NewRubric';
+import ViewAssessmentsPage from './ViewAssessmentsPage';
 import StudentDashboard, { StudentOverview } from './StudentDashboard';
 import StudentReports from './StudentReports';
 import StudentProfile from './StudentProfile';
@@ -41,6 +42,7 @@ function AnimatedRoutes() {
           <Route index element={withTransition(<TeacherOverview />)} />
           <Route path="assessments">
             <Route index element={withTransition(<ManageAssessments />)} />
+            <Route path="view" element={withTransition(<ViewAssessmentsPage />)} />
             <Route path="new" element={withTransition(<NewAssessment />)} />
             <Route path="new-rubric" element={withTransition(<NewRubric />)} />
           </Route>
