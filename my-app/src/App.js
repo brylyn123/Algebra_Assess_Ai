@@ -13,12 +13,15 @@ import ManageAssessments from './ManageAssessments';
 import NewAssessment from './NewAssessment';
 import NewRubric from './NewRubric';
 import ViewAssessmentsPage from './ViewAssessmentsPage';
+import TeacherProfile from './TeacherProfile';
+import TeacherSettings from './TeacherSettings';
 import StudentDashboard, { StudentOverview } from './StudentDashboard';
 import StudentReports from './StudentReports';
 import StudentProfile from './StudentProfile';
 import SubmitAssessment from './SubmitAssessment';
 import GradeSubmissions from './GradeSubmissions';
 import SubjectDetails from './SubjectDetails';
+import 'mathlive';
 
 const TeacherDashboard = Dashboard;
 const TeacherOverview = DashboardHome;
@@ -37,6 +40,8 @@ function AnimatedRoutes() {
           <Route index element={withTransition(<DashboardHome />)} />
           <Route path="subjects" element={withTransition(<ManageSubjects />)} />
           <Route path="subjects/:id" element={<SubjectDetails />} />
+          <Route path="profile" element={withTransition(<TeacherProfile />)} />
+          <Route path="settings" element={withTransition(<TeacherSettings />)} />
         </Route>
         <Route path="/teacher" element={withTransition(<TeacherDashboard />)}>
           <Route index element={withTransition(<TeacherOverview />)} />
@@ -59,8 +64,8 @@ function AnimatedRoutes() {
               <PlaceholderContent title="View Reports" description="Analyze student and class performance." />
             )}
           />
-          <Route path="profile" element={withTransition(<PlaceholderContent title="Profile" description="Manage your account details." />)} />
-          <Route path="settings" element={withTransition(<PlaceholderContent title="Settings" description="Configure your application settings." />)} />
+          <Route path="profile" element={withTransition(<TeacherProfile />)} />
+          <Route path="settings" element={withTransition(<TeacherSettings />)} />
         </Route>
         <Route path="/student" element={withTransition(<StudentDashboard />)}>
           <Route index element={withTransition(<StudentOverview />)} />
@@ -75,7 +80,7 @@ function AnimatedRoutes() {
 
 function App() {
   return (
-    <Router>
+    <Router future={{ v7_relativeSplatPath: true }}>
       <AnimatedRoutes />
     </Router>
   );

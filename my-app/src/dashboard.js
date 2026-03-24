@@ -138,22 +138,31 @@ const Dashboard = () => {
               <div className="pt-6 border-t border-slate-100">
                 <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-4 ml-2">Account Settings</p>
                 <div className="space-y-1">
-                  <button
-                    onClick={() => navigate('/dashboard/profile')}
-                    className={`flex items-center gap-3 w-full rounded-xl px-4 py-3 text-sm font-bold transition ${
-                      location.pathname === '/dashboard/profile' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>👤</span> Profile
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard/settings')}
-                    className={`flex items-center gap-3 w-full rounded-xl px-4 py-3 text-sm font-bold transition ${
-                      location.pathname === '/dashboard/settings' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>⚙️</span> Settings
-                  </button>
+                  {(() => {
+                    const isTeacherZone = location.pathname.startsWith('/teacher');
+                    const profilePath = isTeacherZone ? '/teacher/profile' : '/dashboard/profile';
+                    const settingsPath = isTeacherZone ? '/teacher/settings' : '/dashboard/settings';
+                    return (
+                      <>
+                        <button
+                          onClick={() => navigate(profilePath)}
+                          className={`flex items-center gap-3 w-full rounded-xl px-4 py-3 text-sm font-bold transition ${
+                            location.pathname === profilePath ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>👤</span> Profile
+                        </button>
+                        <button
+                          onClick={() => navigate(settingsPath)}
+                          className={`flex items-center gap-3 w-full rounded-xl px-4 py-3 text-sm font-bold transition ${
+                            location.pathname === settingsPath ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>⚙️</span> Settings
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

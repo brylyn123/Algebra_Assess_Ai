@@ -8,7 +8,7 @@ const Login = () => {
     const [message, setMessage] = useState('');
     const [toast, setToast] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [successModal, setSuccessModal] = useState(null);
+    const [resultBanner, setResultBanner] = useState(null);
     const toastTimer = useRef(null);
 
     useEffect(() => () => clearTimeout(toastTimer.current), []);
@@ -21,10 +21,6 @@ const Login = () => {
         if (toastTimer.current) clearTimeout(toastTimer.current);
         setToast({ text, type });
         toastTimer.current = setTimeout(() => setToast(null), 3200);
-    };
-
-    const handleSuccess = (role) => {
-        setSuccessModal({ message: 'Login successful!', role });
     };
 
     const navigateByRole = (role = 'teacher') => {
@@ -43,18 +39,18 @@ const Login = () => {
 
         if (saved.password === formData.password) {
             showToast('Login successful (offline mode)', 'success');
-            setSuccessModal({ message: 'Login successful', role: saved.role });
+            displayResultBanner('Login successful (offline mode)', 'success');
             setCurrentLocalUserEmail(saved.email);
+            navigateByRole(saved.role);
             return true;
         }
 
         return false;
     };
 
-    const handleContinue = () => {
-        if (!successModal) return;
-        navigateByRole(successModal.role);
-        setSuccessModal(null);
+    const displayResultBanner = (text, type = 'success') => {
+        setResultBanner({ text, type });
+        setTimeout(() => setResultBanner(null), 3200);
     };
 
     const handleSubmit = async (e) => {
@@ -72,41 +68,36 @@ const Login = () => {
             const result = await response.json();
 
             if (result.status === 'success') {
-            const userData = result.user;
-
-            // DEBUG: Let's see exactly what the server sent back
-            console.log("User Data from Server:", userData);
-
-            // Try to find the ID. It might be userData.id or userData.teacher_id
-            const idToStore = userData.teacher_id || userData.user_id;
-
-            if (idToStore) {
-                localStorage.setItem('teacher_id', idToStore);
-                console.log("Success! Saved ID:", idToStore);
-            } else {
-                console.error("Could not find teacher_id in the server response:", userData);
-            }
+                const userData = result.user;
+                console.log("User Data from Server:", userData);
+                const idToStore = userData.teacher_id || userData.user_id;
+                if (idToStore) {
+                    localStorage.setItem('teacher_id', idToStore);
+                    console.log("Success! Saved ID:", idToStore);
+                } else {
+                    console.error("Could not find teacher_id in the server response:", userData);
+                }
                 storeLocalUser({
-                 ...userData,
-                password: formData.password
-        });
-                 setCurrentLocalUserEmail(userData.email);
+                    ...userData,
+                    password: formData.password,
+                });
+                setCurrentLocalUserEmail(userData.email);
+                displayResultBanner('Login successful!', 'success');
+                navigateByRole(userData.role);
+                return;
+            }
 
-                // 3. MANDATORY: Trigger the modal and navigation
-                showToast('Login successful!', 'success');
-                handleSuccess(userData.role); 
-    
-        } else {
             if (!attemptLocalLogin()) {
                 setMessage(result.message || 'Invalid credentials.');
                 showToast(result.message || 'Invalid credentials.', 'error');
-                }
+                displayResultBanner(result.message || 'Invalid credentials.', 'error');
             }
         } catch (error) {
             console.error('Login error:', error);
             if (!attemptLocalLogin()) {
-                setMessage('Error connecting to the server.');
-                showToast('Error connecting to the server.', 'error');
+                    setMessage('Error connecting to the server.');
+                    showToast('Error connecting to the server.', 'error');
+                    displayResultBanner('Error connecting to the server.', 'error');
             }
         } finally {
             setLoading(false);
@@ -115,20 +106,6 @@ const Login = () => {
 
     return (
         <>
-            {successModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
-                    <div className="w-full max-w-sm bg-white rounded-[2rem] p-7 shadow-[0_25px_60px_rgba(15,23,42,0.45)] text-center space-y-4">
-                        <p className="text-slate-900 text-xl font-semibold">{successModal.message}</p>
-                        <p className="text-slate-500 text-sm">Thanks for returning to AlgebraAssess.</p>
-                        <button
-                            onClick={handleContinue}
-                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-2xl shadow-xl shadow-blue-200 hover:bg-blue-700 transition duration-200"
-                        >
-                            Continue
-                        </button>
-                    </div>
-                </div>
-            )}
             <div
             className="min-h-screen bg-slate-50 flex flex-col"
             style={{
@@ -226,6 +203,24 @@ const Login = () => {
                     </div>
                 </div>
             </main>
+            {loading && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                    <div className="flex items-center gap-3 rounded-2xl bg-white px-6 py-4 shadow-lg">
+                        <svg className="h-10 w-10 animate-spin text-blue-600" viewBox="0 0 24 24">
+                            <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
+                            <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4z" />
+                        </svg>
+                        <div className="text-sm font-semibold text-slate-700">Checking credentials…</div>
+                    </div>
+                </div>
+            )}
+            {resultBanner && (
+                <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+                    <div className={`w-full max-w-xs rounded-2xl border px-5 py-3 text-center text-sm font-semibold ${resultBanner.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800 shadow-lg shadow-emerald-200/70' : 'bg-rose-50 border-rose-200 text-rose-700 shadow-lg shadow-rose-200/70'}`}>
+                        {resultBanner.text}
+                    </div>
+                </div>
+            )}
         </div>
     </>
     );

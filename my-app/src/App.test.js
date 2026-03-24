@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders AlgebraAssess hero', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  const heroTitle = screen.getByText(/Intelligent Grading for/i);
+  expect(heroTitle).toBeInTheDocument();
 });

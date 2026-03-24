@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import axios from '../axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from '../localAuthStore';
 
 const baseUrl = 'http://localhost/Algebra_Assess_Ai/algebra-api';
@@ -32,20 +32,20 @@ export const useTeacherRecords = () => {
         }
 
         let isMounted = true;
-        const cancelToken = axios.CancelToken.source();
+        const controller = new AbortController();
 
         const fetchData = async () => {
             setLoading(true);
             setStatusMessage('');
             try {
                 const [assessmentRes, rubricRes] = await Promise.all([
-                    axios.get(`${baseUrl}/get_assessments.php`, {
+                axios.get(`${baseUrl}/get_assessments.php`, {
                         params: { teacher_id: teacherId },
-                        cancelToken: cancelToken.token,
+                        signal: controller.signal,
                     }),
                     axios.get(`${baseUrl}/get_rubric_sets.php`, {
                         params: { teacher_id: teacherId },
-                        cancelToken: cancelToken.token,
+                        signal: controller.signal,
                     }),
                 ]);
 
@@ -58,10 +58,11 @@ export const useTeacherRecords = () => {
                     setRubrics(rubricRes.data.rubrics || []);
                 }
             } catch (error) {
-                if (!axios.isCancel(error) && isMounted) {
-                    console.error('Failed to load assessments or rubrics:', error);
-                    setStatusMessage(error.message || 'Failed to load assessments and rubrics.');
+                if ((axios.isCancel?.(error) || error.name === 'CanceledError') || !isMounted) {
+                    return;
                 }
+                console.error('Failed to load assessments or rubrics:', error);
+                setStatusMessage(error.message || 'Failed to load assessments and rubrics.');
             } finally {
                 if (isMounted) {
                     setLoading(false);
@@ -73,7 +74,7 @@ export const useTeacherRecords = () => {
 
         return () => {
             isMounted = false;
-            cancelToken.cancel('Component unmounted');
+            controller.abort();
         };
     }, [teacherId, refreshIndex]);
 

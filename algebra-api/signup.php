@@ -57,15 +57,15 @@ try {
     if ($role === 'teacher') {
         $collegeId = null;
         if ($college !== '') {
-            $lookupCollege = $conn->prepare("SELECT college_id FROM College WHERE college_name = ?");
+        $lookupCollege = $conn->prepare("SELECT college_id FROM Colleges WHERE college_name = ?");
             $lookupCollege->bind_param("s", $college);
             $lookupCollege->execute();
             $collegeResult = $lookupCollege->get_result();
             if ($row = $collegeResult->fetch_assoc()) {
                 $collegeId = (int)$row['college_id'];
             } else {
-                $newCollegeId = $conn->query("SELECT COALESCE(MAX(college_id), 0) + 1 AS next_id FROM College")->fetch_assoc()['next_id'] ?? 1;
-                $insertCollege = $conn->prepare("INSERT INTO College (college_id, college_name) VALUES (?, ?)");
+                $newCollegeId = $conn->query("SELECT COALESCE(MAX(college_id), 0) + 1 AS next_id FROM Colleges")->fetch_assoc()['next_id'] ?? 1;
+                $insertCollege = $conn->prepare("INSERT INTO Colleges (college_id, college_name) VALUES (?, ?)");
                 $insertCollege->bind_param("is", $newCollegeId, $college);
                 $insertCollege->execute();
                 $insertCollege->close();
@@ -73,11 +73,11 @@ try {
             }
             $lookupCollege->close();
         }
-        $stmtProf = $conn->prepare("INSERT INTO teacher (user_id, teacher_id, first_name, middle_name, last_name, college_id) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmtProf->bind_param("issssi", $newUserId, $idNumber, $firstName, $middleName, $lastName, $collegeId);
+        $stmtProf = $conn->prepare("INSERT INTO Teacher (user_id, teacher_id, first_name, middle_name, last_name, email, college_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmtProf->bind_param("isssssi", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email, $collegeId);
     } else {
-        $stmtProf = $conn->prepare("INSERT INTO student (user_id, student_id, first_name, middle_name, last_name) VALUES (?, ?, ?, ?, ?)");
-        $stmtProf->bind_param("issss", $newUserId, $idNumber, $firstName, $middleName, $lastName);
+        $stmtProf = $conn->prepare("INSERT INTO Student (user_id, student_id, first_name, middle_name, last_name, email) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmtProf->bind_param("isssss", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email);
     }
 $stmtProf->execute();
 

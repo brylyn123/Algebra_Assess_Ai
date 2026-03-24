@@ -5,7 +5,7 @@ const shakeVariants = {
     idle: { x: 0 },
     error: {
         x: [0, -6, 6, -4, 4, 0],
-        transition: { duration: 0.45, ease: 'easeOut' },
+        transition: { duration: 0.45, ease: 'easeOut' },    
     },
 };
 
@@ -22,7 +22,6 @@ const Signup = () => {
         yearLevel: '',   // Student only
         email: '',
         password: '',
-        enrollmentCode: ''
     });
 
     const [message, setMessage] = useState('');
@@ -52,12 +51,11 @@ const Signup = () => {
         setRole(newRole);
         // When switching to teacher, clear student-specific fields to prevent validation issues
         if (newRole === 'teacher') {
-            setFormData(prev => ({
-                ...prev,
-                sectionName: '',
-                yearLevel: '',
-                enrollmentCode: ''
-            }));
+        setFormData(prev => ({
+            ...prev,
+            sectionName: '',
+            yearLevel: '',
+        }));
         }
     };
 
@@ -77,7 +75,6 @@ const Signup = () => {
             collegeName: role === 'teacher' ? formData.collegeName : '',
             sectionName: formData.sectionName,
             yearLevel: formData.yearLevel,
-            enrollmentCode: formData.enrollmentCode,
         };
 
         try {
@@ -280,20 +277,6 @@ const Signup = () => {
                             )}
                         </AnimatePresence>
 
-                        {role === 'student' && (
-                            <div>
-                                <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">Enrollment Code</label>
-                                <input
-                                    name="enrollmentCode"
-                                    value={formData.enrollmentCode}
-                                    required
-                                    onChange={handleChange}
-                                    placeholder="Ask your teacher for the code"
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                />
-                                <p className="text-xs text-slate-400 mt-1">You need this code to enroll in the correct subject.</p>
-                            </div>
-                        )}
 
                         {/* Email and Password */}
                         <div>

@@ -7,109 +7,90 @@ include 'db_connect.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$teacher_id = $data['teacher_id'] ?? null;
-$subject_id = $data['subject_id'] ?? null;
+$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
 $title = trim($data['title'] ?? '');
-$topic = trim($data['topic'] ?? '');
 $description = trim($data['description'] ?? '');
-$difficulty = in_array($data['difficulty'] ?? '', ['Easy', 'Medium', 'Hard'], true)
-    ? $data['difficulty']
-    : 'Medium';
-$ideal_solution = trim($data['ideal_solution'] ?? '');
+$topic = trim($data['topic'] ?? '');
 $items = is_array($data['items']) ? $data['items'] : [];
+$startedTransaction = false;
 
-if (!$teacher_id || !$subject_id || !$title) {
-    echo json_encode(["status" => "error", "message" => "Missing required fields for assessment creation."]);
+if (!$subject_id || $title === '') {
+    echo json_encode(["status" => "error", "message" => "Assessment needs a subject and a title."]);
     exit;
 }
 
 if (count($items) === 0) {
-    echo json_encode(["status" => "error", "message" => "At least one assessment item is required."]);
+    echo json_encode(["status" => "error", "message" => "Provide at least one item for the assessment."]);
     exit;
 }
 
 try {
-    // ensure the subject belongs to teacher
-    $checkStmt = $conn->prepare("SELECT teacher_id FROM subject WHERE subject_id = ? LIMIT 1");
-    $checkStmt->bind_param("i", $subject_id);
-    $checkStmt->execute();
-    $result = $checkStmt->get_result();
-    if (!$result || $result->num_rows === 0) {
+    $subjectStmt = $conn->prepare(
+        "SELECT subject_id, teacher_id FROM subject WHERE subject_id = ? LIMIT 1"
+    );
+    $subjectStmt->bind_param("i", $subject_id);
+    $subjectStmt->execute();
+    $subjectResult = $subjectStmt->get_result();
+    $subjectRow = $subjectResult ? $subjectResult->fetch_assoc() : null;
+    $subjectStmt->close();
+
+    if (!$subjectRow) {
         throw new Exception("Subject not found.");
     }
-    $row = $result->fetch_assoc();
-    $checkStmt->close();
-    if ((int)$row['teacher_id'] !== (int)$teacher_id) {
-        throw new Exception("Subject does not belong to this teacher.");
+
+    if ($teacher_id && (int)$subjectRow['teacher_id'] !== $teacher_id) {
+        throw new Exception("Teacher is not assigned to this subject.");
     }
+
 
     $conn->begin_transaction();
+    $startedTransaction = true;
 
-    $problemStmt = $conn->prepare(
-        "INSERT INTO exercises_problem (subject_id, title, description, topic, difficulty, ideal_solution, date_created)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())"
+    $exerciseStmt = $conn->prepare(
+        "INSERT INTO exercises_problem (subject_id, title, description, topic) VALUES (?, ?, ?, ?)"
     );
-    $problemStmt->bind_param(
-        "isssss",
-        $subject_id,
-        $title,
-        $description,
-        $topic,
-        $difficulty,
-        $ideal_solution
-    );
-    $problemStmt->execute();
-    $excerciseId = $conn->insert_id;
-    $problemStmt->close();
+    $exerciseStmt->bind_param("isss", $subject_id, $title, $description, $topic);
+    $exerciseStmt->execute();
+    $exerciseId = $conn->insert_id;
+    $exerciseStmt->close();
 
     $itemStmt = $conn->prepare(
-        "INSERT INTO exercises_items (exercise_id, item_no, score_per_item, max_score_per_item, question_type, question_content, options, correct_answer)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO exercise_items (exercise_id, item_no, question_content, correct_answer, model_solution, max_score)
+         VALUES (?, ?, ?, ?, ?, ?)"
     );
-    $rubricStmt = $conn->prepare(
-        "INSERT INTO rubrics (item_id, criteria_name, points, description)
-         VALUES (?, ?, ?, ?)"
-    );
+
     foreach ($items as $item) {
-        $itemNo = $item['item_no'] ?? 0;
-        $scorePerItem = $item['score_per_item'] ?? 0;
-        $maxScore = $item['max_score_per_item'] ?? 0;
-        $questionType = $item['question_type'] ?? 'handwritten_algebra';
-        $content = $item['question_content'] ?? '';
-        $option = $item['options'] ?? '';
-        $correctAnswer = $item['correct_answer'] ?? '';
+        $itemNo = isset($item['item_no']) ? intval($item['item_no']) : 1;
+        $content = trim($item['question_content'] ?? '');
+        $correctAnswer = trim($item['correct_answer'] ?? '');
+        $modelSolution = trim($item['model_solution'] ?? '');
+        $maxScore = isset($item['max_score']) ? (float)$item['max_score'] : 1.0;
+
+        if ($content === '') {
+            throw new Exception('Each item must include question_content.');
+        }
+
         $itemStmt->bind_param(
-            "iiddssss",
-            $excerciseId,
+            "iisssd",
+            $exerciseId,
             $itemNo,
-            $scorePerItem,
-            $maxScore,
-            $questionType,
             $content,
-            $option,
-            $correctAnswer
+            $correctAnswer === '' ? null : $correctAnswer,
+            $modelSolution === '' ? null : $modelSolution,
+            $maxScore
         );
         $itemStmt->execute();
-        $itemId = $conn->insert_id;
-        $rubrics = is_array($item['rubrics'] ?? []) ? $item['rubrics'] : [];
-        foreach ($rubrics as $rubric) {
-            $criteria = trim($rubric['criteria_name'] ?? '');
-            if ($criteria === '') {
-                continue;
-            }
-            $points = floatval($rubric['points'] ?? 0);
-            $description = trim($rubric['description'] ?? '');
-            $rubricStmt->bind_param("isds", $itemId, $criteria, $points, $description);
-            $rubricStmt->execute();
-        }
     }
     $itemStmt->close();
-    $rubricStmt->close();
 
     $conn->commit();
-    echo json_encode(["status" => "success", "message" => "Assessment created.", "exercise_id" => $excerciseId]);
+
+    echo json_encode(["status" => "success", "message" => "Assessment saved.", "exercise_id" => $exerciseId]);
 } catch (Exception $e) {
-    $conn->rollback();
+    if ($startedTransaction || $conn->in_transaction) {
+        $conn->rollback();
+    }
     echo json_encode(["status" => "error", "message" => $e->getMessage()]);
 }
 

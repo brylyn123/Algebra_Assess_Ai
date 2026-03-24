@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 
 import { useNavigate } from 'react-router-dom';
 
-import axios from 'axios';
+import axios from './axiosClient';
 
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 
@@ -64,51 +64,130 @@ const QUESTION_TYPE_OPTIONS = [
 
 const DIFFICULTY_LEVELS = ['Easy', 'Medium', 'Hard'];
 
+const initialState = {
+  teacherId: null,
+  subjects: [],
+  newAssessment: {
+    title: '',
+    subjectId: '',
+    topic: '',
+    description: '',
+    difficulty: 'Medium',
+    idealSolution: '',
+  },
+  testItems: [],
+  itemEntry: '',
+  questionType: 'handwritten_algebra',
+  mcOptions: [],
+  mcOptionEntry: '',
+  mcCorrectAnswer: '',
+  equationCorrectAnswer: '',
+  mathLiveReady: typeof window !== 'undefined' && !!window.MathfieldElement,
+  previewValue: '',
+};
 
+function reducer(state, action) {
+  switch (action.type) {
+    case 'SET_TEACHER_ID':
+      return { ...state, teacherId: action.payload };
+    case 'SET_SUBJECTS':
+      return { ...state, subjects: action.payload };
+    case 'UPDATE_ASSESSMENT_FIELD':
+      return {
+        ...state,
+        newAssessment: { ...state.newAssessment, [action.field]: action.value },
+      };
+    case 'RESET_ASSESSMENT_FORM':
+      return {
+        ...state,
+        newAssessment: initialState.newAssessment,
+        testItems: [],
+        itemEntry: '',
+        previewValue: '',
+        mcOptions: [],
+        mcCorrectAnswer: '',
+        equationCorrectAnswer: '',
+      };
+    case 'SET_ITEM_ENTRY':
+      return { ...state, itemEntry: action.payload };
+    case 'SET_QUESTION_TYPE':
+      return {
+        ...state,
+        questionType: action.payload,
+        mcOptions: [],
+        mcCorrectAnswer: '',
+        equationCorrectAnswer: '',
+        previewValue: '',
+      };
+    case 'ADD_MC_OPTION':
+      return {
+        ...state,
+        mcOptions: [...state.mcOptions, action.payload],
+        mcOptionEntry: '',
+        mcCorrectAnswer: action.payload,
+      };
+    case 'REMOVE_MC_OPTION':
+      const optionToRemove = state.mcOptions[action.payload];
+      return {
+        ...state,
+        mcOptions: state.mcOptions.filter((_, i) => i !== action.payload),
+        mcCorrectAnswer: state.mcCorrectAnswer === optionToRemove ? '' : state.mcCorrectAnswer,
+      };
+    case 'SET_MC_OPTION_ENTRY':
+      return { ...state, mcOptionEntry: action.payload };
+    case 'SET_MC_CORRECT_ANSWER':
+      return { ...state, mcCorrectAnswer: action.payload };
+    case 'RESET_MC_OPTIONS':
+      return { ...state, mcOptions: [], mcCorrectAnswer: '' };
+    case 'SET_EQUATION_CORRECT_ANSWER':
+      return { ...state, equationCorrectAnswer: action.payload };
+    case 'SET_MATHLIVE_READY':
+      return { ...state, mathLiveReady: action.payload };
+    case 'SET_PREVIEW_VALUE':
+      return { ...state, previewValue: action.payload };
+    case 'ADD_TEST_ITEM':
+      return {
+        ...state,
+        testItems: [...state.testItems, action.payload],
+        itemEntry: '',
+        mcOptionEntry: '',
+        mcCorrectAnswer: '',
+        mcOptions: [],
+        equationCorrectAnswer: '',
+        previewValue: '',
+      };
+    case 'REMOVE_TEST_ITEM':
+      return {
+        ...state,
+        testItems: state.testItems.filter((_, i) => i !== action.payload),
+      };
+    default:
+      return state;
+  }
+}
 
 const NewAssessment = () => {
 
   const navigate = useNavigate();
 
-  const [teacherId, setTeacherId] = useState(null);
+  const [mathExpression, setMathExpression] = useState('');
+  const [showSymbolPanel, setShowSymbolPanel] = useState(false);
 
-  const [subjects, setSubjects] = useState([]);
-
-  const [newAssessment, setNewAssessment] = useState({
-
-    title: '',
-
-    subjectId: '',
-
-    topic: '',
-
-    description: '',
-
-    difficulty: 'Medium',
-
-    idealSolution: '',
-
-  });
-
-  const [testItems, setTestItems] = useState([]);
-
-  const [itemEntry, setItemEntry] = useState('');
-
-  const [questionType, setQuestionType] = useState('handwritten_algebra');
-
-  const [mcOptions, setMcOptions] = useState([]);
-
-  const [mcOptionEntry, setMcOptionEntry] = useState('');
-
-  const [mcCorrectAnswer, setMcCorrectAnswer] = useState('');
-
-  const [mathLiveReady, setMathLiveReady] = useState(
-
-    typeof window !== 'undefined' && !!window.MathfieldElement
-
-  );
-
-  const [previewValue, setPreviewValue] = useState('');
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const {
+    teacherId,
+    subjects,
+    newAssessment,
+    testItems,
+    itemEntry,
+    questionType,
+    mcOptions,
+    mcOptionEntry,
+    mcCorrectAnswer,
+    equationCorrectAnswer,
+    mathLiveReady,
+    previewValue,
+  } = state;
 
   const itemInputRef = useRef(null);
 
@@ -136,13 +215,7 @@ const NewAssessment = () => {
 
     const { name, value } = e.target;
 
-    setNewAssessment((prevState) => ({
-
-      ...prevState,
-
-      [name]: value,
-
-    }));
+    dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: name, value });
 
   };
 
@@ -150,17 +223,10 @@ const NewAssessment = () => {
 
   const handleQuestionTypeChange = (value) => {
 
-    setQuestionType(value);
-
-    if (value !== 'multiple_choice') {
-
-      setMcOptions([]);
-
-      setMcCorrectAnswer('');
-
+    dispatch({ type: 'SET_QUESTION_TYPE', payload: value });
+    if (value !== 'handwritten_algebra') {
+      setMathExpression('');
     }
-
-    setPreviewValue('');
 
   };
 
@@ -172,11 +238,7 @@ const NewAssessment = () => {
 
     if (!optionValue) return;
 
-    setMcOptions((prev) => [...prev, optionValue]);
-
-    setMcOptionEntry('');
-
-    setMcCorrectAnswer(optionValue);
+    dispatch({ type: 'ADD_MC_OPTION', payload: optionValue });
 
   };
 
@@ -184,19 +246,7 @@ const NewAssessment = () => {
 
   const handleRemoveOption = (index) => {
 
-    setMcOptions((prev) => {
-
-      const updated = prev.filter((_, i) => i !== index);
-
-      if (prev[index] === mcCorrectAnswer) {
-
-        setMcCorrectAnswer('');
-
-      }
-
-      return updated;
-
-    });
+    dispatch({ type: 'REMOVE_MC_OPTION', payload: index });
 
   };
 
@@ -219,52 +269,55 @@ const NewAssessment = () => {
       }
 
       mathfield.focus();
-
+      const updated = mathfield.getValue?.() ?? '';
+      setMathExpression(updated);
       return;
 
     }
 
     const input = itemInputRef.current;
 
-    setItemEntry((prev) => {
-
-      if (!input) {
-
-        return prev + symbol;
-
-      }
-
+    const prev = itemEntry;
+    let nextValue;
+    if (!input) {
+      nextValue = prev + symbol;
+    } else {
       const start = input.selectionStart ?? prev.length;
-
       const end = input.selectionEnd ?? start;
-
-      const nextValue = prev.slice(0, start) + symbol + prev.slice(end);
-
+      nextValue = prev.slice(0, start) + symbol + prev.slice(end);
       const caretPosition = start + symbol.length;
-
       setTimeout(() => {
+        if (input.setSelectionRange) {
 
-      if (input.setSelectionRange) {
+          input.setSelectionRange(caretPosition, caretPosition);
 
-        input.setSelectionRange(caretPosition, caretPosition);
+        }
 
-      }
+        input.focus();
 
-      input.focus();
+      }, 0);
+    }
+    dispatch({ type: 'SET_ITEM_ENTRY', payload: nextValue });
+  };
 
-    }, 0);
+  const handleMathExpressionChange = (event) => {
+    const value = event.target.value;
+    setMathExpression(value);
+    if (mathfieldRef.current?.setValue) {
+      mathfieldRef.current.setValue(value);
+    }
+  };
 
-    return nextValue;
-
-  });
-
-};
+  const syncMathExpression = () => {
+    const value = mathfieldRef.current?.getValue?.() ?? '';
+    setMathExpression(value);
+  };
 
   const handlePreview = () => {
     let previewText = '';
     if (questionType === 'handwritten_algebra') {
-      const mathValue = mathfieldRef.current?.getValue?.() ?? '';
-      if (!mathValue.trim()) {
+      const mathValue = mathExpression.trim();
+      if (!mathValue) {
         alert('Enter an equation before previewing.');
         return;
       }
@@ -276,7 +329,7 @@ const NewAssessment = () => {
       }
       previewText = itemEntry.trim();
     }
-    setPreviewValue(previewText);
+    dispatch({ type: 'SET_PREVIEW_VALUE', payload: previewText });
   };
 
 
@@ -291,7 +344,7 @@ const NewAssessment = () => {
 
     const id = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
 
-    setTeacherId(id);
+    dispatch({ type: 'SET_TEACHER_ID', payload: id });
 
   }, []);
 
@@ -303,7 +356,7 @@ const NewAssessment = () => {
 
     if (window.MathfieldElement) {
 
-      setMathLiveReady(true);
+      dispatch({ type: 'SET_MATHLIVE_READY', payload: true });
 
       return;
 
@@ -319,7 +372,7 @@ const NewAssessment = () => {
 
       script.defer = true;
 
-      script.onload = () => setMathLiveReady(true);
+      script.onload = () => dispatch({ type: 'SET_MATHLIVE_READY', payload: true });
 
       document.head.appendChild(script);
 
@@ -339,11 +392,11 @@ const NewAssessment = () => {
 
       if (existing && typeof window.MathfieldElement !== 'undefined') {
 
-        setMathLiveReady(true);
+        dispatch({ type: 'SET_MATHLIVE_READY', payload: true });
 
       } else {
 
-        existing?.addEventListener('load', () => setMathLiveReady(true), { once: true });
+        existing?.addEventListener('load', () => dispatch({ type: 'SET_MATHLIVE_READY', payload: true }), { once: true });
 
       }
 
@@ -375,7 +428,7 @@ const NewAssessment = () => {
 
             : [];
 
-        setSubjects(subjectsArray.map(normalizeSubjectRecord).filter((subject) => subject.id));
+        dispatch({ type: 'SET_SUBJECTS', payload: subjectsArray.map(normalizeSubjectRecord).filter((subject) => subject.id) });
 
       })
 
@@ -391,7 +444,7 @@ const NewAssessment = () => {
 
   const handleItemEntryChange = (e) => {
 
-    setItemEntry(e.target.value);
+    dispatch({ type: 'SET_ITEM_ENTRY', payload: e.target.value });
 
   };
 
@@ -425,13 +478,9 @@ const NewAssessment = () => {
 
       }
 
-      setTestItems((prev) => [
-
-        ...prev,
-
-        {
-
-          item_no: prev.length + 1,
+      dispatch({
+        type: 'ADD_TEST_ITEM', payload: {
+          item_no: testItems.length + 1,
 
           question_type: 'multiple_choice',
 
@@ -440,18 +489,8 @@ const NewAssessment = () => {
           options: JSON.stringify(mcOptions),
 
           correct_answer: mcCorrectAnswer,
-
-        },
-
-      ]);
-
-      setItemEntry('');
-
-      setMcOptionEntry('');
-
-      setMcCorrectAnswer('');
-
-      setMcOptions([]);
+        }
+      });
 
       return;
 
@@ -461,9 +500,9 @@ const NewAssessment = () => {
 
     const mathfield = mathfieldRef.current;
 
-    const mathValue = mathfield?.getValue?.() ?? '';
+    const mathValue = mathExpression.trim();
 
-    if (!mathValue.trim()) {
+    if (!mathValue) {
 
       alert('Please type an equation before adding.');
 
@@ -471,13 +510,17 @@ const NewAssessment = () => {
 
     }
 
-    setTestItems((prev) => [
+    if (!equationCorrectAnswer.trim()) {
 
-      ...prev,
+      alert('Please provide the correct answer for this equation.');
 
-      {
+      return;
 
-        item_no: prev.length + 1,
+    }
+
+    dispatch({
+      type: 'ADD_TEST_ITEM', payload: {
+        item_no: testItems.length + 1,
 
         question_type: 'handwritten_algebra',
 
@@ -485,18 +528,14 @@ const NewAssessment = () => {
 
         options: '',
 
-        correct_answer: '',
-      },
-
-    ]);
+        correct_answer: equationCorrectAnswer.trim(),
+      }
+    });
 
     if (mathfield?.setValue) {
-
       mathfield.setValue('');
-
     }
-
-    setPreviewValue('');
+    setMathExpression('');
 
 
   };
@@ -505,7 +544,7 @@ const NewAssessment = () => {
 
   const handleRemoveItem = (index) => {
 
-    setTestItems((prevItems) => prevItems.filter((_, i) => i !== index));
+    dispatch({ type: 'REMOVE_TEST_ITEM', payload: index });
 
   };
 
@@ -575,25 +614,7 @@ const NewAssessment = () => {
 
       alert('Assessment created successfully!');
 
-      setNewAssessment({
-
-        title: '',
-
-        subjectId: '',
-
-        topic: '',
-
-        description: '',
-
-        difficulty: 'Medium',
-
-        idealSolution: '',
-
-      });
-
-      setTestItems([]);
-
-      setItemEntry('');
+      dispatch({ type: 'RESET_ASSESSMENT_FORM' });
 
       if (mathfieldRef.current?.setValue) {
 
@@ -601,7 +622,7 @@ const NewAssessment = () => {
 
       }
 
-      setPreviewValue('');
+      setMathExpression('');
 
       navigate('/teacher/assessments');
 
@@ -620,6 +641,12 @@ const NewAssessment = () => {
   return (
 
     <div className="pb-16">
+      <style>{`
+        math-field::part(virtual-keyboard-toggle),
+        math-field::part(menu-toggle) {
+          display: none;
+        }
+      `}</style>
 
       <div className="mb-8">
 
@@ -787,28 +814,6 @@ const NewAssessment = () => {
 
           </div>
 
-          <div>
-
-            <label className="block text-sm font-medium text-slate-600 mb-1">Correct Answer / Ideal Solution</label>
-
-            <textarea
-
-              name="idealSolution"
-
-              value={newAssessment.idealSolution}
-
-              onChange={handleAssessmentChange}
-
-              placeholder="Provide the answer or method the AI should use as a reference."
-
-              rows={3}
-
-              className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-
-            />
-
-          </div>
-
           <div className="space-y-3">
 
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -833,15 +838,13 @@ const NewAssessment = () => {
 
                   onClick={() => handleQuestionTypeChange(option.value)}
 
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold tracking-[0.2em] transition ${
-
-                    questionType === option.value
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold tracking-[0.2em] transition ${questionType === option.value
 
                       ? 'border-blue-600 bg-blue-600 text-white'
 
                       : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
 
-                  }`}
+                    }`}
 
                 >
 
@@ -863,57 +866,44 @@ const NewAssessment = () => {
 
                 {mathLiveReady ? (
 
-                    <>
+                  <>
+                    <math-field
+                      ref={mathfieldRef}
+                      onInput={syncMathExpression}
+                      virtual-keyboard-mode="onfocus"
+                      smart-mode="auto"
+                      placeholder="Type your equation here..."
+                      className="block w-full max-w-full text-lg bg-white border border-slate-300 rounded-xl px-4 py-4 font-medium focus:ring-4 focus:ring-blue-100 transition shadow-inner"
+                      style={{ minHeight: '4rem' }}
+                    ></math-field>
 
-                      <math-field
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-400 px-1">
+                      <p>Describe the equation or symbol if needed before hitting “Add Item.”</p>
+                    </div>
 
-                        ref={mathfieldRef}
+                    <div className="mt-4 space-y-1">
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-[0.3em]">
+                        Correct Answer
+                      </label>
+                      <input
+                        type="text"
+                        value={equationCorrectAnswer}
+                        onChange={(e) => dispatch({ type: 'SET_EQUATION_CORRECT_ANSWER', payload: e.target.value })}
+                        placeholder="Enter the exact answer or expression"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none transition"
+                      />
+                    </div>
+                  </>
 
-                        className="w-full text-lg"
+                ) : (
 
-                        virtual-keyboard-mode="manual"
+                  <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
 
-                        smart-mode="auto"
+                    Loading math editor… please wait before entering equations.
 
-                        style={{ minHeight: '3rem' }}
+                  </p>
 
-                      ></math-field>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-
-                        {SYMBOL_OPTIONS.slice(0, 12).map((symbol) => (
-
-                          <button
-
-                            key={symbol}
-
-                            type="button"
-
-                            onClick={() => handleSymbolInsert(symbol)}
-
-                            className="rounded-lg border border-slate-200 px-3 py-1 text-sm font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition"
-
-                          >
-
-                            {symbol}
-
-                          </button>
-
-                        ))}
-
-                      </div>
-
-                    </>
-
-                  ) : (
-
-                    <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-
-                      Loading math editor… please wait before entering equations.
-
-                    </p>
-
-                  )}
+                )}
 
               </div>
 
@@ -945,7 +935,7 @@ const NewAssessment = () => {
 
                     value={mcOptionEntry}
 
-                    onChange={(e) => setMcOptionEntry(e.target.value)}
+                    onChange={(e) => dispatch({ type: 'SET_MC_OPTION_ENTRY', payload: e.target.value })}
 
                     placeholder="Option text"
 
@@ -1009,54 +999,39 @@ const NewAssessment = () => {
 
                 {mcOptions.length > 0 && (
 
-                  <div className="flex flex-col gap-2">
+                  <button
 
+                    type="button"
+
+                    onClick={() => dispatch({ type: 'RESET_MC_OPTIONS' })}
+
+                    className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-900 self-start"
+
+                  >
+
+                    Reset options
+
+                  </button>
+
+                )}
+                {mcOptions.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-[0.3em]">
+                      Correct Answer
+                    </label>
                     <select
-
                       value={mcCorrectAnswer}
-
-                      onChange={(e) => setMcCorrectAnswer(e.target.value)}
-
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700"
-
+                      onChange={(e) => dispatch({ type: 'SET_MC_CORRECT_ANSWER', payload: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none transition"
                     >
-
                       <option value="">Select the correct answer</option>
-
                       {mcOptions.map((option, index) => (
-
                         <option key={`${option}-${index}`} value={option}>
-
                           {option}
-
                         </option>
-
                       ))}
-
                     </select>
-
-                    <button
-
-                      type="button"
-
-                      onClick={() => {
-
-                        setMcOptions([]);
-
-                        setMcCorrectAnswer('');
-
-                      }}
-
-                      className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-900 self-start"
-
-                    >
-
-                      Reset options
-
-                    </button>
-
                   </div>
-
                 )}
 
               </div>
@@ -1100,9 +1075,7 @@ const NewAssessment = () => {
                       value={previewValue}
 
                       read-only
-
-                      className="w-full text-lg"
-
+                      className="block w-full max-w-full text-lg bg-slate-50 rounded-xl px-4 py-3 border-none overflow-x-auto"
                       virtual-keyboard-mode="manual"
 
                       smart-mode="auto"
@@ -1179,37 +1152,43 @@ const NewAssessment = () => {
 
                   >
 
-                    <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.3em] text-slate-400">
+                    <div className="flex flex-col gap-1 text-[11px] uppercase tracking-[0.3em] text-slate-400">
 
-                      <span>
+                      <div className="flex items-center justify-between">
+
+                        <span>Question #{index + 1}</span>
+
+                        <button
+
+                          type="button"
+
+                          onClick={() => handleRemoveItem(index)}
+
+                          className="text-red-600 font-semibold hover:text-red-800"
+
+                        >
+
+                          Remove
+
+                        </button>
+
+                      </div>
+
+                      <span className="text-[10px] tracking-[0.4em] text-slate-500">
 
                         {item.question_type === 'multiple_choice' ? 'Multiple choice' : 'Equation'}
 
                       </span>
 
-                      <button
-
-                        type="button"
-
-                        onClick={() => handleRemoveItem(index)}
-
-                        className="text-red-600 font-semibold hover:text-red-800"
-
-                      >
-
-                        Remove
-
-                      </button>
-
                     </div>
 
-                    <p className="text-sm font-semibold text-slate-900">{item.question_content}</p>
+                    {item.correct_answer && (
 
-                    {item.question_type === 'multiple_choice' && (
-
-                      <p className="text-xs text-slate-500">Correct Answer: {item.correct_answer}</p>
+                      <p className="text-[11px] text-slate-500">Correct Answer: {item.correct_answer}</p>
 
                     )}
+
+                    <p className="text-sm font-semibold text-slate-900">{item.question_content}</p>
 
                   </li>
 

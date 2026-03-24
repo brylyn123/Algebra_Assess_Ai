@@ -36,7 +36,7 @@ try {
             if ($role === 'teacher') {
                 $profile = $conn->prepare("SELECT teacher_id, first_name AS first_Name, middle_name AS middle_Name, last_name AS last_Name, college_id FROM teacher WHERE user_id = ?");
             } else {
-                $profile = $conn->prepare("SELECT first_name AS first_Name, middle_name AS middle_Name, last_name AS last_Name, section_id, year_id FROM student WHERE user_id = ?");
+                $profile = $conn->prepare("SELECT student_id, first_name AS first_Name, middle_name AS middle_Name, last_name AS last_Name FROM student WHERE user_id = ?");
             }
             
             $profile->bind_param("i", $userId);

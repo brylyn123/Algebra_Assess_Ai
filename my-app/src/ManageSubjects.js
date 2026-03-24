@@ -1,19 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
+import axios from './axiosClient';
 import { loadSubjects, saveSubjects } from './subjectsStore';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-
-const ENROLLED_STUDENTS = {
-    'Algebra 101': [
-        { id: 'STU-001', name: 'Bryan Miles', status: 'Active', enrolledDate: 'Jan 12, 2026' },
-        { id: 'STU-002', name: 'Hannah Rios', status: 'Active', enrolledDate: 'Jan 13, 2026' },
-        { id: 'STU-003', name: 'Leonard Kim', status: 'Active', enrolledDate: 'Jan 14, 2026' },
-    ],
-    'Geometry Basics': [
-        { id: 'STU-004', name: 'Amina Shah', status: 'Active', enrolledDate: 'Feb 02, 2026' },
-        { id: 'STU-005', name: 'Carlos Mendez', status: 'Active', enrolledDate: 'Feb 03, 2026' },
-    ],
-};
 
 const FALL_SCHOOL_YEAR_DEFAULTS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027'];
 const SEMESTER_OPTIONS = ['1st Semester', '2nd Semester', 'Summer'];
@@ -38,6 +26,7 @@ const ManageSubjects = () => {
     const [isAdding, setIsAdding] = useState(false);
     const [toast, setToast] = useState(null);
     const [copiedJoinCode, setCopiedJoinCode] = useState(null);
+    const [subjectEnrollments, setSubjectEnrollments] = useState({});
     const toastTimer = useRef(null);
     const [toastVisible, setToastVisible] = useState(false);
     const currentTeacherEmail = getCurrentLocalUserEmail();
@@ -175,6 +164,29 @@ const ManageSubjects = () => {
         }
     }, [teacherId]);
 
+    const fetchEnrollments = useCallback(async () => {
+        if (!teacherId) {
+            setSubjectEnrollments({});
+            return;
+        }
+        try {
+            const response = await axios.get('http://localhost/Algebra_Assess_Ai/algebra-api/get_enrollments.php', {
+                params: { teacher_id: teacherId },
+            });
+            const enrollments = Array.isArray(response.data.enrollments) ? response.data.enrollments : [];
+            const map = {};
+            enrollments.forEach((entry) => {
+                if (!entry || !entry.subject_id) return;
+                map[entry.subject_id] = Array.isArray(entry.students)
+                    ? entry.students
+                    : [];
+            });
+            setSubjectEnrollments(map);
+        } catch (error) {
+            console.error('Error fetching enrollments:', error);
+        }
+    }, [teacherId]);
+
     // 3. Load subjects on mount
     useEffect(() => {
         if (!teacherId) {
@@ -188,6 +200,10 @@ const ManageSubjects = () => {
         }
         fetchSubjects();
     }, [fetchSubjects, teacherId]);
+
+    useEffect(() => {
+        fetchEnrollments();
+    }, [fetchEnrollments]);
 
     const fetchSubjectFilters = useCallback(async () => {
         if (!teacherId) {
@@ -325,7 +341,7 @@ const ManageSubjects = () => {
     }, [toast?.details?.joinCode]);
 
     const normalizedSubjects = Array.isArray(subjects) ? subjects : [];
-    const enrolledList = selectedSubject ? (ENROLLED_STUDENTS[selectedSubject.name] || []) : [];
+    const enrolledList = selectedSubject ? (subjectEnrollments[selectedSubject.id] || []) : [];
     const activeSubjects = normalizedSubjects;
     const searchLower = searchQuery.trim().toLowerCase();
     const filteredSubjects = activeSubjects.filter((subject) => {

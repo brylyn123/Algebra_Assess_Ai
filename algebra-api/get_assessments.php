@@ -15,26 +15,33 @@ if (!$teacher_id) {
 
 try {
     $stmt = $conn->prepare(
-        "SELECT ep.exercise_id, ep.title, ep.description, ep.topic, ep.date_created,
-                ep.difficulty, ep.ideal_solution, s.subject_name,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM grade_submissions gs
-                        WHERE gs.assessment_title = ep.title
-                          AND gs.subject_id = s.subject_id
-                          AND gs.status = 'Graded'
-                    ) THEN 'Graded'
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM grade_submissions gs
-                        WHERE gs.assessment_title = ep.title
-                          AND gs.subject_id = s.subject_id
-                    ) THEN 'Pending'
-                    ELSE 'Draft'
-                END AS assessment_status
+        "SELECT
+             ep.exercise_id,
+             ep.title,
+             ep.description,
+             ep.topic,
+             ep.date_created,
+             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
+             s.course,
+             s.section,
+             s.semester,
+             s.school_year,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM Scores sc
+                    JOIN Captured_Solution cs ON sc.solution_id = cs.solution_id
+                    WHERE cs.exercise_id = ep.exercise_id
+                ) THEN 'Graded'
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM Captured_Solution cs
+                    WHERE cs.exercise_id = ep.exercise_id
+                ) THEN 'Pending'
+                ELSE 'Draft'
+            END AS assessment_status
          FROM exercises_problem ep
-         INNER JOIN subject s ON ep.subject_id = s.subject_id
+         LEFT JOIN subject s ON ep.subject_id = s.subject_id
          WHERE s.teacher_id = ?
          ORDER BY ep.date_created DESC"
     );
@@ -44,15 +51,22 @@ try {
 
     $assessments = [];
     while ($row = $result->fetch_assoc()) {
+        $subjectMeta = [];
+        foreach (['course', 'section', 'semester', 'school_year'] as $field) {
+            if (!empty($row[$field])) {
+                $subjectMeta[] = $row[$field];
+            }
+        }
+
         $assessments[] = [
             "exercise_id" => (int)$row["exercise_id"],
             "title" => $row["title"],
             "description" => $row["description"],
             "topic" => $row["topic"],
             "subject" => $row["subject_name"],
+            "subject_meta" => implode(" • ", $subjectMeta),
             "date_created" => $row["date_created"],
-            "difficulty" => $row["difficulty"] ?? 'Medium',
-            "ideal_solution" => $row["ideal_solution"] ?? '',
+            "status" => $row["assessment_status"],
         ];
     }
 
