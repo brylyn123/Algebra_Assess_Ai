@@ -42,7 +42,9 @@ try {
     $conn->begin_transaction();
 
     $updateStmt = $conn->prepare(
-        "UPDATE rubric_sets SET rubric_name = ?, criteria = ?, ai_instructions = ?, level_definitions = ? WHERE rubric_set_id = ?"
+        "UPDATE rubric_sets
+         SET rubric_name = ?, criteria = ?, ai_instructions = ?, level_definitions = ?
+         WHERE rubric_set_id = ?"
     );
     $updateStmt->bind_param("ssssi", $rubric_name, $criteria, $ai_instructions, $level_definitions, $rubric_set_id);
     $updateStmt->execute();

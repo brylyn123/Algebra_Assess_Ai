@@ -1,4 +1,8 @@
 <?php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: Content-Type");
+header("Content-Type: application/json");
+
 include 'db_connect.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
@@ -27,7 +31,7 @@ if (count($items) === 0) {
 
 try {
     $teacherStmt = $conn->prepare("SELECT teacher_id FROM Teacher WHERE teacher_id = ? LIMIT 1");
-    $teacherStmt->bind_param("s", $teacher_id);
+    $teacherStmt->bind_param("i", $teacher_id);
     $teacherStmt->execute();
     $result = $teacherStmt->get_result();
     $teacherStmt->close();
@@ -43,7 +47,7 @@ try {
          VALUES (?, ?, ?, ?, ?)"
     );
     $setStmt->bind_param(
-        "sssss",
+        "issss",
         $teacher_id,
         $rubric_name,
         $criteria,

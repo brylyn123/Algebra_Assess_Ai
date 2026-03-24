@@ -5,7 +5,18 @@ import { useTeacherRecords } from './hooks/useTeacherRecords';
 const ViewAssessments = ({ compact = false }) => {
     const navigate = useNavigate();
     const { assessments, rubrics, loading, statusMessage } = useTeacherRecords();
-    const activeAssessments = assessments.filter((assessment) => assessment.assessment_status !== 'Graded');
+    const activeAssessments = assessments.filter(
+        (assessment) => (assessment.assessment_status || assessment.status || 'Draft') !== 'Graded'
+    );
+
+    const formatLevelLabel = (level) => {
+        const label = String(level?.label ?? '').trim();
+        const points = Number(level?.points ?? 0);
+        if (!label) {
+            return `${points} pts`;
+        }
+        return `${label} - ${points} pts`;
+    };
 
     const formatDate = (value) => {
         if (!value) return '—';
@@ -80,15 +91,22 @@ const ViewAssessments = ({ compact = false }) => {
                                                 {assessment.title}
                                             </h3>
                                         </div>
-                                        <span className={renderStatusBadge(assessment.assessment_status)}>
-                                            {assessment.assessment_status || 'Draft'}
+                                        <span className={renderStatusBadge(assessment.assessment_status || assessment.status)}>
+                                            {assessment.assessment_status || assessment.status || 'Draft'}
                                         </span>
                                     </div>
                                     <p className="text-sm text-slate-600">{assessment.description}</p>
                                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                                         <span>Topic: {assessment.topic || '—'}</span>
+                                        <span>Difficulty: {assessment.difficulty || 'Medium'}</span>
+                                        <span>Items: {assessment.item_count ?? assessment.items?.length ?? 0}</span>
                                         <span>Created: {formatDate(assessment.date_created)}</span>
                                     </div>
+                                    {assessment.ideal_solution && (
+                                        <p className="text-xs text-slate-500">
+                                            Ideal solution: {assessment.ideal_solution}
+                                        </p>
+                                    )}
                                 </article>
                             ))
                         )}
@@ -134,6 +152,31 @@ const ViewAssessments = ({ compact = false }) => {
                                         </span>
                                     </div>
                                     <p className="mt-2 text-sm text-slate-600">{rubric.criteria}</p>
+                                    {rubric.ai_instructions && (
+                                        <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-3">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-600">
+                                                AI Instructions
+                                            </p>
+                                            <p className="mt-1 text-sm text-slate-600">{rubric.ai_instructions}</p>
+                                        </div>
+                                    )}
+                                    {Array.isArray(rubric.level_definitions) && rubric.level_definitions.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                                                Point Levels
+                                            </p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {rubric.level_definitions.map((level, index) => (
+                                                    <span
+                                                        key={`${rubric.rubric_set_id}-level-${index}`}
+                                                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
+                                                    >
+                                                        {formatLevelLabel(level)}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     {rubric.items && rubric.items.length > 0 && (
                                         <ul className="mt-3 space-y-2 text-sm text-slate-700">
                                             {rubric.items.map((item, index) => (

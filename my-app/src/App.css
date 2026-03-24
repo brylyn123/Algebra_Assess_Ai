@@ -1,0 +1,105 @@
+.teacher-shell {
+  @apply min-h-screen bg-slate-50;
+  background-image: linear-gradient(#cbd7ed 1px, transparent 1px), linear-gradient(90deg, #cbd7ed 1px, transparent 1px);
+  background-size: 30px 30px;
+  background-color: #e0edff;
+}
+
+.teacher-surface {
+  @apply rounded-[2rem] border border-slate-100 bg-white shadow-[0_22px_60px_rgba(148,163,184,0.18)] backdrop-blur;
+}
+
+.teacher-sidebar-surface {
+  @apply rounded-[2rem] border border-slate-100 bg-white shadow-[0_20px_50px_rgba(148,163,184,0.16)] backdrop-blur;
+}
+
+.teacher-content-stage {
+  @apply rounded-[2.25rem] border border-transparent bg-transparent p-6 shadow-none;
+}
+
+.teacher-panel {
+  @apply rounded-[1.6rem] border border-slate-100 bg-white p-6 shadow-[0_12px_35px_rgba(148,163,184,0.14)];
+}
+
+.teacher-soft-panel {
+  @apply rounded-[1.5rem] border border-slate-100 bg-slate-50/90 p-4;
+}
+
+.teacher-eyebrow {
+  @apply text-[11px] font-bold uppercase tracking-[0.34em] text-slate-400;
+}
+
+.teacher-heading {
+  @apply text-3xl font-black tracking-tight text-slate-950;
+}
+
+.teacher-primary-btn {
+  @apply inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700;
+}
+
+.teacher-secondary-btn {
+  @apply inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700;
+}
+
+.teacher-ghost-btn {
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-900;
+}
+
+.teacher-input {
+  @apply w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100;
+}
+
+.teacher-stat-card {
+  @apply rounded-[1.8rem] p-6 text-white shadow-[0_18px_40px_rgba(59,130,246,0.16)] transition duration-300 hover:-translate-y-1;
+}
+
+.teacher-stat-card-blue {
+  @apply bg-blue-600;
+}
+
+.teacher-stat-card-amber {
+  @apply bg-amber-500;
+}
+
+.teacher-stat-card-emerald {
+  @apply bg-emerald-600;
+}
+
+.teacher-stat-icon {
+  @apply flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-sm font-black uppercase tracking-[0.18em] text-white;
+}
+
+.teacher-list-card {
+  @apply flex items-center justify-between gap-4 rounded-[1.4rem] border border-slate-100 bg-slate-50/95 px-5 py-5 transition duration-200 hover:-translate-y-0.5 hover:border-blue-100 hover:bg-white hover:shadow-[0_12px_30px_rgba(148,163,184,0.14)];
+}
+
+.teacher-status-pill {
+  @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-bold;
+}
+
+.teacher-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+.teacher-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.teacher-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.teacher-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.teacher-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}

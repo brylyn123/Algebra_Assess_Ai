@@ -193,6 +193,53 @@ const NewAssessment = () => {
 
   const mathfieldRef = useRef(null);
 
+  const showMathKeyboard = () => {
+    const mathfield = mathfieldRef.current;
+
+    mathfield?.focus?.();
+
+    if (typeof mathfield?.executeCommand === 'function') {
+      mathfield.executeCommand('showVirtualKeyboard');
+    }
+
+    if (typeof window !== 'undefined' && window.mathVirtualKeyboard) {
+      if (typeof window.mathVirtualKeyboard.show === 'function') {
+        window.mathVirtualKeyboard.show();
+      }
+      window.mathVirtualKeyboard.visible = true;
+    }
+  };
+
+  const toggleMathKeyboard = () => {
+    if (typeof window === 'undefined' || !window.mathVirtualKeyboard) {
+      showMathKeyboard();
+      return;
+    }
+
+    const isVisible = !!window.mathVirtualKeyboard.visible;
+
+    if (isVisible) {
+      if (typeof window.mathVirtualKeyboard.hide === 'function') {
+        window.mathVirtualKeyboard.hide();
+      }
+      window.mathVirtualKeyboard.visible = false;
+      return;
+    }
+
+    showMathKeyboard();
+  };
+
+  const hideMathKeyboard = () => {
+    if (typeof window === 'undefined' || !window.mathVirtualKeyboard) {
+      return;
+    }
+
+    if (typeof window.mathVirtualKeyboard.hide === 'function') {
+      window.mathVirtualKeyboard.hide();
+    }
+    window.mathVirtualKeyboard.visible = false;
+  };
+
 
 
   const normalizeSubjectRecord = (raw) => ({
@@ -226,6 +273,7 @@ const NewAssessment = () => {
     dispatch({ type: 'SET_QUESTION_TYPE', payload: value });
     if (value !== 'handwritten_algebra') {
       setMathExpression('');
+      hideMathKeyboard();
     }
 
   };
@@ -311,6 +359,10 @@ const NewAssessment = () => {
   const syncMathExpression = () => {
     const value = mathfieldRef.current?.getValue?.() ?? '';
     setMathExpression(value);
+  };
+
+  const handleMathfieldFocus = () => {
+    showMathKeyboard();
   };
 
   const handlePreview = () => {
@@ -403,6 +455,18 @@ const NewAssessment = () => {
     }
 
   }, [mathLiveReady]);
+
+  useEffect(() => {
+    if (!mathLiveReady || typeof window === 'undefined' || !window.mathVirtualKeyboard) {
+      return;
+    }
+
+    window.mathVirtualKeyboard.visible = false;
+  }, [mathLiveReady]);
+
+  useEffect(() => () => {
+    hideMathKeyboard();
+  }, []);
 
 
 
@@ -642,6 +706,13 @@ const NewAssessment = () => {
 
     <div className="pb-16">
       <style>{`
+        math-field {
+          border: none;
+          outline: none;
+          box-shadow: none;
+          background: transparent;
+        }
+
         math-field::part(virtual-keyboard-toggle),
         math-field::part(menu-toggle) {
           display: none;
@@ -867,15 +938,33 @@ const NewAssessment = () => {
                 {mathLiveReady ? (
 
                   <>
+                    <div
+                      className="rounded-2xl border border-slate-200 bg-white p-3 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100"
+                      onClick={handleMathfieldFocus}
+                    >
                     <math-field
                       ref={mathfieldRef}
                       onInput={syncMathExpression}
-                      virtual-keyboard-mode="onfocus"
+                      onFocus={handleMathfieldFocus}
+                      onClick={handleMathfieldFocus}
+                      virtual-keyboard-mode="manual"
                       smart-mode="auto"
                       placeholder="Type your equation here..."
-                      className="block w-full max-w-full text-lg bg-white border border-slate-300 rounded-xl px-4 py-4 font-medium focus:ring-4 focus:ring-blue-100 transition shadow-inner"
-                      style={{ minHeight: '4rem' }}
+                      className="block w-full max-w-full cursor-text rounded-xl bg-transparent px-4 py-4 text-lg font-medium transition"
+                      style={{ minHeight: '4.5rem' }}
                     ></math-field>
+                    </div>
+
+                    <div className="mt-2 flex flex-col gap-3 px-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                      <p>Click the equation field to open MathLive and use the virtual keyboard for symbols.</p>
+                      <button
+                        type="button"
+                        onClick={toggleMathKeyboard}
+                        className="inline-flex items-center justify-center self-start rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                      >
+                        Toggle Keyboard
+                      </button>
+                    </div>
 
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-400 px-1">
                       <p>Describe the equation or symbol if needed before hitting “Add Item.”</p>

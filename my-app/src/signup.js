@@ -1,25 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+
 const shakeVariants = {
     idle: { x: 0 },
     error: {
         x: [0, -6, 6, -4, 4, 0],
-        transition: { duration: 0.45, ease: 'easeOut' },    
+        transition: { duration: 0.45, ease: 'easeOut' },
+    },
+};
+
+const pageVariants = {
+    hidden: { opacity: 0, y: 18 },
+    show: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.6, ease: 'easeOut' },
     },
 };
 
 const Signup = () => {
     const navigate = useNavigate();
-    const [role, setRole] = useState('teacher'); // 'teacher' or 'student'
+    const [role, setRole] = useState('teacher');
     const [formData, setFormData] = useState({
         firstName: '',
         middleName: '',
         lastName: '',
-        idNumber: '', // Will map to employeeId or studentId
+        idNumber: '',
         collegeName: '',
-        sectionName: '', // Student only
-        yearLevel: '',   // Student only
+        sectionName: '',
+        yearLevel: '',
         email: '',
         password: '',
     });
@@ -49,13 +59,12 @@ const Signup = () => {
 
     const handleRoleChange = (newRole) => {
         setRole(newRole);
-        // When switching to teacher, clear student-specific fields to prevent validation issues
         if (newRole === 'teacher') {
-        setFormData(prev => ({
-            ...prev,
-            sectionName: '',
-            yearLevel: '',
-        }));
+            setFormData((prev) => ({
+                ...prev,
+                sectionName: '',
+                yearLevel: '',
+            }));
         }
     };
 
@@ -71,7 +80,7 @@ const Signup = () => {
             idNumber: formData.idNumber,
             email: formData.email,
             password: formData.password,
-            role: role,
+            role,
             collegeName: role === 'teacher' ? formData.collegeName : '',
             sectionName: formData.sectionName,
             yearLevel: formData.yearLevel,
@@ -84,24 +93,17 @@ const Signup = () => {
                 body: JSON.stringify(payload),
             });
 
-           const result = await response.json();
+            const result = await response.json();
             if (result.status === 'success') {
-                // 1. SAVE THE USER DATA TO LOCAL STORAGE
-                // This assumes your PHP returns the user object with the ID
                 const userSession = {
-                    id: result.user_id, // This is your primary key from the DB
-                    role: role,
+                    id: result.user_id,
+                    role,
                     name: `${formData.firstName} ${formData.lastName}`,
-                    email: formData.email
+                    email: formData.email,
                 };
-                
-                // We store it as a string so we can use it across the whole app
-                localStorage.setItem('user', JSON.stringify(userSession));
 
+                localStorage.setItem('user', JSON.stringify(userSession));
                 showToast('Account created successfully!', 'success');
-                
-                // 2. NAVIGATE TO DASHBOARD (or login)
-                // Usually, after signup, you might want to go straight to the dashboard
                 navigationTimer.current = setTimeout(() => navigate('/login'), 1100);
             } else {
                 const errorText = result.message || 'Registration failed.';
@@ -116,6 +118,7 @@ const Signup = () => {
             setLoading(false);
         }
     };
+
     const roleOptions = [
         { label: 'I am a Teacher', value: 'teacher' },
         { label: 'I am a Student', value: 'student' },
@@ -123,188 +126,263 @@ const Signup = () => {
 
     return (
         <div
-            className="min-h-screen bg-slate-50 flex flex-col"
+            className="min-h-screen overflow-hidden bg-slate-50 text-slate-800"
             style={{
                 backgroundImage: 'linear-gradient(#cbd7ed 1px, transparent 1px), linear-gradient(90deg, #cbd7ed 1px, transparent 1px)',
                 backgroundSize: '30px 30px',
                 backgroundColor: '#e0edff',
             }}
         >
+            <div className="relative min-h-screen">
+                <div className="absolute left-[8%] top-20 -z-10 h-48 w-48 rounded-full bg-white/35 blur-3xl" />
+                <div className="absolute right-[10%] top-24 -z-10 h-56 w-56 rounded-full bg-indigo-100/30 blur-3xl" />
 
-            <header className="px-8 py-6 flex items-center justify-between bg-blue-600 text-white shadow-md sticky top-0 z-20">
-                <div
-                    onClick={() => navigate('/')}
-                    className="flex items-center gap-2 cursor-pointer"
-                    role="button"
-                    aria-label="Go back to landing page"
-                >
-                    <div className="bg-indigo-600 p-2 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
-                    <span className="font-bold text-2xl tracking-tight text-white">
-                        AlgebraAssess
-                    </span>
-                </div>
-                <Link
-                    to="/"
-                    className="text-xs uppercase tracking-[0.4em] border border-white/60 rounded-full px-4 py-2 hover:bg-white/20 transition text-center"
-                >
-                    Back to Landing
-                </Link>
-            </header>
-
-            <main className="flex-grow flex flex-col items-center justify-center px-6 pb-8 pt-16">
-                <div className="bg-white w-full max-w-md p-10 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] border border-slate-50">
-                    <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200 mb-6">
-                        {roleOptions.map((option) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => handleRoleChange(option.value)}
-                                className={`flex-1 px-5 py-3 rounded-xl font-semibold transition text-sm ${role === option.value ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-500 hover:text-blue-600'}`}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="text-center mb-8">
-                        <div className="relative h-9 mb-2">
-                            <AnimatePresence initial={false}>
-                                <motion.h1
-                                    key={role}
-                                    className="text-blue-600 font-extrabold text-3xl absolute inset-0"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    {role === 'teacher' ? 'Teacher Sign Up' : 'Student Sign Up'}
-                                </motion.h1>
-                            </AnimatePresence>
-                        </div>
-                        <p className="text-slate-400 font-medium text-sm">Join AlgebraAssess AI</p>
-                    </div>
-
-                    {toast && (
-                        <div className={`mb-4 w-full px-5 py-3 rounded-2xl border text-sm font-semibold transition-all duration-300 ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800 shadow-lg shadow-emerald-200/70' : 'bg-rose-50 border-rose-200 text-rose-700 shadow-lg shadow-rose-200/70'}`}>
-                            {toast.text}
-                        </div>
-                    )}
-                    {message && (
-                        <motion.div
-                            className="mb-6 bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl text-sm font-medium"
-                            variants={shakeVariants}
-                            initial="idle"
-                            animate="error"
+                <header className="sticky top-0 z-20 bg-blue-600 text-white shadow-md">
+                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
+                        <div
+                            onClick={() => navigate('/')}
+                            className="flex cursor-pointer items-center gap-3"
+                            role="button"
+                            aria-label="Go back to landing page"
                         >
-                            {message}
-                        </motion.div>
-                    )}
-
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        {/* Row 1: Names */}
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">First Name</label>
-                                <input name="firstName" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
+                            <div className="rounded-2xl bg-white/20 p-2.5 text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
                             </div>
                             <div>
-                                <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">Middle N...</label>
-                                <input name="middleName" onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
-                            </div>
-                            <div>
-                                <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">Last Name</label>
-                                <input name="lastName" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
+                                <p className="text-lg font-black tracking-tight text-white">AlgebraAssess</p>
                             </div>
                         </div>
+                        <Link
+                            to="/"
+                            className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-white/85 transition hover:bg-white/10 hover:text-white"
+                        >
+                            Back to Landing
+                        </Link>
+                    </div>
+                </header>
 
-                        {/* ID Field */}
-                        <div>
-                            <div className="relative h-3 mb-1">
-                                <AnimatePresence initial={false}>
-                                    <motion.label
-                                        key={role}
-                                        className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider ml-1 absolute inset-0"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                    >
-                                        {role === 'teacher' ? 'Employee ID' : 'Student ID'}
-                                    </motion.label>
+                <main className="mx-auto flex min-h-[calc(100vh-88px)] max-w-7xl items-center justify-center px-6 py-10 lg:px-10">
+                    <motion.section initial="hidden" animate="show" variants={pageVariants} className="relative w-full max-w-md">
+                        <div className="rounded-[2rem] border border-white/70 bg-white/88 p-5 shadow-[0_20px_60px_rgba(148,163,184,0.18)] backdrop-blur-xl sm:p-6">
+                            <div className="rounded-[1.7rem] border border-slate-100 bg-slate-50/90 p-6 sm:p-8">
+                                <div className="mb-6 flex rounded-2xl border border-slate-200 bg-white p-1 shadow-inner">
+                                    {roleOptions.map((option) => (
+                                        <motion.button
+                                            key={option.value}
+                                            type="button"
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => handleRoleChange(option.value)}
+                                            className={`relative flex-1 rounded-2xl px-5 py-3 text-sm font-semibold transition ${
+                                                role === option.value
+                                                    ? 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-200/80'
+                                                    : 'text-slate-500 hover:text-indigo-500'
+                                            }`}
+                                        >
+                                            {option.label}
+                                        </motion.button>
+                                    ))}
+                                </div>
+
+                                <div className="mb-7 text-center">
+                                    <div className="relative mb-3 h-10">
+                                        <AnimatePresence initial={false} mode="wait">
+                                            <motion.h1
+                                                key={role}
+                                                className="absolute inset-0 text-3xl font-black text-slate-900"
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                transition={{ duration: 0.24 }}
+                                            >
+                                                {role === 'teacher' ? 'Teacher Sign Up' : 'Student Sign Up'}
+                                            </motion.h1>
+                                        </AnimatePresence>
+                                    </div>
+                                </div>
+
+                                <AnimatePresence>
+                                    {toast && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -8 }}
+                                            className={`mb-4 w-full rounded-2xl border px-5 py-3 text-sm font-semibold ${
+                                                toast.type === 'success'
+                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
+                                                    : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
+                                            }`}
+                                        >
+                                            {toast.text}
+                                        </motion.div>
+                                    )}
                                 </AnimatePresence>
+
+                                {message && (
+                                    <motion.div
+                                        className="mb-6 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-600"
+                                        variants={shakeVariants}
+                                        initial="idle"
+                                        animate="error"
+                                    >
+                                        {message}
+                                    </motion.div>
+                                )}
+
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                        <div>
+                                            <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">First Name</label>
+                                            <input
+                                                name="firstName"
+                                                required
+                                                onChange={handleChange}
+                                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Middle Name</label>
+                                            <input
+                                                name="middleName"
+                                                onChange={handleChange}
+                                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Last Name</label>
+                                            <input
+                                                name="lastName"
+                                                required
+                                                onChange={handleChange}
+                                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="relative mb-2 h-3">
+                                            <AnimatePresence initial={false} mode="wait">
+                                                <motion.label
+                                                    key={role}
+                                                    className="absolute inset-0 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    transition={{ duration: 0.2 }}
+                                                >
+                                                    {role === 'teacher' ? 'Employee ID' : 'Student ID'}
+                                                </motion.label>
+                                            </AnimatePresence>
+                                        </div>
+                                        <input
+                                            name="idNumber"
+                                            required
+                                            onChange={handleChange}
+                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                        />
+                                    </div>
+
+                                    <div className="min-h-[88px]">
+                                        <AnimatePresence mode="wait" initial={false}>
+                                            {role === 'teacher' ? (
+                                                <motion.div
+                                                    key="collegeField"
+                                                    initial={{ opacity: 0, y: 8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -8 }}
+                                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                                >
+                                                    <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">College Name</label>
+                                                    <input
+                                                        name="collegeName"
+                                                        required
+                                                        onChange={handleChange}
+                                                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                                    />
+                                                </motion.div>
+                                            ) : (
+                                                <motion.div
+                                                    key="studentFields"
+                                                    className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+                                                    initial={{ opacity: 0, y: 8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -8 }}
+                                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                                >
+                                                    <div>
+                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Section</label>
+                                                        <input
+                                                            name="sectionName"
+                                                            required
+                                                            onChange={handleChange}
+                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Year Level</label>
+                                                        <input
+                                                            name="yearLevel"
+                                                            required
+                                                            onChange={handleChange}
+                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                                        />
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Email address</label>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            required
+                                            onChange={handleChange}
+                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Password</label>
+                                        <input
+                                            type="password"
+                                            name="password"
+                                            required
+                                            onChange={handleChange}
+                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                        />
+                                    </div>
+
+                                    <motion.button
+                                        whileHover={{ y: -2 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        type="submit"
+                                        className={`w-full rounded-2xl py-4 font-bold text-white shadow-lg transition duration-300 ${
+                                            loading
+                                                ? 'cursor-wait bg-sky-400 shadow-sky-200'
+                                                : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-xl'
+                                        }`}
+                                        disabled={loading}
+                                    >
+                                        {loading ? 'Submitting...' : 'Sign Up'}
+                                    </motion.button>
+                                </form>
+
+                                <div className="mt-7 text-center">
+                                    <p className="text-sm font-medium text-slate-500">
+                                        Already have an account?
+                                        <button onClick={() => navigate('/login')} className="ml-1 font-bold text-indigo-500 transition hover:text-indigo-600">
+                                            Login
+                                        </button>
+                                    </p>
+                                </div>
                             </div>
-                            <input name="idNumber" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
                         </div>
-
-                        {/* Dynamic Fields based on Role */}
-                        <AnimatePresence initial={false}>
-                            {role === 'teacher' && (
-                                <motion.div
-                                    key="collegeField"
-                                    className="w-full"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">College Name</label>
-                                    <input name="collegeName" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                        <AnimatePresence initial={false}>
-                            {role === 'student' && (
-                                <motion.div
-                                    key="studentFields"
-                                    className="grid grid-cols-2 gap-4"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    <div>
-                                        <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">Section</label>
-                                        <input name="sectionName" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">Year Level</label>
-                                        <input name="yearLevel" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-
-                        {/* Email and Password */}
-                        <div>
-                            <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">Email address</label>
-                            <input type="email" name="email" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
-                        </div>
-                        <div>
-                            <label className="block text-slate-600 text-[10px] font-bold uppercase tracking-wider mb-1 ml-1">Password</label>
-                            <input type="password" name="password" required onChange={handleChange} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition" />
-                        </div>
-
-                        <button
-                            type="submit"
-                            className={`w-full text-white font-bold py-4 rounded-2xl shadow-lg transition duration-300 ${loading ? 'bg-blue-500 cursor-wait shadow-blue-500/50' : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'}`}
-                            disabled={loading}
-                        >
-                            {loading ? 'Submitting…' : 'Sign Up'}
-                        </button>
-                    </form>
-
-                    <div className="mt-8 text-center">
-                        <p className="text-slate-500 text-sm font-medium">
-                            Already have an account?
-                            <button onClick={() => navigate('/login')} className="text-blue-600 font-bold ml-1 hover:underline">Login</button>
-                        </p>
-                    </div>
-                </div>
-            </main>
+                    </motion.section>
+                </main>
+            </div>
         </div>
     );
 };

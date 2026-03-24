@@ -39,3 +39,8 @@ Thumbs.db
 *.njsproj
 *.sln
 *.swp
+
+# --- Local Scratch Files ---
+tmp_*
+*.patch
+temp_*.txt

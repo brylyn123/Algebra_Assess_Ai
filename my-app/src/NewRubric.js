@@ -244,6 +244,14 @@ const NewRubric = () => {
         [rubricItems]
     );
 
+    const selectedTemplatePreview = useMemo(
+        () =>
+            availableRubrics.find(
+                (rubric) => String(rubric.rubric_set_id) === selectedTemplateId
+            ) ?? null,
+        [availableRubrics, selectedTemplateId]
+    );
+
     const handleAddRubric = async (e) => {
         e.preventDefault();
         if (!newRubric.name || !newRubric.criteria) {
@@ -368,6 +376,66 @@ const NewRubric = () => {
                                 <p className="text-xs text-slate-400">
                                     Pick a saved rubric to clone its structure, then tweak the items or instructions.
                                 </p>
+                                {selectedTemplatePreview && (
+                                    <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
+                                                    Template Preview
+                                                </p>
+                                                <p className="mt-1 text-sm font-semibold text-slate-900">
+                                                    {selectedTemplatePreview.rubric_name}
+                                                </p>
+                                            </div>
+                                            <span className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                                                {Array.isArray(selectedTemplatePreview.items)
+                                                    ? `${selectedTemplatePreview.items.length} item(s)`
+                                                    : '0 item(s)'}
+                                            </span>
+                                        </div>
+
+                                        {selectedTemplatePreview.criteria && (
+                                            <div className="mt-3">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                                                    Criteria
+                                                </p>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    {selectedTemplatePreview.criteria}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {selectedTemplatePreview.ai_instructions && (
+                                            <div className="mt-3 rounded-xl border border-white/80 bg-white/90 px-3 py-3">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-600">
+                                                    AI Instructions
+                                                </p>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    {selectedTemplatePreview.ai_instructions}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {Array.isArray(selectedTemplatePreview.level_definitions) &&
+                                            selectedTemplatePreview.level_definitions.length > 0 && (
+                                                <div className="mt-3">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                                                        Point Levels
+                                                    </p>
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {selectedTemplatePreview.level_definitions.map((level, index) => (
+                                                            <span
+                                                                key={`${selectedTemplatePreview.rubric_set_id}-preview-level-${index}`}
+                                                                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
+                                                            >
+                                                                {`${String(level?.label ?? '').trim() || 'Level'} - ${Number(level?.points ?? 0)} pts`}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-600 mb-1">Rubric Name</label>

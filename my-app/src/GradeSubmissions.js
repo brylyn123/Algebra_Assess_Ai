@@ -19,12 +19,82 @@ const GradeSubmissions = () => {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [subjectError, setSubjectError] = useState('');
   const [aiScore, setAiScore] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [rubrics, setRubrics] = useState([]);
   const [rubricLoading, setRubricLoading] = useState(false);
   const [rubricError, setRubricError] = useState('');
   const [selectedRubric, setSelectedRubric] = useState('');
+  const [createdAssessments, setCreatedAssessments] = useState([]);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+  const [assessmentError, setAssessmentError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchSubjects = async () => {
+      if (!teacherId) {
+        if (isMounted) {
+          setAvailableSubjects([]);
+          setSubjectError('');
+        }
+        return;
+      }
+
+      try {
+        setSubjectError('');
+        const response = await fetch(`${API_BASE_URL}/get_subjects.php?teacher_id=${teacherId}`, {
+          signal: controller.signal,
+        });
+        const text = await response.text();
+
+        if (!response.ok) {
+          throw new Error(text || 'Unable to load subjects.');
+        }
+
+        let payload;
+        try {
+          payload = JSON.parse(text);
+        } catch (parseError) {
+          console.error('Failed to decode subjects payload:', text);
+          throw new Error('Received invalid subject data from the server.');
+        }
+
+        const rawSubjects = Array.isArray(payload?.subjects)
+          ? payload.subjects
+          : Array.isArray(payload)
+            ? payload
+            : [];
+
+        if (!isMounted) return;
+
+        const normalizedSubjects = rawSubjects
+          .map((subject) => ({
+            value: String(subject.subject_id ?? subject.id ?? ''),
+            label: subject.subject_name ?? subject.name ?? 'Untitled Subject',
+          }))
+          .filter((subject) => subject.value);
+
+        setAvailableSubjects(normalizedSubjects);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error(error);
+        if (isMounted) {
+          setSubjectError(error.message || 'Unable to load subjects.');
+          setAvailableSubjects([]);
+        }
+      }
+    };
+
+    fetchSubjects();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [teacherId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -36,7 +106,6 @@ const GradeSubmissions = () => {
           setErrorMessage('Log in as a teacher to view submissions.');
           setLoading(false);
           setSubmissions([]);
-          setAvailableSubjects([]);
         }
         return;
       }
@@ -75,20 +144,6 @@ const GradeSubmissions = () => {
         if (!isMounted) return;
 
         setSubmissions(payload.submissions);
-        if (selectedSubject === 'all') {
-          const subjectMap = new Map();
-          payload.submissions.forEach((submission) => {
-            const key = submission.subject_id ?? 'unassigned';
-            if (!subjectMap.has(key)) {
-              subjectMap.set(key, submission.subject_display || 'Unassigned Subject');
-            }
-          });
-          const list = Array.from(subjectMap.entries()).map(([value, label]) => ({
-            value: String(value),
-            label,
-          }));
-          setAvailableSubjects(list);
-        }
 
         setSelectedSubmission((previous) => {
           if (payload.submissions.length === 0) {
@@ -103,9 +158,6 @@ const GradeSubmissions = () => {
         if (isMounted) {
           setErrorMessage(error.message || 'Unable to load submissions.');
           setSubmissions([]);
-          if (selectedSubject === 'all') {
-            setAvailableSubjects([]);
-          }
         }
       } finally {
         if (isMounted) {
@@ -124,6 +176,69 @@ const GradeSubmissions = () => {
 
   useEffect(() => {
     setSelectedSubject('all');
+  }, [teacherId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchAssessments = async () => {
+      if (!teacherId) {
+        if (isMounted) {
+          setCreatedAssessments([]);
+          setAssessmentLoading(false);
+          setAssessmentError('');
+        }
+        return;
+      }
+
+      setAssessmentLoading(true);
+      setAssessmentError('');
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/get_assessments.php?teacher_id=${teacherId}`, {
+          signal: controller.signal,
+        });
+        const text = await response.text();
+
+        if (!response.ok) {
+          throw new Error(text || 'Unable to load created assessments.');
+        }
+
+        let payload;
+        try {
+          payload = JSON.parse(text);
+        } catch (parseError) {
+          console.error('Failed to decode assessments payload:', text);
+          throw new Error('Received invalid assessment data from the server.');
+        }
+
+        if (payload.status !== 'success' || !Array.isArray(payload.assessments)) {
+          throw new Error(payload.message || 'Unable to load created assessments.');
+        }
+
+        if (!isMounted) return;
+        setCreatedAssessments(payload.assessments);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error(error);
+        if (isMounted) {
+          setAssessmentError(error.message || 'Unable to load created assessments.');
+          setCreatedAssessments([]);
+        }
+      } finally {
+        if (isMounted) {
+          setAssessmentLoading(false);
+        }
+      }
+    };
+
+    fetchAssessments();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, [teacherId]);
 
   useEffect(() => {
@@ -222,6 +337,16 @@ const GradeSubmissions = () => {
     }, 900);
   };
 
+  const visibleCreatedAssessments = useMemo(() => {
+    if (selectedSubject === 'all') {
+      return createdAssessments;
+    }
+
+    return createdAssessments.filter(
+      (assessment) => String(assessment.subject_id ?? 'unassigned') === selectedSubject
+    );
+  }, [createdAssessments, selectedSubject]);
+
   const info = selectedSubmission;
 
   return (
@@ -259,16 +384,80 @@ const GradeSubmissions = () => {
 
             <div className="rounded-[2rem] bg-white p-6 border border-slate-100 shadow-lg space-y-6">
               <div className="space-y-1">
+                <p className="text-md font-semibold text-slate-900">Created Assessments</p>
+                <p className="text-sm text-slate-500">
+                  {assessmentLoading ? 'Loading assessments...' : `${visibleCreatedAssessments.length} assessment(s) ready for submissions`}
+                </p>
+                {assessmentError && <p className="text-xs text-red-600">{assessmentError}</p>}
+              </div>
+
+              <div className="teacher-scrollbar max-h-[320px] space-y-4 overflow-y-auto pr-2">
+                {visibleCreatedAssessments.length === 0 && !assessmentLoading && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-sm text-slate-500">No created assessments match that subject yet.</p>
+                    <a
+                      href="/teacher/assessments"
+                      className="mt-3 inline-flex items-center justify-center rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-50"
+                    >
+                      Create Assessment
+                    </a>
+                  </div>
+                )}
+
+                {visibleCreatedAssessments.map((assessment) => (
+                  <div
+                    key={assessment.exercise_id}
+                    className="rounded-2xl border border-slate-100 bg-slate-50 p-4 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{assessment.title}</p>
+                        <p className="text-sm text-slate-500">
+                          {assessment.subject || 'Unassigned Subject'}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                          statusStyle[assessment.assessment_status] ?? 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {assessment.assessment_status || assessment.status || 'Draft'}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                      <span>Topic: {assessment.topic || '—'}</span>
+                      <span>Items: {assessment.item_count ?? assessment.items?.length ?? 0}</span>
+                      {assessment.difficulty && <span>Difficulty: {assessment.difficulty}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] bg-white p-6 border border-slate-100 shadow-lg space-y-6">
+              <div className="space-y-1">
                 <p className="text-md font-semibold text-slate-900">Student Submissions</p>
                 <p className="text-sm text-slate-500">
                   {loading ? 'Loading submissions...' : `${visibleSubmissions.length} submission(s) found`}
                 </p>
                 {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
+                {subjectError && <p className="text-xs text-red-600">{subjectError}</p>}
               </div>
 
-              <div className="space-y-4">
+              <div className="teacher-scrollbar max-h-[420px] space-y-4 overflow-y-auto pr-2">
                 {visibleSubmissions.length === 0 && !loading && (
-                  <p className="text-sm text-slate-500">No submissions match that subject yet.</p>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-sm text-slate-500">No submissions match that subject yet.</p>
+                    <p className="mt-2 text-xs text-slate-400">
+                      Created assessments will appear on the dashboard and in the assessment list first. They move into this grading queue once students submit work.
+                    </p>
+                    <a
+                      href="/teacher/assessments/view"
+                      className="mt-3 inline-flex items-center justify-center rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-50"
+                    >
+                      View Created Assessments
+                    </a>
+                  </div>
                 )}
 
                 {visibleSubmissions.map((submission) => {
@@ -354,7 +543,7 @@ const GradeSubmissions = () => {
                     {selectedRubric && (
                       <p className="text-xs text-slate-600 mt-2">
                         {rubrics.find((rubric) => String(rubric.rubric_set_id) === selectedRubric)
-                          ?.global_instructions || 'Rubric selected.'}
+                          ?.ai_instructions || 'Rubric selected.'}
                       </p>
                     )}
                   </>

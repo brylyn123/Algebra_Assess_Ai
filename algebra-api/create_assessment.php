@@ -12,8 +12,15 @@ $subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
 $title = trim($data['title'] ?? '');
 $description = trim($data['description'] ?? '');
 $topic = trim($data['topic'] ?? '');
+$difficulty = trim($data['difficulty'] ?? 'Medium');
+$idealSolution = trim($data['ideal_solution'] ?? '');
 $items = is_array($data['items']) ? $data['items'] : [];
 $startedTransaction = false;
+
+$allowedDifficulties = ['Easy', 'Medium', 'Hard'];
+if (!in_array($difficulty, $allowedDifficulties, true)) {
+    $difficulty = 'Medium';
+}
 
 if (!$subject_id || $title === '') {
     echo json_encode(["status" => "error", "message" => "Assessment needs a subject and a title."]);
@@ -48,36 +55,63 @@ try {
     $startedTransaction = true;
 
     $exerciseStmt = $conn->prepare(
-        "INSERT INTO exercises_problem (subject_id, title, description, topic) VALUES (?, ?, ?, ?)"
+        "INSERT INTO exercises_problem (subject_id, title, description, topic, difficulty, ideal_solution)
+         VALUES (?, ?, ?, ?, ?, ?)"
     );
-    $exerciseStmt->bind_param("isss", $subject_id, $title, $description, $topic);
+    $exerciseStmt->bind_param("isssss", $subject_id, $title, $description, $topic, $difficulty, $idealSolution);
     $exerciseStmt->execute();
     $exerciseId = $conn->insert_id;
     $exerciseStmt->close();
 
     $itemStmt = $conn->prepare(
-        "INSERT INTO exercise_items (exercise_id, item_no, question_content, correct_answer, model_solution, max_score)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO exercise_items (
+            exercise_id,
+            item_no,
+            question_type,
+            question_content,
+            options,
+            correct_answer,
+            model_solution,
+            max_score
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     foreach ($items as $item) {
         $itemNo = isset($item['item_no']) ? intval($item['item_no']) : 1;
+        $questionType = trim($item['question_type'] ?? 'handwritten_algebra');
         $content = trim($item['question_content'] ?? '');
+        $options = $item['options'] ?? null;
+        if (is_array($options)) {
+            $options = json_encode($options);
+        }
+        $options = is_string($options) ? trim($options) : null;
         $correctAnswer = trim($item['correct_answer'] ?? '');
         $modelSolution = trim($item['model_solution'] ?? '');
-        $maxScore = isset($item['max_score']) ? (float)$item['max_score'] : 1.0;
+        $maxScore = isset($item['max_score'])
+            ? (float)$item['max_score']
+            : (isset($item['max_score_per_item']) ? (float)$item['max_score_per_item'] : 1.0);
+
+        if (!in_array($questionType, ['handwritten_algebra', 'multiple_choice'], true)) {
+            $questionType = 'handwritten_algebra';
+        }
 
         if ($content === '') {
             throw new Exception('Each item must include question_content.');
         }
 
+        $optionsValue = $options === '' ? null : $options;
+        $correctAnswerValue = $correctAnswer === '' ? null : $correctAnswer;
+        $modelSolutionValue = $modelSolution === '' ? null : $modelSolution;
+
         $itemStmt->bind_param(
-            "iisssd",
+            "iisssssd",
             $exerciseId,
             $itemNo,
+            $questionType,
             $content,
-            $correctAnswer === '' ? null : $correctAnswer,
-            $modelSolution === '' ? null : $modelSolution,
+            $optionsValue,
+            $correctAnswerValue,
+            $modelSolutionValue,
             $maxScore
         );
         $itemStmt->execute();

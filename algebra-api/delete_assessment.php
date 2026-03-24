@@ -49,14 +49,14 @@ try {
 
     $rubricStmt = $conn->prepare(
         "DELETE r FROM rubrics r
-         INNER JOIN exercises_items ei ON r.item_id = ei.item_id
+         INNER JOIN exercise_items ei ON r.item_id = ei.item_id
          WHERE ei.exercise_id = ?"
     );
     $rubricStmt->bind_param("i", $exercise_id);
     $rubricStmt->execute();
     $rubricStmt->close();
 
-    $itemStmt = $conn->prepare("DELETE FROM exercises_items WHERE exercise_id = ?");
+    $itemStmt = $conn->prepare("DELETE FROM exercise_items WHERE exercise_id = ?");
     $itemStmt->bind_param("i", $exercise_id);
     $itemStmt->execute();
     $itemStmt->close();

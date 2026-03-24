@@ -3,34 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 
-const sampleSubmissions = [
-    {
-        id: 1,
-        title: 'Week 3 Quiz (Algebra 1)',
-        student: 'Miguel Reyes',
-        subject: 'Algebra 1',
-        submittedAt: 'Today · 09:17 AM',
-        status: 'Pending',
-    },
-    {
-        id: 2,
-        title: 'Worksheet 2 (Geometry)',
-        student: 'Clara Santos',
-        subject: 'Geometry',
-        submittedAt: 'Yesterday · 04:23 PM',
-        status: 'Graded',
-    },
-    {
-        id: 3,
-        title: 'Homework 5 (Trigonometry)',
-        student: 'Lloyd Cabrera',
-        subject: 'Trigonometry',
-        submittedAt: 'Yesterday · 11:05 AM',
-        status: 'Pending',
-    },
-];
-
-const subjectStatusClasses = {
+const assessmentStatusClasses = {
+    draft: 'bg-slate-100 text-slate-700',
     pending: 'bg-amber-100 text-amber-700',
     graded: 'bg-emerald-100 text-emerald-700',
 };
@@ -42,12 +16,13 @@ const DashboardHome = () => {
     const teacherId = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
 
     const [analytics, setAnalytics] = useState(null);
+    const [recentAssessments, setRecentAssessments] = useState([]);
 
     useEffect(() => {
         if (!teacherId) {
             return;
         }
-        // no loading indicator for now
+
         axios
             .get('http://localhost/Algebra_Assess_Ai/algebra-api/teacher_analytics.php', {
                 params: { teacher_id: teacherId },
@@ -61,6 +36,19 @@ const DashboardHome = () => {
             .catch((error) => {
                 console.error('Failed to fetch analytics', error);
             });
+
+        axios
+            .get('http://localhost/Algebra_Assess_Ai/algebra-api/get_assessments.php', {
+                params: { teacher_id: teacherId },
+            })
+            .then((response) => {
+                if (response.data?.status === 'success') {
+                    setRecentAssessments((response.data.assessments || []).slice(0, 4));
+                }
+            })
+            .catch((error) => {
+                console.error('Failed to fetch assessments', error);
+            });
     }, [teacherId]);
 
     const stats = useMemo(() => {
@@ -71,104 +59,133 @@ const DashboardHome = () => {
                 label: 'Total submissions',
                 value: totals.total_submissions ?? 0,
                 description: 'Across all subjects',
-                color: 'bg-blue-600',
-                icon: '📘',
+                color: 'teacher-stat-card-blue',
+                icon: 'SB',
             },
             {
                 id: 2,
                 label: 'Pending review',
                 value: totals.needs_review ?? totals.pending_submissions ?? 0,
-                description: 'Awaiting AI or manual check',
-                color: 'bg-amber-500',
-                icon: '⏳',
+                description: 'Immediate action items',
+                color: 'teacher-stat-card-amber',
+                icon: 'RV',
             },
             {
                 id: 3,
                 label: 'Graded',
                 value: totals.graded_submissions ?? 0,
-                description: 'Completed this session',
-                color: 'bg-emerald-600',
-                icon: '✅',
+                description: 'Finished this session',
+                color: 'teacher-stat-card-emerald',
+                icon: 'OK',
             },
         ];
     }, [analytics]);
 
     return (
         <>
-            <div className="flex flex-col items-start gap-2 text-left pb-6 border-b border-slate-200">
-            <p className="text-slate-500 uppercase tracking-[0.4em] text-xs">Dashboard</p>
-            <h1 className="text-3xl lg:text-4xl font-bold text-slate-900">Welcome back, Teacher!</h1>
-        </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-center pt-6">
-            {stats.map((stat) => (
-                <div
-                    key={stat.id}
-                    className={`rounded-[1.5rem] p-6 text-white shadow-md ${stat.color} flex flex-col justify-between min-h-[160px] transition-all duration-300 group`}
-                >
-                    <div className="flex items-center justify-between">
-                        <div className="text-4xl font-bold">{stat.value}</div>
-                        <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl transition duration-300 group-hover:scale-110">
-                            {stat.icon}
-                        </div>
+            <div className="teacher-surface px-8 py-8">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <p className="teacher-eyebrow">Dashboard</p>
+                        <h1 className="mt-3 text-3xl font-black text-slate-950 lg:text-4xl">Welcome back, Teacher!</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-500">
+                            Here is your activity snapshot for today, plus the most recently created assessments in your workspace.
+                        </p>
                     </div>
-                    <div className="mt-4 space-y-1">
-                        <p className="text-sm opacity-95">{stat.label}</p>
-                        <p className="text-xs text-white/80">{stat.description}</p>
-                    </div>
-                    <div className="mt-4 h-1 w-full rounded-full bg-white/40 overflow-hidden">
-                        <div className="h-full w-3/4 rounded-full bg-white/80 animate-pulse"></div>
-                    </div>
+                    <button
+                        onClick={() => navigate('/teacher/grade-submissions')}
+                        className="teacher-primary-btn"
+                    >
+                        Review Submissions
+                    </button>
                 </div>
-            ))}
-        </div>
+            </div>
 
-            <div className="grid gap-6 lg:grid-cols-1 mt-10">
-                <article className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-xl font-bold text-slate-900">Recent Submissions</p>
-                            <p className="text-sm text-slate-500">What students handed in most recently.</p>
+            <div className="grid grid-cols-1 gap-6 pt-6 sm:grid-cols-2 xl:grid-cols-3">
+                {stats.map((stat) => (
+                    <article key={stat.id} className={`teacher-stat-card ${stat.color} min-h-[190px]`}>
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">Overview</p>
+                                <p className="mt-5 text-5xl font-black leading-none">{stat.value}</p>
+                            </div>
+                            <div className="teacher-stat-icon">{stat.icon}</div>
                         </div>
-                        <button className="text-sm font-semibold text-blue-600 hover:underline">View all</button>
+
+                        <div className="mt-8">
+                            <p className="text-xl font-bold text-white">{stat.label}</p>
+                            <p className="mt-2 max-w-[18rem] text-sm text-white/80">{stat.description}</p>
+                        </div>
+                    </article>
+                ))}
+            </div>
+
+            <div className="mt-10">
+                <article className="teacher-surface space-y-6 p-8">
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <p className="text-xl font-bold text-slate-900">Recent Assessments</p>
+                            <p className="text-sm text-slate-500">The latest assessments you created, ready to receive submissions.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/teacher/assessments/view')}
+                            className="teacher-secondary-btn !px-4 !py-2"
+                        >
+                            View all
+                        </button>
                     </div>
 
                     <div className="space-y-4">
-                        {sampleSubmissions.map((submission) => (
-                            <div
-                                key={submission.id}
-                                className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
-                            >
-                                <div>
-                                    <p className="font-semibold text-slate-900">{submission.title}</p>
-                                    <p className="text-sm text-slate-500">
-                                        {submission.student} · {submission.subject}
-                                    </p>
-                                </div>
-                                <div className="text-right space-y-1">
-                                    <p className="text-xs text-slate-500">{submission.submittedAt}</p>
-                                    <span
-                                        className={`rounded-full px-3 py-1 text-xs font-semibold ${subjectStatusClasses[submission.status.toLowerCase()] ?? 'bg-slate-100 text-slate-600'
-                                            }`}
-                                    >
-                                        {submission.status}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
+                        {recentAssessments.length === 0 ? (
+                            <p className="rounded-[1.4rem] border border-slate-100 bg-slate-50 px-5 py-5 text-sm text-slate-500">
+                                No assessments created yet. Start by building one from Manage Assessments.
+                            </p>
+                        ) : (
+                            recentAssessments.map((assessment) => {
+                                const status = (assessment.assessment_status || assessment.status || 'Draft').toLowerCase();
+                                return (
+                                    <article key={assessment.exercise_id} className="teacher-list-card">
+                                        <div>
+                                            <p className="text-[1.15rem] font-bold text-slate-900">{assessment.title}</p>
+                                            <p className="text-sm text-slate-500">
+                                                {assessment.subject || 'Unassigned Subject'} - {assessment.topic || 'No topic'}
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1 text-right">
+                                            <p className="text-xs text-slate-500">
+                                                {assessment.item_count ?? assessment.items?.length ?? 0} item(s)
+                                            </p>
+                                            <span
+                                                className={`teacher-status-pill ${
+                                                    assessmentStatusClasses[status] ?? 'bg-slate-100 text-slate-600'
+                                                }`}
+                                            >
+                                                {assessment.assessment_status || assessment.status || 'Draft'}
+                                            </span>
+                                        </div>
+                                    </article>
+                                );
+                            })
+                        )}
                     </div>
 
-                    <div className="bg-blue-600 text-white rounded-2xl px-6 py-4 flex items-center justify-between">
-                        <div>
-                            <p className="font-bold text-lg">All caught up!</p>
-                            <p className="text-sm text-white/80">No submissions overdue for grading.</p>
+                    <div className="rounded-[1.6rem] bg-blue-600 px-6 py-5 text-white shadow-lg shadow-blue-200">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <p className="text-lg font-bold">Keep the grading queue moving.</p>
+                                <p className="text-sm text-white/80">
+                                    Created assessments appear here first, then move into Grade Submissions once students submit work.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => navigate('/teacher/assessments')}
+                                className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 font-semibold text-blue-600 transition hover:bg-slate-100"
+                            >
+                                Manage assessments
+                            </button>
                         </div>
-                        <button
-                            onClick={() => navigate('/teacher/assessments')}
-                            className="bg-white text-blue-600 px-4 py-2 rounded-full font-semibold"
-                        >
-                            View assessments
-                        </button>
                     </div>
                 </article>
             </div>

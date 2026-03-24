@@ -16,16 +16,19 @@ if (!$teacher_id) {
 try {
     $stmt = $conn->prepare(
         "SELECT
-             ep.exercise_id,
-             ep.title,
-             ep.description,
-             ep.topic,
-             ep.date_created,
-             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
-             s.course,
-             s.section,
-             s.semester,
-             s.school_year,
+            ep.exercise_id,
+            ep.subject_id,
+            ep.title,
+            ep.description,
+            ep.topic,
+            ep.difficulty,
+            ep.ideal_solution,
+            ep.date_created,
+            COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
+            s.course,
+            s.section,
+            s.semester,
+            s.school_year,
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -49,7 +52,7 @@ try {
     $stmt->execute();
     $result = $stmt->get_result();
 
-    $assessments = [];
+    $assessmentsById = [];
     while ($row = $result->fetch_assoc()) {
         $subjectMeta = [];
         foreach (['course', 'section', 'semester', 'school_year'] as $field) {
@@ -58,20 +61,76 @@ try {
             }
         }
 
-        $assessments[] = [
-            "exercise_id" => (int)$row["exercise_id"],
+        $exerciseId = (int)$row["exercise_id"];
+        $assessmentsById[$exerciseId] = [
+            "exercise_id" => $exerciseId,
+            "subject_id" => isset($row["subject_id"]) ? (int)$row["subject_id"] : null,
             "title" => $row["title"],
             "description" => $row["description"],
             "topic" => $row["topic"],
+            "difficulty" => $row["difficulty"] ?? 'Medium',
+            "ideal_solution" => $row["ideal_solution"],
             "subject" => $row["subject_name"],
-            "subject_meta" => implode(" • ", $subjectMeta),
+            "subject_meta" => implode(" - ", $subjectMeta),
             "date_created" => $row["date_created"],
+            "assessment_status" => $row["assessment_status"],
             "status" => $row["assessment_status"],
+            "item_count" => 0,
+            "items" => [],
         ];
     }
-
     $stmt->close();
-    echo json_encode(["status" => "success", "assessments" => $assessments]);
+
+    if (count($assessmentsById) > 0) {
+        $itemStmt = $conn->prepare(
+            "SELECT
+                ei.item_id,
+                ei.exercise_id,
+                ei.item_no,
+                ei.question_type,
+                ei.question_content,
+                ei.options,
+                ei.correct_answer,
+                ei.model_solution,
+                ei.max_score
+             FROM exercise_items ei
+             INNER JOIN exercises_problem ep ON ei.exercise_id = ep.exercise_id
+             INNER JOIN subject s ON ep.subject_id = s.subject_id
+             WHERE s.teacher_id = ?
+             ORDER BY ei.exercise_id ASC, ei.item_no ASC"
+        );
+        $itemStmt->bind_param("i", $teacher_id);
+        $itemStmt->execute();
+        $itemResult = $itemStmt->get_result();
+
+        while ($itemRow = $itemResult->fetch_assoc()) {
+            $exerciseId = (int)$itemRow['exercise_id'];
+            if (!isset($assessmentsById[$exerciseId])) {
+                continue;
+            }
+
+            $decodedOptions = null;
+            if (!empty($itemRow['options'])) {
+                $decoded = json_decode($itemRow['options'], true);
+                $decodedOptions = json_last_error() === JSON_ERROR_NONE ? $decoded : $itemRow['options'];
+            }
+
+            $assessmentsById[$exerciseId]['items'][] = [
+                "item_id" => (int)$itemRow['item_id'],
+                "item_no" => (int)$itemRow['item_no'],
+                "question_type" => $itemRow['question_type'] ?? 'handwritten_algebra',
+                "question_content" => $itemRow['question_content'],
+                "options" => $decodedOptions,
+                "correct_answer" => $itemRow['correct_answer'],
+                "model_solution" => $itemRow['model_solution'],
+                "max_score" => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 1.0,
+            ];
+            $assessmentsById[$exerciseId]['item_count']++;
+        }
+        $itemStmt->close();
+    }
+
+    echo json_encode(["status" => "success", "assessments" => array_values($assessmentsById)]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(["status" => "error", "message" => $e->getMessage()]);

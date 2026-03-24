@@ -4,6 +4,15 @@ import { useTeacherRecords } from './hooks/useTeacherRecords';
 const ViewHistoryCard = ({ maxHeight = '260px' }) => {
     const { assessments, rubrics, loading, statusMessage, deleteAssessment, deleteRubric } = useTeacherRecords();
 
+    const formatLevelLabel = (level) => {
+        const label = String(level?.label ?? '').trim();
+        const points = Number(level?.points ?? 0);
+        if (!label) {
+            return `${points} pts`;
+        }
+        return `${label} - ${points} pts`;
+    };
+
     const formatDate = (value) => {
         if (!value) return '—';
         const parsed = new Date(value);
@@ -75,14 +84,21 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                                                 <p className="font-semibold text-slate-900">{item.title}</p>
                                                 <p className="text-xs text-slate-500">{item.subject || '—'}</p>
                                             </div>
-                                            <span className={renderStatusBadge(item.assessment_status)}>
-                                                {item.assessment_status || 'Draft'}
+                                            <span className={renderStatusBadge(item.assessment_status || item.status)}>
+                                                {item.assessment_status || item.status || 'Draft'}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between text-[11px] text-slate-500">
                                             <span>Topic: {item.topic || '—'}</span>
+                                            <span>Difficulty: {item.difficulty || 'Medium'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                                            <span>Items: {item.item_count ?? item.items?.length ?? 0}</span>
                                             <span>{formatDate(item.date_created)}</span>
                                         </div>
+                                        {item.ideal_solution && (
+                                            <p className="text-xs text-slate-500">{item.ideal_solution}</p>
+                                        )}
                                         <div className="flex justify-end">
                                             <button
                                                 className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white shadow-sm transition hover:bg-blue-700"
@@ -117,6 +133,23 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                                             </span>
                                         </div>
                                         <p className="text-xs text-slate-500">{rubric.criteria}</p>
+                                        {rubric.ai_instructions && (
+                                            <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-slate-600">
+                                                {rubric.ai_instructions}
+                                            </p>
+                                        )}
+                                        {Array.isArray(rubric.level_definitions) && rubric.level_definitions.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {rubric.level_definitions.map((level, index) => (
+                                                    <span
+                                                        key={`${rubric.rubric_set_id}-history-level-${index}`}
+                                                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600"
+                                                    >
+                                                        {formatLevelLabel(level)}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                         <div className="flex justify-end">
                                             <button
                                                 className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white shadow-sm transition hover:bg-blue-700"

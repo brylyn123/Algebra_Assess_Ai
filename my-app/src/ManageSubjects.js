@@ -205,6 +205,18 @@ const ManageSubjects = () => {
         fetchEnrollments();
     }, [fetchEnrollments]);
 
+    useEffect(() => {
+        if (!teacherId) {
+            return undefined;
+        }
+
+        const intervalId = setInterval(() => {
+            fetchEnrollments();
+        }, selectedSubject ? 4000 : 10000);
+
+        return () => clearInterval(intervalId);
+    }, [fetchEnrollments, selectedSubject, teacherId]);
+
     const fetchSubjectFilters = useCallback(async () => {
         if (!teacherId) {
             return;
@@ -341,8 +353,18 @@ const ManageSubjects = () => {
     }, [toast?.details?.joinCode]);
 
     const normalizedSubjects = Array.isArray(subjects) ? subjects : [];
-    const enrolledList = selectedSubject ? (subjectEnrollments[selectedSubject.id] || []) : [];
-    const activeSubjects = normalizedSubjects;
+    const subjectsWithCounts = normalizedSubjects.map((subject) => {
+        const enrolledStudents = subjectEnrollments[subject.id] || [];
+        return {
+            ...subject,
+            studentCount: enrolledStudents.length,
+        };
+    });
+    const selectedSubjectRecord = selectedSubject
+        ? subjectsWithCounts.find((subject) => subject.id === selectedSubject.id) || selectedSubject
+        : null;
+    const enrolledList = selectedSubjectRecord ? (subjectEnrollments[selectedSubjectRecord.id] || []) : [];
+    const activeSubjects = subjectsWithCounts;
     const searchLower = searchQuery.trim().toLowerCase();
     const filteredSubjects = activeSubjects.filter((subject) => {
         const matchesSearch =
@@ -577,7 +599,7 @@ const ManageSubjects = () => {
                             ))}
                         </select>
                     </div>
-                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                    <div className="teacher-scrollbar space-y-4 max-h-[400px] overflow-y-auto pr-2">
                         {filteredSubjects.length > 0 ? (
                             filteredSubjects.map((subject) => (
                                 <div key={subject.id} className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
@@ -611,7 +633,10 @@ const ManageSubjects = () => {
                                     <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedSubject(subject)}
+                                            onClick={() => {
+                                                fetchEnrollments();
+                                                setSelectedSubject(subject);
+                                            }}
                                             className="rounded-full border border-blue-200 bg-blue-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                         >
                                             View Enrolled
@@ -647,38 +672,65 @@ const ManageSubjects = () => {
                 </div>
             </div>
 
-            {selectedSubject && (
+            {selectedSubjectRecord && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
-                    <div className="w-full max-w-5xl rounded-[2rem] bg-white p-8 shadow-[0_25px_60px_rgba(15,23,42,0.4)] border border-slate-100 space-y-8 overflow-hidden">
+                    <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-8 shadow-[0_25px_60px_rgba(15,23,42,0.4)]">
+                        <div className="teacher-scrollbar max-h-[calc(90vh-4rem)] space-y-8 overflow-y-auto pr-2">
                         <div className="flex items-start justify-between gap-6">
                             <div className="space-y-2">
                                 <p className="text-sm uppercase tracking-[0.4em] text-slate-400">Enrollment</p>
-                                <h3 className="text-3xl font-bold text-slate-900">{selectedSubject.name}</h3>
-                                <p className="text-lg text-slate-600">{selectedSubject.course}</p>
+                                <h3 className="text-3xl font-bold text-slate-900">{selectedSubjectRecord.name}</h3>
+                                <p className="text-lg text-slate-600">{selectedSubjectRecord.course}</p>
                                 <div className="flex flex-wrap gap-3 text-sm text-slate-500">
-                                    <span>{selectedSubject.year} · Section {selectedSubject.section}</span>
-                                    <span>SY {selectedSubject.schoolYear}</span>
-                                    <span>{selectedSubject.semester}</span>
+                                    <span>{selectedSubjectRecord.year} · Section {selectedSubjectRecord.section}</span>
+                                    <span>SY {selectedSubjectRecord.schoolYear}</span>
+                                    <span>{selectedSubjectRecord.semester}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-slate-500">
                                     <span>
-                                        Join Code: <span className="font-mono text-slate-700">{selectedSubject.joinCode}</span>
+                                        Join Code: <span className="font-mono text-slate-700">{selectedSubjectRecord.joinCode}</span>
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => copyJoinCode(selectedSubject.joinCode)}
+                                        onClick={() => copyJoinCode(selectedSubjectRecord.joinCode)}
                                         className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-900"
                                     >
-                                        {copiedJoinCode === selectedSubject.joinCode ? 'Copied' : 'Copy'}
+                                        {copiedJoinCode === selectedSubjectRecord.joinCode ? 'Copied' : 'Copy'}
                                     </button>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setSelectedSubject(null)}
-                                className="text-sm font-semibold text-slate-500 hover:text-slate-900 self-start"
-                            >
-                                Close
-                            </button>
+                            <div className="flex items-center gap-3 self-start">
+                                <button
+                                    type="button"
+                                    onClick={() => fetchEnrollments()}
+                                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                >
+                                    Refresh
+                                </button>
+                                <button
+                                    onClick={() => setSelectedSubject(null)}
+                                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Enrolled</p>
+                                <p className="mt-3 text-3xl font-black text-slate-900">{enrolledList.length}</p>
+                                <p className="mt-1 text-sm text-slate-500">Students currently in this subject</p>
+                            </div>
+                            <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Join Code</p>
+                                <p className="mt-3 font-mono text-2xl font-black text-slate-900">{selectedSubjectRecord.joinCode}</p>
+                                <p className="mt-1 text-sm text-slate-500">Share this code so students can enroll</p>
+                            </div>
+                            <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Schedule</p>
+                                <p className="mt-3 text-lg font-bold text-slate-900">{selectedSubjectRecord.semester}</p>
+                                <p className="mt-1 text-sm text-slate-500">SY {selectedSubjectRecord.schoolYear}</p>
+                            </div>
                         </div>
                         <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-6">
                             <div className="flex items-center justify-between mb-4">
@@ -686,38 +738,37 @@ const ManageSubjects = () => {
                                 <p className="text-xs text-slate-500">{enrolledList.length} recorded</p>
                             </div>
                             {enrolledList.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left text-slate-600">
-                                        <thead>
-                                            <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                                                <th className="pb-3 font-semibold">Student</th>
-                                                <th className="pb-3 font-semibold">Date Enrolled</th>
-                                                <th className="pb-3 font-semibold text-right">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {enrolledList.map((student) => (
-                                                <tr key={student.id}>
-                                                    <td className="py-3">
-                                                        <p className="font-semibold text-slate-800">{student.name}</p>
-                                                        <p className="text-xs text-slate-400">{student.id}</p>
-                                                    </td>
-                                                    <td className="py-3">{student.enrolledDate ?? '—'}</td>
-                                                    <td className="py-3 text-right">
-                                                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-600">
-                                                            {student.status}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                <div className="teacher-scrollbar grid max-h-[360px] gap-3 overflow-y-auto pr-2">
+                                    {enrolledList.map((student) => (
+                                        <div
+                                            key={student.enrollment_id ?? student.student_id}
+                                            className="rounded-[1.35rem] border border-white bg-white px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                                        >
+                                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                                <div className="min-w-0">
+                                                    <p className="text-base font-bold text-slate-900">
+                                                        {student.student_name || student.student_id}
+                                                    </p>
+                                                    <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                                                        <span>ID {student.student_id}</span>
+                                                        <span>Enrolled {student.date_enrolled ?? '—'}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                                                        {student.enrollment_status || 'enrolled'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
                                 <div className="rounded-2xl bg-white/80 p-8 text-center text-sm text-slate-400">
                                     No enrolled students recorded yet.
                                 </div>
                             )}
+                        </div>
                         </div>
                     </div>
                 </div>
