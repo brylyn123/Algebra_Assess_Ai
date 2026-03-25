@@ -1,5 +1,6 @@
 const LOCAL_USERS_KEY = 'aa_local_users';
 const CURRENT_USER_KEY = 'aa_current_user_email';
+const LOCAL_USER_EVENT = 'aa-local-user-updated';
 
 const normalizeEmail = (email) => (email || '').trim().toLowerCase();
 
@@ -29,11 +30,14 @@ export const storeLocalUser = (user) => {
     users.push(normalized);
     localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
     localStorage.setItem(CURRENT_USER_KEY, normalized.email);
+    window.dispatchEvent(new CustomEvent(LOCAL_USER_EVENT, { detail: { email: normalized.email } }));
 };
 
 export const setCurrentLocalUserEmail = (email) => {
     if (!email) return;
-    localStorage.setItem(CURRENT_USER_KEY, normalizeEmail(email));
+    const normalizedEmail = normalizeEmail(email);
+    localStorage.setItem(CURRENT_USER_KEY, normalizedEmail);
+    window.dispatchEvent(new CustomEvent(LOCAL_USER_EVENT, { detail: { email: normalizedEmail } }));
 };
 
 export const getCurrentLocalUserEmail = () => {
@@ -43,4 +47,7 @@ export const getCurrentLocalUserEmail = () => {
 
 export const clearCurrentLocalUserEmail = () => {
     localStorage.removeItem(CURRENT_USER_KEY);
+    window.dispatchEvent(new CustomEvent(LOCAL_USER_EVENT, { detail: { email: null } }));
 };
+
+export const getLocalUserEventName = () => LOCAL_USER_EVENT;

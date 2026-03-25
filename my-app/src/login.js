@@ -83,7 +83,9 @@ const Login = () => {
                 if (idToStore) {
                     localStorage.setItem('teacher_id', idToStore);
                 }
+                const existingLocalUser = findLocalUser(userData.email) || {};
                 storeLocalUser({
+                    ...existingLocalUser,
                     ...userData,
                     password: formData.password,
                 });

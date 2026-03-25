@@ -9,6 +9,36 @@ const statusStyle = {
 
 const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 
+const toAbsoluteFileUrl = (path) => {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = String(path).replace(/^\/+/, '');
+  return `${API_BASE_URL}/${normalizedPath}`;
+};
+
+const normalizeSubmissionFiles = (submission) => {
+  if (!Array.isArray(submission?.files)) {
+    return [];
+  }
+
+  return submission.files
+    .map((file, index) => {
+      const path = file?.path ?? '';
+      const name = file?.name ?? `File ${index + 1}`;
+      const extension = String(name).split('.').pop()?.toLowerCase() ?? '';
+      const type = file?.type ?? (extension === 'pdf' ? 'pdf' : 'image');
+
+      return {
+        id: `${submission.id}-${index}-${name}`,
+        name,
+        path,
+        url: toAbsoluteFileUrl(path),
+        type,
+      };
+    })
+    .filter((file) => file.path && file.url);
+};
+
 const GradeSubmissions = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const teacherUser = currentEmail ? findLocalUser(currentEmail) : null;
@@ -29,6 +59,10 @@ const GradeSubmissions = () => {
   const [createdAssessments, setCreatedAssessments] = useState([]);
   const [assessmentLoading, setAssessmentLoading] = useState(false);
   const [assessmentError, setAssessmentError] = useState('');
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [teacherFeedback, setTeacherFeedback] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -322,19 +356,92 @@ const GradeSubmissions = () => {
     });
   }, [visibleSubmissions]);
 
+  useEffect(() => {
+    setAiScore(selectedSubmission?.score ?? null);
+    setGenerating(false);
+    setSelectedFileIndex(0);
+    setIsPreviewOpen(false);
+    setTeacherFeedback(selectedSubmission?.teacher_feedback ?? '');
+    setSaveMessage('');
+  }, [selectedSubmission?.id]);
+
   const handleRubricChange = (event) => {
     setSelectedRubric(event.target.value);
   };
 
-  const handleGenerateAIGrade = () => {
+  const persistSubmissionGrade = async (scoreValue, feedbackValue) => {
+    if (!selectedSubmission || !teacherId) return null;
+
+    const response = await fetch(`${API_BASE_URL}/save_submission_grade.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        teacher_id: teacherId,
+        solution_id: selectedSubmission.id,
+        total_score_earned: scoreValue,
+        teacher_feedback: feedbackValue,
+      }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || payload.status !== 'success') {
+      throw new Error(payload.message || 'Unable to save grade.');
+    }
+
+    const nextSubmission = {
+      ...selectedSubmission,
+      status: 'Graded',
+      score_id: payload.score_id,
+      score: payload.score,
+      teacher_feedback: payload.teacher_feedback,
+    };
+
+    setSubmissions((current) =>
+      current.map((submission) =>
+        submission.id === selectedSubmission.id ? nextSubmission : submission
+      )
+    );
+    setSelectedSubmission(nextSubmission);
+    return payload;
+  };
+
+  const handleGenerateAIGrade = async () => {
     if (!selectedSubmission) return;
     setGenerating(true);
-    setAiScore(null);
-    const simulatedScore = `${Math.floor(85 + Math.random() * 10)}%`;
-    setTimeout(() => {
+    setSaveMessage('');
+
+    try {
+      const simulatedScore = Math.floor(85 + Math.random() * 10);
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      await persistSubmissionGrade(simulatedScore, teacherFeedback);
       setAiScore(simulatedScore);
+      setSaveMessage('Grade saved to Results & Feedback.');
+    } catch (error) {
+      console.error(error);
+      setSaveMessage(error.message || 'Unable to save grade.');
+    } finally {
       setGenerating(false);
-    }, 900);
+    }
+  };
+
+  const handleSaveFeedback = async () => {
+    if (!selectedSubmission || aiScore === null || aiScore === undefined) {
+      setSaveMessage('Generate or load a grade before saving feedback.');
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      setSaveMessage('');
+      const numericScore = Number(aiScore);
+      await persistSubmissionGrade(numericScore, teacherFeedback);
+      setSaveMessage('Feedback updated successfully.');
+    } catch (error) {
+      console.error(error);
+      setSaveMessage(error.message || 'Unable to update feedback.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const visibleCreatedAssessments = useMemo(() => {
@@ -348,10 +455,15 @@ const GradeSubmissions = () => {
   }, [createdAssessments, selectedSubject]);
 
   const info = selectedSubmission;
+  const submissionFiles = useMemo(
+    () => normalizeSubmissionFiles(selectedSubmission),
+    [selectedSubmission]
+  );
+  const activeFile = submissionFiles[selectedFileIndex] ?? submissionFiles[0] ?? null;
 
   return (
-    <div className="min-h-screen bg-slate-50 py-10">
-      <div className="max-w-6xl mx-auto space-y-8 px-4 md:px-6">
+    <div className="space-y-8 px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto max-w-6xl space-y-8">
         <h1 className="text-3xl font-bold text-slate-900">Grade Submissions</h1>
 
         <div className="grid gap-8 lg:grid-cols-[1.05fr,1fr]">
@@ -425,7 +537,7 @@ const GradeSubmissions = () => {
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                      <span>Topic: {assessment.topic || '—'}</span>
+                      <span>Topic: {assessment.topic || '-'}</span>
                       <span>Items: {assessment.item_count ?? assessment.items?.length ?? 0}</span>
                       {assessment.difficulty && <span>Difficulty: {assessment.difficulty}</span>}
                     </div>
@@ -504,13 +616,13 @@ const GradeSubmissions = () => {
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student</p>
                     <p className="font-semibold text-slate-900">{info?.student_name ?? 'Select a submission'}</p>
-                    <p className="text-xs text-slate-500">Assessment: {info?.assessment_title ?? '—'}</p>
+                    <p className="text-xs text-slate-500">Assessment: {info?.assessment_title ?? '-'}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student ID</p>
-                    <p className="font-semibold text-slate-900">{info?.student_id ?? '—'}</p>
+                    <p className="font-semibold text-slate-900">{info?.student_id ?? '-'}</p>
                     <p className="text-xs text-slate-500">
-                      Submitted: {info?.submission_date ?? '—'}
+                      Submitted: {info?.submission_date ?? '-'}
                     </p>
                   </div>
                 </div>
@@ -554,7 +666,7 @@ const GradeSubmissions = () => {
             <div className="space-y-4">
               <p className="text-sm font-semibold text-slate-700">AI Generated Grade</p>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-lg font-semibold text-slate-900">
-                {aiScore ?? 'Awaiting generation'}
+                {aiScore !== null && aiScore !== undefined ? `${aiScore}%` : 'Awaiting generation'}
               </div>
               <button
                 type="button"
@@ -564,17 +676,164 @@ const GradeSubmissions = () => {
               >
                 {generating ? 'Generating...' : 'Generate AI Grade'}
               </button>
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <label className="block text-sm font-semibold text-slate-700" htmlFor="teacher-feedback">
+                  Teacher Feedback
+                </label>
+                <textarea
+                  id="teacher-feedback"
+                  value={teacherFeedback}
+                  onChange={(event) => setTeacherFeedback(event.target.value)}
+                  rows={4}
+                  placeholder="Add notes the teacher should see in Results & Feedback."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveFeedback}
+                  disabled={!selectedSubmission || generating}
+                  className="rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Save Feedback
+                </button>
+                {saveMessage && (
+                  <p className={`text-xs ${saveMessage.toLowerCase().includes('unable') ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {saveMessage}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
               <p className="font-semibold text-slate-900 mb-2">Submitted Work</p>
-              <div className="h-40 rounded-xl border border-dashed border-slate-300 bg-white flex items-center justify-center text-xs text-slate-400">
-                Preview placeholder for student work.
-              </div>
+              {!selectedSubmission ? (
+                <div className="h-40 rounded-xl border border-dashed border-slate-300 bg-white flex items-center justify-center text-xs text-slate-400">
+                  Select a student submission to preview the files.
+                </div>
+              ) : submissionFiles.length === 0 ? (
+                <div className="h-40 rounded-xl border border-dashed border-slate-300 bg-white flex items-center justify-center text-xs text-slate-400">
+                  No uploaded files were found for this submission.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {submissionFiles.map((file, index) => {
+                      const isActive = activeFile?.id === file.id;
+                      return (
+                        <button
+                          key={file.id}
+                          type="button"
+                          onClick={() => setSelectedFileIndex(index)}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                            isActive
+                              ? 'border-blue-300 bg-blue-100 text-blue-700'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
+                          }`}
+                        >
+                          {submissionFiles.length > 1 ? `Page ${index + 1}` : 'View File'}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsPreviewOpen(true)}
+                    className="block w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-300"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{activeFile.name}</p>
+                        <p className="text-xs text-slate-500">
+                          Click the preview to open the full file.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                        {activeFile.type}
+                      </span>
+                    </div>
+
+                    {activeFile.type === 'pdf' ? (
+                      <div className="flex h-72 items-center justify-center bg-slate-50 px-6 text-center">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">PDF submission</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Click to inspect this file without leaving the page.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={activeFile.url}
+                        alt={`${info?.student_name ?? 'Student'} submission ${selectedFileIndex + 1}`}
+                        className="h-72 w-full object-contain bg-slate-50"
+                      />
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {isPreviewOpen && activeFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <p className="text-base font-semibold text-slate-900">{activeFile.name}</p>
+                <p className="text-xs text-slate-500">
+                  {info?.student_name ?? 'Student'} • {info?.assessment_title ?? 'Assessment'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 border-b border-slate-100 px-6 py-3">
+              {submissionFiles.map((file, index) => {
+                const isActive = activeFile.id === file.id;
+                return (
+                  <button
+                    key={file.id}
+                    type="button"
+                    onClick={() => setSelectedFileIndex(index)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      isActive
+                        ? 'border-blue-300 bg-blue-100 text-blue-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
+                    }`}
+                  >
+                    {submissionFiles.length > 1 ? `Page ${index + 1}` : 'File'}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">
+              {activeFile.type === 'pdf' ? (
+                <iframe
+                  title={activeFile.name}
+                  src={activeFile.url}
+                  className="h-[70vh] w-full rounded-2xl border border-slate-200 bg-white"
+                />
+              ) : (
+                <img
+                  src={activeFile.url}
+                  alt={`${info?.student_name ?? 'Student'} submission ${selectedFileIndex + 1}`}
+                  className="mx-auto max-h-[70vh] w-auto max-w-full rounded-2xl border border-slate-200 bg-white object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

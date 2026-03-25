@@ -673,7 +673,7 @@ const ManageSubjects = () => {
             </div>
 
             {selectedSubjectRecord && (
-                <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4 py-6">
+                <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6">
                     <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-8 shadow-[0_25px_60px_rgba(15,23,42,0.4)]">
                         <div className="teacher-scrollbar max-h-[calc(90vh-4rem)] space-y-8 overflow-y-auto pr-2">
                         <div className="flex items-start justify-between gap-6">
@@ -774,7 +774,7 @@ const ManageSubjects = () => {
                 </div>
             )}
             {editingSubject && (
-                <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6 bg-slate-900/40">
+                <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6">
                     <div className="w-full max-w-3xl rounded-[2rem] bg-white p-6 shadow-[0_35px_70px_rgba(15,23,42,0.35)] border border-slate-100 space-y-6">
                         <div className="flex items-start justify-between gap-4">
                             <div>

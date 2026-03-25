@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { storeLocalUser } from './localAuthStore';
 
 const shakeVariants = {
     idle: { x: 0 },
@@ -103,6 +104,17 @@ const Signup = () => {
                 };
 
                 localStorage.setItem('user', JSON.stringify(userSession));
+                storeLocalUser({
+                    ...userSession,
+                    firstName: formData.firstName,
+                    middleName: formData.middleName,
+                    lastName: formData.lastName,
+                    idNumber: formData.idNumber,
+                    collegeName: formData.collegeName,
+                    sectionName: formData.sectionName,
+                    yearLevel: formData.yearLevel,
+                    password: formData.password,
+                });
                 showToast('Account created successfully!', 'success');
                 navigationTimer.current = setTimeout(() => navigate('/login'), 1100);
             } else {

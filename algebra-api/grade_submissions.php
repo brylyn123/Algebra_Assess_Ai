@@ -35,6 +35,11 @@ SELECT
     subj.year,
     subj.semester,
     subj.school_year,
+    cs.file_path,
+    cs.ai_raw_json,
+    sc.score_id,
+    sc.total_score_earned,
+    sc.teacher_feedback,
     DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date,
     CASE
         WHEN sc.score_id IS NOT NULL THEN 'Graded'
@@ -112,6 +117,41 @@ while ($row = $result->fetch_assoc()) {
         $row['year'] ?? '',
     ], fn($value) => $value !== null && trim((string)$value) !== '');
 
+    $files = [];
+    $rawJson = $row['ai_raw_json'] ?? null;
+    if ($rawJson) {
+        $decoded = json_decode($rawJson, true);
+        if (json_last_error() === JSON_ERROR_NONE && isset($decoded['files']) && is_array($decoded['files'])) {
+            foreach ($decoded['files'] as $file) {
+                $path = trim((string)($file['file_path'] ?? ''));
+                if ($path === '') {
+                    continue;
+                }
+
+                $originalName = trim((string)($file['original_name'] ?? basename($path)));
+                $extension = strtolower(pathinfo($originalName !== '' ? $originalName : $path, PATHINFO_EXTENSION));
+                $files[] = [
+                    'name' => $originalName !== '' ? $originalName : basename($path),
+                    'path' => $path,
+                    'type' => $extension === 'pdf' ? 'pdf' : 'image',
+                ];
+            }
+        }
+    }
+
+    if (count($files) === 0) {
+        $fallbackPath = trim((string)($row['file_path'] ?? ''));
+        if ($fallbackPath !== '') {
+            $fallbackName = basename($fallbackPath);
+            $extension = strtolower(pathinfo($fallbackName, PATHINFO_EXTENSION));
+            $files[] = [
+                'name' => $fallbackName,
+                'path' => $fallbackPath,
+                'type' => $extension === 'pdf' ? 'pdf' : 'image',
+            ];
+        }
+    }
+
     $submissions[] = [
         'id' => (int)$row['id'],
         'student_name' => $row['student_name'],
@@ -126,6 +166,10 @@ while ($row = $result->fetch_assoc()) {
         'rubric_criteria' => null,
         'submission_date' => $row['submission_date'],
         'status' => $row['status'],
+        'files' => $files,
+        'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
+        'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
+        'teacher_feedback' => $row['teacher_feedback'] ?? '',
     ];
 }
 $result->free();

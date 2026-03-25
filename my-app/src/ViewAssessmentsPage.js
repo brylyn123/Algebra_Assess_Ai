@@ -4,6 +4,13 @@ import ViewAssessments from './ViewAssessments';
 
 const ViewAssessmentsPage = () => {
     const navigate = useNavigate();
+    const handleBack = () => {
+        if (window.history.length > 1) {
+            navigate(-1);
+            return;
+        }
+        navigate('/teacher/assessments');
+    };
 
     return (
         <div className="p-4 md:p-8">
@@ -14,10 +21,12 @@ const ViewAssessmentsPage = () => {
                     <p className="mt-1 text-sm text-slate-500">Review everything you created for teaching.</p>
                 </div>
                 <button
-                    onClick={() => navigate('/teacher/assessments')}
-                    className="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:border-slate-300"
+                    type="button"
+                    onClick={handleBack}
+                    className="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-sm transition hover:border-blue-700 hover:bg-blue-700"
                 >
-                    Back
+                    <span aria-hidden="true">←</span>
+                    Back to Assessments
                 </button>
             </div>
             <ViewAssessments />
