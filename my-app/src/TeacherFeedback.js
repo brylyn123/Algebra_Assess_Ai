@@ -92,7 +92,7 @@ const TeacherFeedback = () => {
   return (
     <div className="space-y-8 px-4 py-6 md:px-6 md:py-8">
       <div className="mx-auto max-w-6xl space-y-8">
-        <div className="rounded-[2rem] border border-slate-100 bg-white p-8 shadow-lg">
+        <div className="page-hero-card p-8">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Feedback</p>
           <h1 className="mt-3 text-3xl font-bold text-slate-900">Results & Feedback</h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -102,7 +102,7 @@ const TeacherFeedback = () => {
 
         <div className="grid gap-8 lg:grid-cols-[0.95fr,1.05fr]">
           <div className="space-y-6">
-            <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
+            <div className="page-hero-card p-6">
               <label className="block text-sm font-semibold text-slate-500">Filter by Subject</label>
               <select
                 value={selectedSubject}
@@ -166,7 +166,7 @@ const TeacherFeedback = () => {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-100 bg-white p-8 shadow-lg">
+          <div className="page-hero-card p-8">
             {!selectedRecord ? (
               <div className="flex h-full min-h-[400px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
                 Select a graded submission to view the saved result.

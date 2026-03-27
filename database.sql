@@ -50,8 +50,14 @@ CREATE TABLE Student (
     last_name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     college_id INT,
+    course_id INT,
+    section_id INT,
+    year_id INT,
     user_id INT,
     FOREIGN KEY (college_id) REFERENCES Colleges(college_id),
+    FOREIGN KEY (course_id) REFERENCES Course(course_id),
+    FOREIGN KEY (section_id) REFERENCES Section(section_id),
+    FOREIGN KEY (year_id) REFERENCES Year_Level(year_id),
     FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
 
@@ -109,6 +115,7 @@ CREATE TABLE Enrollment (
 CREATE TABLE Exercises_Problem (
     exercise_id INT PRIMARY KEY AUTO_INCREMENT,
     subject_id INT NOT NULL,
+    rubric_set_id INT,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     topic VARCHAR(100),

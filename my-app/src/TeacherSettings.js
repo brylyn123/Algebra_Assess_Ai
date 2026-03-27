@@ -42,7 +42,7 @@ const TeacherSettings = () => {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2rem] border border-slate-100 bg-white/90 p-8 shadow-[0_25px_60px_rgba(15,23,42,0.08)]">
+      <section className="page-hero-card p-8">
         <div className="flex flex-col gap-3">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">App Settings</p>
           <h1 className="text-3xl font-bold text-slate-900">Classroom Controls</h1>

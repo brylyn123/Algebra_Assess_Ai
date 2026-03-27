@@ -73,7 +73,7 @@ const TeacherReports = () => {
   return (
     <div className="space-y-8 px-4 py-6 md:px-6 md:py-8">
       <div className="mx-auto max-w-6xl space-y-8">
-        <div className="rounded-[2rem] border border-slate-100 bg-white p-8 shadow-lg">
+        <div className="page-hero-card p-8">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Reports</p>
           <h1 className="mt-3 text-3xl font-bold text-slate-900">View Reports</h1>
           <p className="mt-2 text-sm text-slate-500">

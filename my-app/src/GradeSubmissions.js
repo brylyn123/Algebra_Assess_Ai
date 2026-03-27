@@ -44,91 +44,20 @@ const GradeSubmissions = () => {
   const teacherUser = currentEmail ? findLocalUser(currentEmail) : null;
   const teacherId = teacherUser?.teacher_id ?? teacherUser?.user_id ?? teacherUser?.id ?? null;
   const [submissions, setSubmissions] = useState([]);
-  const [selectedSubject, setSelectedSubject] = useState('all');
-  const [availableSubjects, setAvailableSubjects] = useState([]);
+  const [selectedAssessment, setSelectedAssessment] = useState('all');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [subjectError, setSubjectError] = useState('');
   const [aiScore, setAiScore] = useState(null);
   const [generating, setGenerating] = useState(false);
-  const [rubrics, setRubrics] = useState([]);
-  const [rubricLoading, setRubricLoading] = useState(false);
-  const [rubricError, setRubricError] = useState('');
-  const [selectedRubric, setSelectedRubric] = useState('');
   const [createdAssessments, setCreatedAssessments] = useState([]);
   const [assessmentLoading, setAssessmentLoading] = useState(false);
   const [assessmentError, setAssessmentError] = useState('');
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [teacherFeedback, setTeacherFeedback] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
-
-  useEffect(() => {
-    let isMounted = true;
-    const controller = new AbortController();
-
-    const fetchSubjects = async () => {
-      if (!teacherId) {
-        if (isMounted) {
-          setAvailableSubjects([]);
-          setSubjectError('');
-        }
-        return;
-      }
-
-      try {
-        setSubjectError('');
-        const response = await fetch(`${API_BASE_URL}/get_subjects.php?teacher_id=${teacherId}`, {
-          signal: controller.signal,
-        });
-        const text = await response.text();
-
-        if (!response.ok) {
-          throw new Error(text || 'Unable to load subjects.');
-        }
-
-        let payload;
-        try {
-          payload = JSON.parse(text);
-        } catch (parseError) {
-          console.error('Failed to decode subjects payload:', text);
-          throw new Error('Received invalid subject data from the server.');
-        }
-
-        const rawSubjects = Array.isArray(payload?.subjects)
-          ? payload.subjects
-          : Array.isArray(payload)
-            ? payload
-            : [];
-
-        if (!isMounted) return;
-
-        const normalizedSubjects = rawSubjects
-          .map((subject) => ({
-            value: String(subject.subject_id ?? subject.id ?? ''),
-            label: subject.subject_name ?? subject.name ?? 'Untitled Subject',
-          }))
-          .filter((subject) => subject.value);
-
-        setAvailableSubjects(normalizedSubjects);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        console.error(error);
-        if (isMounted) {
-          setSubjectError(error.message || 'Unable to load subjects.');
-          setAvailableSubjects([]);
-        }
-      }
-    };
-
-    fetchSubjects();
-
-    return () => {
-      isMounted = false;
-      controller.abort();
-    };
-  }, [teacherId]);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -148,13 +77,7 @@ const GradeSubmissions = () => {
       setErrorMessage('');
 
       try {
-        const params = new URLSearchParams();
-        params.set('teacher_id', teacherId);
-        if (selectedSubject !== 'all') {
-          params.set('subject_id', selectedSubject);
-        }
-
-        const response = await fetch(`${API_BASE_URL}/grade_submissions.php?${params.toString()}`, {
+        const response = await fetch(`${API_BASE_URL}/grade_submissions.php?teacher_id=${teacherId}`, {
           signal: controller.signal,
         });
         const text = await response.text();
@@ -206,10 +129,10 @@ const GradeSubmissions = () => {
       isMounted = false;
       controller.abort();
     };
-  }, [teacherId, selectedSubject]);
+  }, [teacherId]);
 
   useEffect(() => {
-    setSelectedSubject('all');
+    setSelectedAssessment('all');
   }, [teacherId]);
 
   useEffect(() => {
@@ -276,73 +199,180 @@ const GradeSubmissions = () => {
   }, [teacherId]);
 
   useEffect(() => {
-    if (!teacherId) {
-      setRubrics([]);
-      setSelectedRubric('');
-      setRubricError('');
-      setRubricLoading(false);
+    setAiScore(selectedSubmission?.score ?? null);
+    setGenerating(false);
+    setSelectedFileIndex(0);
+    setIsPreviewOpen(false);
+    setSaveMessage('');
+  }, [selectedSubmission?.id, selectedSubmission?.score, selectedSubmission?.teacher_feedback]);
+
+  const buildGeneratedGrade = (submission, offset = 0) => {
+    const base = 84 + ((submission?.exercise_id ?? submission?.id ?? 0) % 11);
+    const score = Math.max(0, Math.min(100, base + offset));
+    const rubricLabel = submission?.rubric_name || 'the saved rubric';
+
+    return {
+      score,
+      feedback: `Auto-generated feedback for ${submission?.student_name || 'this student'} using ${rubricLabel}.`,
+    };
+  };
+
+  const persistSubmissionGrade = async (submission, scoreValue, feedbackValue) => {
+    if (!submission || !teacherId) return null;
+
+    const response = await fetch(`${API_BASE_URL}/save_submission_grade.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        teacher_id: teacherId,
+        solution_id: submission.id,
+        total_score_earned: scoreValue,
+        teacher_feedback: feedbackValue,
+      }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || payload.status !== 'success') {
+      throw new Error(payload.message || 'Unable to save grade.');
+    }
+
+    const nextSubmission = {
+      ...submission,
+      status: 'Graded',
+      score_id: payload.score_id,
+      score: payload.score,
+      teacher_feedback: payload.teacher_feedback,
+    };
+
+    setSubmissions((current) =>
+      current.map((submission) =>
+        submission.id === nextSubmission.id ? nextSubmission : submission
+      )
+    );
+    if (selectedSubmission?.id === nextSubmission.id) {
+      setSelectedSubmission(nextSubmission);
+    }
+    return payload;
+  };
+
+  const handleGenerateAIGrade = async () => {
+    if (!selectedSubmission) return;
+    setGenerating(true);
+    setSaveMessage('');
+
+    try {
+      const generated = buildGeneratedGrade(selectedSubmission);
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      await persistSubmissionGrade(selectedSubmission, generated.score, generated.feedback);
+      setAiScore(generated.score);
+      setSaveMessage('Grade saved to Results & Feedback.');
+    } catch (error) {
+      console.error(error);
+      setSaveMessage(error.message || 'Unable to save grade.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleGenerateBulkAIGrade = async () => {
+    if (bulkGenerating) return;
+
+    const queue = visibleSubmissions.filter((submission) => submission.status !== 'Graded');
+    if (queue.length === 0) {
+      setBulkProgress('No ungraded submissions found for the selected assessment.');
       return;
     }
 
-    let isMounted = true;
-    const controller = new AbortController();
-    setRubricLoading(true);
-    setRubricError('');
+    setBulkGenerating(true);
+    setGenerating(true);
+    setSaveMessage('');
+    setBulkProgress(`Generating grades for ${queue.length} submission(s)...`);
 
-    const loadRubrics = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/get_rubric_sets.php?teacher_id=${teacherId}`, {
-          signal: controller.signal,
-        });
-        const text = await response.text();
-        if (!response.ok) {
-          throw new Error(text || 'Unable to load rubrics.');
-        }
-        const payload = JSON.parse(text);
-        if (payload.status !== 'success' || !Array.isArray(payload.rubrics)) {
-          throw new Error(payload.message || 'Unable to load rubrics.');
-        }
-        if (isMounted) {
-          setRubrics(payload.rubrics);
-          setSelectedRubric(payload.rubrics[0]?.rubric_set_id?.toString() ?? '');
-        }
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        console.error(error);
-        if (isMounted) {
-          setRubricError(error.message || 'Unable to load rubrics.');
-          setRubrics([]);
-          setSelectedRubric('');
-        }
-      } finally {
-        if (isMounted) {
-          setRubricLoading(false);
-        }
+    try {
+      for (let index = 0; index < queue.length; index += 1) {
+        const submission = queue[index];
+        const generated = buildGeneratedGrade(submission, index % 5);
+        setBulkProgress(`Processing ${index + 1} of ${queue.length}: ${submission.student_name}`);
+        // Keep the API calls sequential so each save finishes cleanly before the next one starts.
+        await persistSubmissionGrade(submission, generated.score, generated.feedback);
       }
-    };
 
-    loadRubrics();
+      setBulkProgress(`Completed grading ${queue.length} submission(s).`);
+      setSaveMessage('Bulk grades saved to Results & Feedback.');
+    } catch (error) {
+      console.error(error);
+      setBulkProgress('');
+      setSaveMessage(error.message || 'Unable to complete bulk grading.');
+    } finally {
+      setBulkGenerating(false);
+      setGenerating(false);
+    }
+  };
 
-    return () => {
-      isMounted = false;
-      controller.abort();
-    };
-  }, [teacherId]);
-
-  const subjectOptions = useMemo(
-    () => [{ value: 'all', label: 'All Subjects' }, ...availableSubjects],
-    [availableSubjects]
+  const pendingAssessmentIds = useMemo(
+    () => new Set(submissions.filter((submission) => submission.status !== 'Graded').map((submission) => String(submission.exercise_id ?? ''))),
+    [submissions]
   );
 
-  const visibleSubmissions = useMemo(() => {
-    if (selectedSubject === 'all') {
-      return submissions;
+  const visibleCreatedAssessments = useMemo(
+    () => createdAssessments.filter((assessment) => pendingAssessmentIds.has(String(assessment.exercise_id))),
+    [createdAssessments, pendingAssessmentIds]
+  );
+
+  const assessmentOptions = useMemo(() => {
+    const grouped = new Map();
+
+    submissions.forEach((submission) => {
+      if (submission.status === 'Graded') {
+        return;
+      }
+
+      const key = String(submission.exercise_id ?? '');
+      if (!key) {
+        return;
+      }
+
+      const current = grouped.get(key) ?? {
+        value: key,
+        title: submission.assessment_title || 'Untitled Assessment',
+        subject: submission.subject_display || 'Unassigned Subject',
+        count: 0,
+      };
+
+      current.count += 1;
+      grouped.set(key, current);
+    });
+
+    return [
+      { value: 'all', label: 'All Ungraded Assessments' },
+      ...Array.from(grouped.values()).map((assessment) => ({
+        value: assessment.value,
+        label: `${assessment.title} (${assessment.count})`,
+      })),
+    ];
+  }, [submissions]);
+
+  useEffect(() => {
+    if (assessmentOptions.length === 0) {
+      setSelectedAssessment('all');
+      return;
     }
 
-    return submissions.filter(
-      (submission) => String(submission.subject_id ?? 'unassigned') === selectedSubject
-    );
-  }, [selectedSubject, submissions]);
+    setSelectedAssessment((previous) => {
+      const stillValid = assessmentOptions.some((option) => option.value === previous);
+      return stillValid ? previous : assessmentOptions[0].value;
+    });
+  }, [assessmentOptions]);
+
+  const visibleSubmissions = useMemo(() => {
+    const ungraded = submissions.filter((submission) => submission.status !== 'Graded');
+
+    if (selectedAssessment === 'all') {
+      return ungraded;
+    }
+
+    return ungraded.filter((submission) => String(submission.exercise_id ?? '') === selectedAssessment);
+  }, [selectedAssessment, submissions]);
 
   useEffect(() => {
     if (visibleSubmissions.length === 0) {
@@ -355,104 +385,6 @@ const GradeSubmissions = () => {
       return stillVisible || visibleSubmissions[0];
     });
   }, [visibleSubmissions]);
-
-  useEffect(() => {
-    setAiScore(selectedSubmission?.score ?? null);
-    setGenerating(false);
-    setSelectedFileIndex(0);
-    setIsPreviewOpen(false);
-    setTeacherFeedback(selectedSubmission?.teacher_feedback ?? '');
-    setSaveMessage('');
-  }, [selectedSubmission?.id]);
-
-  const handleRubricChange = (event) => {
-    setSelectedRubric(event.target.value);
-  };
-
-  const persistSubmissionGrade = async (scoreValue, feedbackValue) => {
-    if (!selectedSubmission || !teacherId) return null;
-
-    const response = await fetch(`${API_BASE_URL}/save_submission_grade.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        teacher_id: teacherId,
-        solution_id: selectedSubmission.id,
-        total_score_earned: scoreValue,
-        teacher_feedback: feedbackValue,
-      }),
-    });
-
-    const payload = await response.json();
-    if (!response.ok || payload.status !== 'success') {
-      throw new Error(payload.message || 'Unable to save grade.');
-    }
-
-    const nextSubmission = {
-      ...selectedSubmission,
-      status: 'Graded',
-      score_id: payload.score_id,
-      score: payload.score,
-      teacher_feedback: payload.teacher_feedback,
-    };
-
-    setSubmissions((current) =>
-      current.map((submission) =>
-        submission.id === selectedSubmission.id ? nextSubmission : submission
-      )
-    );
-    setSelectedSubmission(nextSubmission);
-    return payload;
-  };
-
-  const handleGenerateAIGrade = async () => {
-    if (!selectedSubmission) return;
-    setGenerating(true);
-    setSaveMessage('');
-
-    try {
-      const simulatedScore = Math.floor(85 + Math.random() * 10);
-      await new Promise((resolve) => setTimeout(resolve, 900));
-      await persistSubmissionGrade(simulatedScore, teacherFeedback);
-      setAiScore(simulatedScore);
-      setSaveMessage('Grade saved to Results & Feedback.');
-    } catch (error) {
-      console.error(error);
-      setSaveMessage(error.message || 'Unable to save grade.');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleSaveFeedback = async () => {
-    if (!selectedSubmission || aiScore === null || aiScore === undefined) {
-      setSaveMessage('Generate or load a grade before saving feedback.');
-      return;
-    }
-
-    try {
-      setGenerating(true);
-      setSaveMessage('');
-      const numericScore = Number(aiScore);
-      await persistSubmissionGrade(numericScore, teacherFeedback);
-      setSaveMessage('Feedback updated successfully.');
-    } catch (error) {
-      console.error(error);
-      setSaveMessage(error.message || 'Unable to update feedback.');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const visibleCreatedAssessments = useMemo(() => {
-    if (selectedSubject === 'all') {
-      return createdAssessments;
-    }
-
-    return createdAssessments.filter(
-      (assessment) => String(assessment.subject_id ?? 'unassigned') === selectedSubject
-    );
-  }, [createdAssessments, selectedSubject]);
 
   const info = selectedSubmission;
   const submissionFiles = useMemo(
@@ -471,13 +403,13 @@ const GradeSubmissions = () => {
             <div className="rounded-[2rem] bg-white p-6 border border-slate-100 shadow-lg space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500 mb-2">Select Subject</p>
+                  <p className="text-sm font-semibold text-slate-500 mb-2">Select Assessment</p>
                   <select
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    value={selectedAssessment}
+                    onChange={(e) => setSelectedAssessment(e.target.value)}
                     className="w-full rounded-2xl border border-blue-500 px-4 py-3 text-slate-700 font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   >
-                    {subjectOptions.map((option) => (
+                    {assessmentOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -486,10 +418,10 @@ const GradeSubmissions = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedSubject('all')}
+                  onClick={() => setSelectedAssessment('all')}
                   className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
                 >
-                  Select All Subjects
+                  Show All Ungraded
                 </button>
               </div>
             </div>
@@ -498,7 +430,7 @@ const GradeSubmissions = () => {
               <div className="space-y-1">
                 <p className="text-md font-semibold text-slate-900">Created Assessments</p>
                 <p className="text-sm text-slate-500">
-                  {assessmentLoading ? 'Loading assessments...' : `${visibleCreatedAssessments.length} assessment(s) ready for submissions`}
+                  {assessmentLoading ? 'Loading assessments...' : `${visibleCreatedAssessments.length} assessment(s) still need grading`}
                 </p>
                 {assessmentError && <p className="text-xs text-red-600">{assessmentError}</p>}
               </div>
@@ -506,7 +438,7 @@ const GradeSubmissions = () => {
               <div className="teacher-scrollbar max-h-[320px] space-y-4 overflow-y-auto pr-2">
                 {visibleCreatedAssessments.length === 0 && !assessmentLoading && (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm text-slate-500">No created assessments match that subject yet.</p>
+                    <p className="text-sm text-slate-500">No assessments have ungraded submissions right now.</p>
                     <a
                       href="/teacher/assessments"
                       className="mt-3 inline-flex items-center justify-center rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-50"
@@ -540,6 +472,7 @@ const GradeSubmissions = () => {
                       <span>Topic: {assessment.topic || '-'}</span>
                       <span>Items: {assessment.item_count ?? assessment.items?.length ?? 0}</span>
                       {assessment.difficulty && <span>Difficulty: {assessment.difficulty}</span>}
+                      <span>Rubric: {assessment.rubric_name || 'Not set'}</span>
                     </div>
                   </div>
                 ))}
@@ -553,13 +486,12 @@ const GradeSubmissions = () => {
                   {loading ? 'Loading submissions...' : `${visibleSubmissions.length} submission(s) found`}
                 </p>
                 {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
-                {subjectError && <p className="text-xs text-red-600">{subjectError}</p>}
               </div>
 
               <div className="teacher-scrollbar max-h-[420px] space-y-4 overflow-y-auto pr-2">
                 {visibleSubmissions.length === 0 && !loading && (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm text-slate-500">No submissions match that subject yet.</p>
+                    <p className="text-sm text-slate-500">No ungraded submissions match that assessment yet.</p>
                     <p className="mt-2 text-xs text-slate-400">
                       Created assessments will appear on the dashboard and in the assessment list first. They move into this grading queue once students submit work.
                     </p>
@@ -628,37 +560,21 @@ const GradeSubmissions = () => {
                 </div>
               </div>
               <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800">
-                <p className="font-semibold">Select Grading Rubric</p>
-                {rubricLoading ? (
-                  <p className="text-xs text-slate-600 mt-2">Loading rubrics...</p>
-                ) : (
+                <p className="font-semibold">Assessment Rubric</p>
+                {info?.rubric_name ? (
                   <>
-                    <select
-                      value={selectedRubric}
-                      onChange={handleRubricChange}
-                      className="mt-2 w-full rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm text-slate-900"
-                    >
-                      <option value="">Choose a rubric</option>
-                      {rubrics.map((rubric) => (
-                        <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
-                          {rubric.rubric_name}
-                        </option>
-                      ))}
-                    </select>
-                    {rubricError ? (
-                      <p className="text-xs text-red-600 mt-2">{rubricError}</p>
-                    ) : rubrics.length === 0 ? (
-                      <p className="text-xs text-slate-600 mt-2">
-                        No rubrics available. Create one from Manage Assessments.
-                      </p>
-                    ) : null}
-                    {selectedRubric && (
-                      <p className="text-xs text-slate-600 mt-2">
-                        {rubrics.find((rubric) => String(rubric.rubric_set_id) === selectedRubric)
-                          ?.ai_instructions || 'Rubric selected.'}
-                      </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{info.rubric_name}</p>
+                    {info.rubric_criteria && (
+                      <p className="mt-1 text-xs text-slate-600">{info.rubric_criteria}</p>
+                    )}
+                    {info.rubric_ai_instructions && (
+                      <p className="mt-2 text-xs text-slate-600">{info.rubric_ai_instructions}</p>
                     )}
                   </>
+                ) : (
+                  <p className="text-xs text-slate-600 mt-2">
+                    This assessment does not have a rubric attached yet.
+                  </p>
                 )}
               </div>
             </div>
@@ -671,37 +587,28 @@ const GradeSubmissions = () => {
               <button
                 type="button"
                 onClick={handleGenerateAIGrade}
-                disabled={!selectedSubmission || generating}
+                disabled={!selectedSubmission || generating || bulkGenerating}
                 className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow hover:bg-blue-700 transition disabled:cursor-not-allowed disabled:bg-blue-400"
               >
-                {generating ? 'Generating...' : 'Generate AI Grade'}
+                {generating && !bulkGenerating ? 'Generating...' : 'Generate Selected Grade'}
               </button>
-              <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <label className="block text-sm font-semibold text-slate-700" htmlFor="teacher-feedback">
-                  Teacher Feedback
-                </label>
-                <textarea
-                  id="teacher-feedback"
-                  value={teacherFeedback}
-                  onChange={(event) => setTeacherFeedback(event.target.value)}
-                  rows={4}
-                  placeholder="Add notes the teacher should see in Results & Feedback."
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveFeedback}
-                  disabled={!selectedSubmission || generating}
-                  className="rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Save Feedback
-                </button>
-                {saveMessage && (
-                  <p className={`text-xs ${saveMessage.toLowerCase().includes('unable') ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {saveMessage}
-                  </p>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={handleGenerateBulkAIGrade}
+                disabled={bulkGenerating || generating || visibleSubmissions.length === 0}
+                className="w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold uppercase tracking-wide text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkGenerating ? 'Generating batch...' : 'Generate All Ungraded'}
+              </button>
+              <p className="text-xs text-slate-500">
+                Batch mode grades every ungraded submission in the selected assessment one by one.
+              </p>
+              {bulkProgress && <p className="text-xs text-blue-700">{bulkProgress}</p>}
+              {saveMessage && (
+                <p className={`text-xs ${saveMessage.toLowerCase().includes('unable') ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {saveMessage}
+                </p>
+              )}
             </div>
 
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">

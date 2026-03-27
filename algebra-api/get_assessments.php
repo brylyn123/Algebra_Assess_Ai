@@ -4,6 +4,7 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 include 'db_connect.php';
+require_once 'schema_utils.php';
 
 $teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
 
@@ -14,16 +15,20 @@ if (!$teacher_id) {
 }
 
 try {
+    ensureAssessmentRubricColumn($conn);
+
     $stmt = $conn->prepare(
         "SELECT
             ep.exercise_id,
             ep.subject_id,
+            ep.rubric_set_id,
             ep.title,
             ep.description,
             ep.topic,
             ep.difficulty,
             ep.ideal_solution,
             ep.date_created,
+            rs.rubric_name,
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
             s.course,
             s.section,
@@ -45,6 +50,7 @@ try {
             END AS assessment_status
          FROM exercises_problem ep
          LEFT JOIN subject s ON ep.subject_id = s.subject_id
+         LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
          WHERE s.teacher_id = ?
          ORDER BY ep.date_created DESC"
     );
@@ -65,6 +71,8 @@ try {
         $assessmentsById[$exerciseId] = [
             "exercise_id" => $exerciseId,
             "subject_id" => isset($row["subject_id"]) ? (int)$row["subject_id"] : null,
+            "rubric_set_id" => isset($row["rubric_set_id"]) ? (int)$row["rubric_set_id"] : null,
+            "rubric_name" => $row["rubric_name"] ?? null,
             "title" => $row["title"],
             "description" => $row["description"],
             "topic" => $row["topic"],

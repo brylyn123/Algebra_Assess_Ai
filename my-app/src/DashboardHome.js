@@ -83,7 +83,7 @@ const DashboardHome = () => {
 
     return (
         <>
-            <div className="teacher-surface px-8 py-8">
+            <div className="page-hero-card px-8 py-8">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                         <p className="teacher-eyebrow">Dashboard</p>

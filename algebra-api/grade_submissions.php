@@ -1,6 +1,7 @@
 <?php
 require_once 'cors.php';
 require_once 'db_connection.php';
+require_once 'schema_utils.php';
 
 $teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
 $subject_filter_raw = $_GET['subject_id'] ?? null;
@@ -13,6 +14,8 @@ if (!$teacher_id) {
     exit();
 }
 
+ensureAssessmentRubricColumn($conn);
+
 if ($subject_filter_raw !== null) {
     if ($subject_filter_raw === 'unassigned' || $subject_filter_raw === '0') {
         $subject_filter_is_null = true;
@@ -24,9 +27,14 @@ if ($subject_filter_raw !== null) {
 $query = "
 SELECT
     cs.solution_id AS id,
+    ep.exercise_id,
     CONCAT_WS(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
     s.student_id,
     ep.title AS assessment_title,
+    ep.rubric_set_id,
+    rs.rubric_name,
+    rs.criteria AS rubric_criteria,
+    rs.ai_instructions AS rubric_ai_instructions,
     subj.subject_id,
     subj.subject_name,
     subj.join_code AS subject_code,
@@ -49,6 +57,7 @@ SELECT
 FROM Captured_Solution cs
 LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
 JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
+LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
 LEFT JOIN Subject subj ON subj.subject_id = ep.subject_id
 LEFT JOIN Student s ON s.student_id = cs.student_id
 ";
@@ -154,16 +163,18 @@ while ($row = $result->fetch_assoc()) {
 
     $submissions[] = [
         'id' => (int)$row['id'],
+        'exercise_id' => $row['exercise_id'] !== null ? (int)$row['exercise_id'] : null,
         'student_name' => $row['student_name'],
         'student_id' => $row['student_id'],
         'assessment_title' => $row['assessment_title'],
+        'rubric_set_id' => $row['rubric_set_id'] !== null ? (int)$row['rubric_set_id'] : null,
+        'rubric_name' => $row['rubric_name'] ?? null,
+        'rubric_criteria' => $row['rubric_criteria'] ?? null,
+        'rubric_ai_instructions' => $row['rubric_ai_instructions'] ?? null,
         'subject_id' => $row['subject_id'] !== null ? (int)$row['subject_id'] : null,
         'subject_display' => $subjectDisplay,
         'subject_code' => $subjectCode,
         'subject_meta' => implode(' · ', $metaFields),
-        'rubric_set_id' => null,
-        'rubric_name' => null,
-        'rubric_criteria' => null,
         'submission_date' => $row['submission_date'],
         'status' => $row['status'],
         'files' => $files,

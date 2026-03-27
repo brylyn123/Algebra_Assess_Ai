@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storeLocalUser } from './localAuthStore';
 
+const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+
 const shakeVariants = {
     idle: { x: 0 },
     error: {
@@ -29,8 +31,9 @@ const Signup = () => {
         lastName: '',
         idNumber: '',
         collegeName: '',
-        sectionName: '',
-        yearLevel: '',
+        courseId: '',
+        sectionId: '',
+        yearId: '',
         email: '',
         password: '',
     });
@@ -38,6 +41,13 @@ const Signup = () => {
     const [message, setMessage] = useState('');
     const [toast, setToast] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [registrationOptions, setRegistrationOptions] = useState({
+        courses: [],
+        sections: [],
+        years: [],
+    });
+    const [optionsLoading, setOptionsLoading] = useState(false);
+    const [optionsError, setOptionsError] = useState('');
     const toastTimer = useRef(null);
     const navigationTimer = useRef(null);
 
@@ -63,11 +73,63 @@ const Signup = () => {
         if (newRole === 'teacher') {
             setFormData((prev) => ({
                 ...prev,
-                sectionName: '',
-                yearLevel: '',
+                courseId: '',
+                sectionId: '',
+                yearId: '',
             }));
         }
     };
+
+    useEffect(() => {
+        let isMounted = true;
+        const controller = new AbortController();
+
+        const loadOptions = async () => {
+            setOptionsLoading(true);
+            setOptionsError('');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/get_registration_options.php`, {
+                    signal: controller.signal,
+                });
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text || 'Unable to load registration options.');
+                }
+
+                const payload = JSON.parse(text);
+                if (payload.status !== 'success') {
+                    throw new Error(payload.message || 'Unable to load registration options.');
+                }
+
+                if (isMounted) {
+                    setRegistrationOptions({
+                        courses: Array.isArray(payload.courses) ? payload.courses : [],
+                        sections: Array.isArray(payload.sections) ? payload.sections : [],
+                        years: Array.isArray(payload.years) ? payload.years : [],
+                    });
+                }
+            } catch (error) {
+                if (controller.signal.aborted) return;
+                if (isMounted) {
+                    setOptionsError(error.message || 'Unable to load registration options.');
+                    setRegistrationOptions({ courses: [], sections: [], years: [] });
+                }
+            } finally {
+                if (isMounted) {
+                    setOptionsLoading(false);
+                }
+            }
+        };
+
+        loadOptions();
+
+        return () => {
+            isMounted = false;
+            controller.abort();
+        };
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -83,9 +145,14 @@ const Signup = () => {
             password: formData.password,
             role,
             collegeName: role === 'teacher' ? formData.collegeName : '',
-            sectionName: formData.sectionName,
-            yearLevel: formData.yearLevel,
+            courseId: formData.courseId,
+            sectionId: formData.sectionId,
+            yearId: formData.yearId,
         };
+
+        const selectedCourse = registrationOptions.courses.find((course) => String(course.course_id) === String(formData.courseId));
+        const selectedSection = registrationOptions.sections.find((section) => String(section.section_id) === String(formData.sectionId));
+        const selectedYear = registrationOptions.years.find((year) => String(year.year_id) === String(formData.yearId));
 
         try {
             const response = await fetch('http://localhost/Algebra_Assess_Ai/algebra-api/signup.php', {
@@ -111,8 +178,12 @@ const Signup = () => {
                     lastName: formData.lastName,
                     idNumber: formData.idNumber,
                     collegeName: formData.collegeName,
-                    sectionName: formData.sectionName,
-                    yearLevel: formData.yearLevel,
+                    courseId: formData.courseId,
+                    courseName: selectedCourse?.course_name ?? '',
+                    sectionId: formData.sectionId,
+                    sectionName: selectedSection?.section_name ?? '',
+                    yearId: formData.yearId,
+                    yearLevel: selectedYear?.year_level ?? '',
                     password: formData.password,
                 });
                 showToast('Account created successfully!', 'success');
@@ -323,27 +394,71 @@ const Signup = () => {
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
                                                     <div>
-                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Section</label>
-                                                        <input
-                                                            name="sectionName"
+                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Course</label>
+                                                        <select
+                                                            name="courseId"
                                                             required
+                                                            value={formData.courseId}
                                                             onChange={handleChange}
-                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
-                                                        />
+                                                            disabled={optionsLoading}
+                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                                        >
+                                                            <option value="">Select course</option>
+                                                            {registrationOptions.courses.map((course) => (
+                                                                <option key={course.course_id} value={course.course_id}>
+                                                                    {course.course_name} ({course.course_code})
+                                                                </option>
+                                                            ))}
+                                                        </select>
                                                     </div>
                                                     <div>
                                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Year Level</label>
-                                                        <input
-                                                            name="yearLevel"
+                                                        <select
+                                                            name="yearId"
                                                             required
+                                                            value={formData.yearId}
                                                             onChange={handleChange}
-                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
-                                                        />
+                                                            disabled={optionsLoading}
+                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                                        >
+                                                            <option value="">Select year level</option>
+                                                            {registrationOptions.years.map((year) => (
+                                                                <option key={year.year_id} value={year.year_id}>
+                                                                    {year.year_level}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div className="sm:col-span-2">
+                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Section</label>
+                                                        <select
+                                                            name="sectionId"
+                                                            required
+                                                            value={formData.sectionId}
+                                                            onChange={handleChange}
+                                                            disabled={optionsLoading}
+                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                                        >
+                                                            <option value="">Select section</option>
+                                                            {registrationOptions.sections.map((section) => (
+                                                                <option key={section.section_id} value={section.section_id}>
+                                                                    {section.section_name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
                                                     </div>
                                                 </motion.div>
                                             )}
                                         </AnimatePresence>
                                     </div>
+
+                                    {role === 'student' && (
+                                        <p className="text-xs text-slate-400">
+                                            {optionsLoading
+                                                ? 'Loading course, year, and section lists...'
+                                                : optionsError || 'These selections are stored with the student profile.'}
+                                        </p>
+                                    )}
 
                                     <div>
                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Email address</label>

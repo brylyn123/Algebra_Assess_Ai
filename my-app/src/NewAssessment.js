@@ -67,6 +67,10 @@ const DIFFICULTY_LEVELS = ['Easy', 'Medium', 'Hard'];
 const initialState = {
   teacherId: null,
   subjects: [],
+  rubrics: [],
+  rubricLoading: false,
+  rubricError: '',
+  selectedRubric: '',
   newAssessment: {
     title: '',
     subjectId: '',
@@ -92,6 +96,14 @@ function reducer(state, action) {
       return { ...state, teacherId: action.payload };
     case 'SET_SUBJECTS':
       return { ...state, subjects: action.payload };
+    case 'SET_RUBRICS':
+      return { ...state, rubrics: action.payload };
+    case 'SET_RUBRIC_LOADING':
+      return { ...state, rubricLoading: action.payload };
+    case 'SET_RUBRIC_ERROR':
+      return { ...state, rubricError: action.payload };
+    case 'SET_SELECTED_RUBRIC':
+      return { ...state, selectedRubric: action.payload };
     case 'UPDATE_ASSESSMENT_FIELD':
       return {
         ...state,
@@ -101,12 +113,14 @@ function reducer(state, action) {
       return {
         ...state,
         newAssessment: initialState.newAssessment,
-        testItems: [],
+        testItems: [], 
         itemEntry: '',
         previewValue: '',
         mcOptions: [],
         mcCorrectAnswer: '',
         equationCorrectAnswer: '',
+        selectedRubric: '',
+        rubricError: '',
       };
     case 'SET_ITEM_ENTRY':
       return { ...state, itemEntry: action.payload };
@@ -187,6 +201,10 @@ const NewAssessment = () => {
     equationCorrectAnswer,
     mathLiveReady,
     previewValue,
+    rubrics,
+    rubricLoading,
+    rubricError,
+    selectedRubric,
   } = state;
 
   const itemInputRef = useRef(null);
@@ -504,6 +522,61 @@ const NewAssessment = () => {
 
   }, [teacherId]);
 
+  useEffect(() => {
+    if (!teacherId) {
+      dispatch({ type: 'SET_RUBRICS', payload: [] });
+      dispatch({ type: 'SET_SELECTED_RUBRIC', payload: '' });
+      dispatch({ type: 'SET_RUBRIC_ERROR', payload: '' });
+      dispatch({ type: 'SET_RUBRIC_LOADING', payload: false });
+      return;
+    }
+
+    let isMounted = true;
+    const controller = new AbortController();
+
+    dispatch({ type: 'SET_RUBRIC_LOADING', payload: true });
+    dispatch({ type: 'SET_RUBRIC_ERROR', payload: '' });
+
+    axios
+      .get(`http://localhost/Algebra_Assess_Ai/algebra-api/get_rubric_sets.php?teacher_id=${teacherId}`, {
+        signal: controller.signal,
+      })
+      .then((response) => {
+        const payload = response.data || {};
+        const rubricList = Array.isArray(payload.rubrics) ? payload.rubrics : [];
+
+        if (!isMounted) return;
+
+        dispatch({ type: 'SET_RUBRICS', payload: rubricList });
+        if (rubricList.length === 0) {
+          dispatch({ type: 'SET_SELECTED_RUBRIC', payload: '' });
+        }
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error('Failed to load rubrics for assessment creation', error);
+
+        if (isMounted) {
+          dispatch({
+            type: 'SET_RUBRIC_ERROR',
+            payload: error?.response?.data?.message || error.message || 'Unable to load rubrics.',
+          });
+          dispatch({ type: 'SET_RUBRICS', payload: [] });
+          dispatch({ type: 'SET_SELECTED_RUBRIC', payload: '' });
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          dispatch({ type: 'SET_RUBRIC_LOADING', payload: false });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [teacherId]);
+
 
 
   const handleItemEntryChange = (e) => {
@@ -626,6 +699,14 @@ const NewAssessment = () => {
 
     }
 
+    if (!selectedRubric) {
+
+      alert('Please choose a rubric for this assessment.');
+
+      return;
+
+    }
+
     if (testItems.length === 0) {
 
       alert('Please add at least one item for the assessment.');
@@ -641,6 +722,7 @@ const NewAssessment = () => {
         teacher_id: teacherId,
 
         subject_id: Number(newAssessment.subjectId),
+        rubric_set_id: Number(selectedRubric),
 
         title: newAssessment.title,
 
@@ -799,6 +881,34 @@ const NewAssessment = () => {
 
             </p>
 
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Rubric</label>
+            <select
+              value={selectedRubric}
+              onChange={(e) => dispatch({ type: 'SET_SELECTED_RUBRIC', payload: e.target.value })}
+              disabled={rubricLoading || rubrics.length === 0}
+              className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <option value="">Select a rubric</option>
+              {rubrics.map((rubric) => (
+                <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
+                  {rubric.rubric_name}
+                </option>
+              ))}
+            </select>
+            {rubricLoading ? (
+              <p className="text-xs text-slate-400 mt-1">Loading rubrics...</p>
+            ) : rubricError ? (
+              <p className="text-xs text-red-600 mt-1">{rubricError}</p>
+            ) : rubrics.length === 0 ? (
+              <p className="text-xs text-slate-400 mt-1">Create a rubric first, then attach it to this assessment.</p>
+            ) : selectedRubric ? (
+              <p className="text-xs text-slate-400 mt-1">
+                {rubrics.find((rubric) => String(rubric.rubric_set_id) === selectedRubric)?.ai_instructions || 'This rubric will be saved with the assessment.'}
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

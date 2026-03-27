@@ -114,7 +114,7 @@ const TeacherProfile = () => {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2rem] border border-slate-100 bg-white/90 px-8 py-10 shadow-[0_25px_60px_rgba(15,23,42,0.08)]">
+      <section className="page-hero-card px-8 py-10">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Teacher Profile</p>

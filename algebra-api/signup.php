@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 }
 
 require_once 'db_connect.php';
+require_once 'schema_utils.php';
 
 // 3. Get the JSON payload
 $data = json_decode(file_get_contents("php://input"), true);
@@ -30,13 +31,26 @@ $password = password_hash($data['password'] ?? '', PASSWORD_BCRYPT); // In produ
 $role       = $data['role'] ?? '';
 $idNumber   = $data['idNumber'] ?? '';
 $college    = trim($data['collegeName'] ?? '');
-$section    = $data['sectionName'] ?? ''; // Student only
-$yearLevel  = $data['yearLevel'] ?? '';   // Student only
+$courseId   = isset($data['courseId']) ? intval($data['courseId']) : 0;
+$sectionId  = isset($data['sectionId']) ? intval($data['sectionId']) : 0;
+$yearId     = isset($data['yearId']) ? intval($data['yearId']) : 0;
+$section    = trim($data['sectionName'] ?? ''); // Student fallback
+$yearLevel  = trim($data['yearLevel'] ?? '');   // Student fallback
 
 // 4. Start Database Transaction
 $conn->begin_transaction();
 
 try {
+    if ($role === 'student') {
+        ensureStudentProfileColumns($conn);
+    }
+
+    ensureRegistrationLookupData($conn);
+
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+
     // Check if email exists
     $check = $conn->prepare("SELECT email FROM users WHERE email = ?");
     $check->bind_param("s", $email);
@@ -76,14 +90,76 @@ try {
         $stmtProf = $conn->prepare("INSERT INTO Teacher (user_id, teacher_id, first_name, middle_name, last_name, email, college_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmtProf->bind_param("isssssi", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email, $collegeId);
     } else {
-        $stmtProf = $conn->prepare("INSERT INTO Student (user_id, student_id, first_name, middle_name, last_name, email) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmtProf->bind_param("isssss", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email);
+        if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
+            throw new Exception("Please choose a course, section, and year level.");
+        }
+
+        $courseStmt = $conn->prepare("SELECT course_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
+        $courseStmt->bind_param("i", $courseId);
+        $courseStmt->execute();
+        $courseResult = $courseStmt->get_result();
+        if (!$courseResult || $courseResult->num_rows === 0) {
+            $courseStmt->close();
+            throw new Exception("Selected course was not found.");
+        }
+        $courseStmt->close();
+
+        $sectionStmt = $conn->prepare("SELECT section_id FROM {$sectionTable} WHERE section_id = ? LIMIT 1");
+        $sectionStmt->bind_param("i", $sectionId);
+        $sectionStmt->execute();
+        $sectionResult = $sectionStmt->get_result();
+        if (!$sectionResult || $sectionResult->num_rows === 0) {
+            $sectionStmt->close();
+            throw new Exception("Selected section was not found.");
+        }
+        $sectionStmt->close();
+
+        $yearStmt = $conn->prepare("SELECT year_id FROM {$yearTable} WHERE year_id = ? LIMIT 1");
+        $yearStmt->bind_param("i", $yearId);
+        $yearStmt->execute();
+        $yearResult = $yearStmt->get_result();
+        if (!$yearResult || $yearResult->num_rows === 0) {
+            $yearStmt->close();
+            throw new Exception("Selected year level was not found.");
+        }
+        $yearStmt->close();
+
+        $stmtProf = $conn->prepare(
+            "INSERT INTO Student (
+                user_id,
+                student_id,
+                first_name,
+                middle_name,
+                last_name,
+                email,
+                course_id,
+                section_id,
+                year_id
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmtProf->bind_param(
+            "isssssiii",
+            $newUserId,
+            $idNumber,
+            $firstName,
+            $middleName,
+            $lastName,
+            $email,
+            $courseId,
+            $sectionId,
+            $yearId
+        );
     }
 $stmtProf->execute();
 
     // Commit changes
     $conn->commit();
-    echo json_encode(["status" => "success", "message" => "Account created successfully!"]);
+    echo json_encode([
+        "status" => "success",
+        "message" => "Account created successfully!",
+        "user_id" => $newUserId,
+        "role" => $role,
+    ]);
 
 } catch (Exception $e) {
     $conn->rollback();

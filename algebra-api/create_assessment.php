@@ -4,11 +4,13 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 include 'db_connect.php';
+require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
 $teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
 $subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
+$rubric_set_id = isset($data['rubric_set_id']) ? intval($data['rubric_set_id']) : null;
 $title = trim($data['title'] ?? '');
 $description = trim($data['description'] ?? '');
 $topic = trim($data['topic'] ?? '');
@@ -24,6 +26,11 @@ if (!in_array($difficulty, $allowedDifficulties, true)) {
 
 if (!$subject_id || $title === '') {
     echo json_encode(["status" => "error", "message" => "Assessment needs a subject and a title."]);
+    exit;
+}
+
+if (!$rubric_set_id) {
+    echo json_encode(["status" => "error", "message" => "Select a rubric for this assessment."]);
     exit;
 }
 
@@ -50,15 +57,32 @@ try {
         throw new Exception("Teacher is not assigned to this subject.");
     }
 
+    ensureAssessmentRubricColumn($conn);
+
+    $rubricStmt = $conn->prepare(
+        "SELECT rubric_set_id
+         FROM rubric_sets
+         WHERE rubric_set_id = ? AND teacher_id = ?
+         LIMIT 1"
+    );
+    $rubricStmt->bind_param("ii", $rubric_set_id, $teacher_id);
+    $rubricStmt->execute();
+    $rubricResult = $rubricStmt->get_result();
+    $rubricRow = $rubricResult ? $rubricResult->fetch_assoc() : null;
+    $rubricStmt->close();
+
+    if (!$rubricRow) {
+        throw new Exception("Rubric not found or does not belong to this teacher.");
+    }
 
     $conn->begin_transaction();
     $startedTransaction = true;
 
     $exerciseStmt = $conn->prepare(
-        "INSERT INTO exercises_problem (subject_id, title, description, topic, difficulty, ideal_solution)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO exercises_problem (subject_id, rubric_set_id, title, description, topic, difficulty, ideal_solution)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
-    $exerciseStmt->bind_param("isssss", $subject_id, $title, $description, $topic, $difficulty, $idealSolution);
+    $exerciseStmt->bind_param("iisssss", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty, $idealSolution);
     $exerciseStmt->execute();
     $exerciseId = $conn->insert_id;
     $exerciseStmt->close();
@@ -120,7 +144,12 @@ try {
 
     $conn->commit();
 
-    echo json_encode(["status" => "success", "message" => "Assessment saved.", "exercise_id" => $exerciseId]);
+    echo json_encode([
+        "status" => "success",
+        "message" => "Assessment saved.",
+        "exercise_id" => $exerciseId,
+        "rubric_set_id" => $rubric_set_id,
+    ]);
 } catch (Exception $e) {
     if ($startedTransaction || $conn->in_transaction) {
         $conn->rollback();

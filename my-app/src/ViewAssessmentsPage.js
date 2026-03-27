@@ -14,7 +14,7 @@ const ViewAssessmentsPage = () => {
 
     return (
         <div className="p-4 md:p-8">
-            <div className="mb-8 flex items-center justify-between">
+            <div className="page-hero-card mb-8 flex items-center justify-between px-6 py-6 md:px-8">
                 <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Overview</p>
                     <h1 className="text-3xl font-bold text-slate-900">Assessments & Rubrics</h1>

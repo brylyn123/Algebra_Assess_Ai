@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
   clearCurrentLocalUserEmail,
   findLocalUser,
@@ -12,7 +12,6 @@ const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 const quickActions = [
   { label: 'Dashboard', icon: 'D', path: '/student' },
   { label: 'My Subjects', icon: 'S', path: '/student/subjects' },
-  { label: 'Submit Assessment', icon: 'U', path: '/student/submit' },
   { label: 'Reports & Feedback', icon: 'R', path: '/student/reports' },
   { label: 'Manage Profile', icon: 'P', path: '/student/profile' },
 ];
@@ -40,6 +39,21 @@ const getDisplayName = (user) => {
   }
 
   return 'Student';
+};
+
+const formatDateTime = (value) => {
+  if (!value) return 'Not submitted yet';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };
 
 const StudentDashboard = () => {
@@ -324,7 +338,10 @@ const StudentDashboard = () => {
             <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
             <nav className="space-y-2">
               {quickActions.map((action) => {
-                const isActive = location.pathname === action.path;
+                const isActive =
+                  action.path === '/student/subjects'
+                    ? location.pathname.startsWith('/student/subjects')
+                    : location.pathname === action.path;
                 return (
                   <button
                     key={action.label}
@@ -404,7 +421,7 @@ export const StudentOverview = () => {
 
   return (
     <>
-      <section className="mb-6 rounded-[2.5rem] border border-slate-100 bg-white px-8 py-10 shadow-lg md:mb-8 md:px-10 md:py-11">
+      <section className="page-hero-card mb-6 px-8 py-10 md:mb-8 md:px-10 md:py-11">
         <div className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Overview</p>
           <h1 className="text-3xl font-bold text-slate-900">Student Dashboard</h1>
@@ -486,59 +503,447 @@ export const StudentOverview = () => {
 };
 
 export const StudentSubjects = () => {
+  const navigate = useNavigate();
+  const { id: subjectIdParam = '' } = useParams();
   const {
     enrolledSubjects = [],
     loadingSubjects = false,
     subjectsError = '',
+    availableAssessments = [],
+    loadingAssessments = false,
+    assessmentsError = '',
   } = useOutletContext() ?? {};
+  const currentEmail = getCurrentLocalUserEmail();
+  const currentUser = currentEmail ? findLocalUser(currentEmail) : null;
+  const studentId = currentUser?.student_id ?? currentUser?.user_id ?? null;
+
+  const [assessmentList, setAssessmentList] = useState(availableAssessments);
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    setAssessmentList(availableAssessments);
+  }, [availableAssessments]);
+
+  useEffect(() => {
+    setSelectedFiles([]);
+    setSubmitMessage('');
+    setSelectedAssessmentId('');
+  }, [subjectIdParam]);
+
+  const selectedSubject = useMemo(
+    () => enrolledSubjects.find((subject) => String(subject.subject_id) === String(subjectIdParam)) ?? null,
+    [enrolledSubjects, subjectIdParam]
+  );
+
+  const assessmentCountBySubject = useMemo(() => {
+    const counts = new Map();
+    assessmentList.forEach((assessment) => {
+      const key = String(assessment.subject_id ?? '');
+      if (!key) return;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return counts;
+  }, [assessmentList]);
+
+  const subjectAssessments = useMemo(
+    () => assessmentList.filter((assessment) => String(assessment.subject_id) === String(subjectIdParam)),
+    [assessmentList, subjectIdParam]
+  );
+
+  useEffect(() => {
+    if (subjectAssessments.length === 0) {
+      setSelectedAssessmentId('');
+      return;
+    }
+
+    setSelectedAssessmentId((current) => {
+      const stillExists = subjectAssessments.some((assessment) => String(assessment.exercise_id) === String(current));
+      return stillExists ? current : String(subjectAssessments[0].exercise_id);
+    });
+  }, [subjectAssessments]);
+
+  const selectedAssessment = useMemo(
+    () =>
+      subjectAssessments.find((assessment) => String(assessment.exercise_id) === String(selectedAssessmentId)) ?? null,
+    [selectedAssessmentId, subjectAssessments]
+  );
+
+  const handleFiles = (event) => {
+    const fileList = Array.from(event.target.files || []);
+    if (fileList.length === 0) return;
+    setSelectedFiles((current) => [...current, ...fileList]);
+    event.target.value = '';
+  };
+
+  const handleDropFiles = (event) => {
+    event.preventDefault();
+    const fileList = Array.from(event.dataTransfer.files || []).filter((file) => file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.pdf'));
+    if (fileList.length === 0) return;
+    setSelectedFiles((current) => [...current, ...fileList]);
+  };
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const removeSelectedFile = (indexToRemove) => {
+    setSelectedFiles((current) => current.filter((_, index) => index !== indexToRemove));
+  };
+
+  const clearFiles = () => {
+    setSelectedFiles([]);
+    setSubmitMessage('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!studentId) {
+      setSubmitMessage('Please log in as a student to submit work.');
+      return;
+    }
+
+    if (!selectedSubject) {
+      setSubmitMessage('Choose an enrolled subject first.');
+      return;
+    }
+
+    if (!selectedAssessment) {
+      setSubmitMessage('Choose an assessment first.');
+      return;
+    }
+
+    if (selectedAssessment.already_submitted) {
+      setSubmitMessage('This assessment already has a submission.');
+      return;
+    }
+
+    if (selectedFiles.length === 0) {
+      setSubmitMessage('Upload at least one file before submitting.');
+      return;
+    }
+
+    setSubmitLoading(true);
+    setSubmitMessage('');
+
+    try {
+      const formData = new FormData();
+      formData.append('student_id', String(studentId));
+      formData.append('exercise_id', String(selectedAssessment.exercise_id));
+      selectedFiles.forEach((file) => {
+        formData.append('files[]', file);
+      });
+
+      const response = await fetch(`${API_BASE_URL}/submit_assessment.php`, {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json();
+
+      if (payload.status !== 'success') {
+        throw new Error(payload.message || 'Unable to submit assessment.');
+      }
+
+      setSubmitMessage('Assessment submitted successfully. Your teacher can now grade it from Grade Submissions.');
+      setSelectedFiles([]);
+      setAssessmentList((current) =>
+        current.map((assessment) =>
+          assessment.exercise_id === selectedAssessment.exercise_id
+            ? {
+                ...assessment,
+                already_submitted: true,
+                submission_status: 'Pending Review',
+                latest_submission_at: new Date().toISOString(),
+              }
+            : assessment
+        )
+      );
+    } catch (error) {
+      setSubmitMessage(error.message || 'Unable to submit assessment.');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const fileLabel = selectedFiles.length === 0
+    ? 'Drop files here or click to browse'
+    : `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} ready to upload`;
+
+  const subjectAssessmentCount = subjectAssessments.length;
+  const isSubjectAssessmentPage = Boolean(subjectIdParam);
 
   return (
     <>
-      <section className="mb-6 rounded-[2.5rem] border border-slate-100 bg-white px-8 py-10 shadow-lg md:mb-8 md:px-10 md:py-11">
+      <section className="page-hero-card mb-6 px-8 py-10 md:mb-8 md:px-10 md:py-11">
         <div className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Subjects</p>
           <h1 className="text-3xl font-bold text-slate-900">My Subjects</h1>
           <p className="text-sm text-slate-500">
-            View all joined classes and the subjects currently available in your student account.
+            Click a subject to see its assessments, view the item list, and submit your captured solution if you are enrolled.
           </p>
         </div>
       </section>
 
-      <section className="space-y-6 pb-2">
-        {loadingSubjects ? (
-          <p className="text-sm text-slate-500">Loading subjects...</p>
-        ) : (
-          <>
-            {subjectsError && <p className="text-sm text-rose-600">{subjectsError}</p>}
-            {enrolledSubjects.length > 0 ? (
-              <div className="space-y-6">
-                {enrolledSubjects.map((subject) => (
-                  <div key={subject.subject_id} className="rounded-[2rem] border border-slate-100 bg-white p-7 shadow-sm md:p-8">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-900">{subject.subject_name}</h3>
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{subject.subject_code}</p>
-                      </div>
-                      <span className="rounded-full border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-600">
-                        Enrolled
-                      </span>
+      <section className="space-y-6">
+        {!isSubjectAssessmentPage && (
+          <div className="teacher-scrollbar flex gap-4 overflow-x-auto pb-2">
+          {loadingSubjects ? (
+            <p className="text-sm text-slate-500">Loading subjects...</p>
+          ) : subjectsError ? (
+            <p className="text-sm text-rose-600">{subjectsError}</p>
+          ) : enrolledSubjects.length === 0 ? (
+            <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+              <p className="text-lg font-semibold text-slate-900">No subjects yet</p>
+              <p className="mt-2 text-sm text-slate-500">
+                Paste a teacher-provided join code from the sidebar to unlock your classes.
+              </p>
+            </div>
+          ) : (
+            enrolledSubjects.map((subject) => {
+              const assessmentCount = assessmentCountBySubject.get(String(subject.subject_id)) ?? 0;
+              return (
+                <div
+                  key={subject.subject_id}
+                  className="min-w-[320px] flex-1 rounded-[2rem] border border-slate-100 bg-white p-6 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">{subject.subject_name}</h3>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{subject.subject_code}</p>
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">Teacher: {subject.teacher_name}</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {subject.course} - {subject.section_name || subject.section} - {subject.semester} {subject.school_year}
-                    </p>
+                    <span className="rounded-full border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-600">
+                      Enrolled
+                    </span>
                   </div>
-                ))}
+                  <p className="mt-2 text-sm text-slate-500">Teacher: {subject.teacher_name}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {subject.course} - {subject.section_name || subject.section} - {subject.semester} {subject.school_year}
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs font-semibold text-slate-500">
+                      {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'} assigned
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigate(`/student/subjects/${subject.subject_id}`);
+                      }}
+                      className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-blue-700"
+                    >
+                      View Assessments
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          </div>
+        )}
+
+        {isSubjectAssessmentPage && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/student/subjects')}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                Back to Subjects
+              </button>
+              {selectedSubject && (
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                  {subjectAssessmentCount} assessment{subjectAssessmentCount === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+
+            {!selectedSubject ? (
+              <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                <p className="text-lg font-semibold text-slate-900">Subject not found</p>
+                <p className="mt-2 text-sm text-slate-500">This subject is not in your enrolled list.</p>
               </div>
             ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                <p className="text-lg font-semibold text-slate-900">No subjects yet</p>
-                <p className="mt-2 text-sm text-slate-500">
-                  Paste a teacher-provided join code from the sidebar to unlock your classes.
-                </p>
-              </div>
+              <>
+                <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subject Opened</p>
+                      <h2 className="text-2xl font-semibold text-slate-900">{selectedSubject.subject_name}</h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {selectedSubject.course} - {selectedSubject.section_name || selectedSubject.section} - {selectedSubject.semester} {selectedSubject.school_year}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {loadingAssessments ? (
+                  <p className="text-sm text-slate-500">Loading assessments...</p>
+                ) : assessmentsError ? (
+                  <p className="text-sm text-rose-600">{assessmentsError}</p>
+                ) : subjectAssessments.length === 0 ? (
+                  <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                    <p className="text-lg font-semibold text-slate-900">No assessments for this subject yet</p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Your teacher has not posted an assessment here yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {subjectAssessments.map((assessment) => {
+                      const isSelected = String(assessment.exercise_id) === String(selectedAssessmentId);
+                      const statusLabel = assessment.submission_status || (assessment.already_submitted ? 'Pending Review' : 'Not Submitted');
+                      const statusClass =
+                        statusLabel === 'Graded'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : statusLabel === 'Pending Review'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-slate-100 text-slate-600';
+
+                      return (
+                        <div
+                          key={assessment.exercise_id}
+                          onClick={() => setSelectedAssessmentId(String(assessment.exercise_id))}
+                          className={`w-full rounded-[2rem] border p-6 text-left shadow-sm transition ${
+                            isSelected ? 'border-blue-300 bg-blue-50' : 'border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50/30'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                                {assessment.subject_name} {assessment.subject_code ? `(${assessment.subject_code})` : ''}
+                              </p>
+                              <h3 className="text-xl font-semibold text-slate-900">{assessment.title}</h3>
+                              <p className="mt-1 text-sm text-slate-500">{assessment.description || 'No description provided.'}</p>
+                            </div>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>{statusLabel}</span>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
+                            <span>Topic: {assessment.topic || '-'}</span>
+                            <span>Difficulty: {assessment.difficulty || 'Medium'}</span>
+                            <span>Items: {assessment.item_count ?? 0}</span>
+                            {assessment.latest_submission_at && <span>Latest: {formatDateTime(assessment.latest_submission_at)}</span>}
+                          </div>
+
+                          {isSelected && (
+                            <div className="mt-6 grid gap-5 lg:grid-cols-[1fr,0.95fr]">
+                              <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                                <p className="text-sm font-semibold text-slate-900">Assessment Items</p>
+                                {Array.isArray(assessment.items) && assessment.items.length > 0 ? (
+                                  assessment.items.map((item, index) => (
+                                    <div key={`${assessment.exercise_id}-${item.item_no ?? index}`} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Item {item.item_no ?? index + 1}</p>
+                                      <p className="mt-2 text-sm text-slate-700">{item.question_content}</p>
+                                      {Array.isArray(item.options) && item.options.length > 0 && (
+                                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                          {item.options.map((option, optionIndex) => (
+                                            <div key={`${assessment.exercise_id}-${item.item_no ?? index}-${optionIndex}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                                              {option}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      <p className="mt-2 text-xs text-slate-400">Max score: {item.max_score ?? 0}</p>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-slate-500">No item breakdown was found for this assessment.</p>
+                                )}
+                              </div>
+
+                              <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-sm font-semibold text-slate-900">Submit Captured Solution</p>
+                                <p className="text-xs text-slate-500">
+                                  You can submit only because you are enrolled in this subject.
+                                </p>
+
+                                <div
+                                  onDrop={handleDropFiles}
+                                  onDragOver={(event) => event.preventDefault()}
+                                  className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-center"
+                                >
+                                  <input
+                                    ref={fileInputRef}
+                                    id={`student-upload-${assessment.exercise_id}`}
+                                    type="file"
+                                    multiple
+                                    accept="image/*,.pdf"
+                                    onChange={handleFiles}
+                                    className="hidden"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={openFilePicker}
+                                    className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                                  >
+                                    Upload files
+                                  </button>
+                                  <p className="mt-2 text-xs text-slate-500">{fileLabel}</p>
+                                </div>
+
+                                {selectedFiles.length > 0 && (
+                                  <div className="space-y-2">
+                                    {selectedFiles.map((file, index) => (
+                                      <div
+                                        key={`${assessment.exercise_id}-${file.name}-${file.lastModified}`}
+                                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+                                      >
+                                        <span className="truncate">{file.name}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeSelectedFile(index)}
+                                          className="shrink-0 font-semibold text-rose-500 hover:text-rose-700"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={clearFiles}
+                                      className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                                    >
+                                      Clear files
+                                    </button>
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={handleSubmit}
+                                  disabled={submitLoading || assessment.already_submitted}
+                                  className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                                >
+                                  {submitLoading ? 'Submitting...' : assessment.already_submitted ? 'Already Submitted' : 'Submit Assessment'}
+                                </button>
+
+                                {assessment.score !== null && assessment.score !== undefined && (
+                                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                                    <p className="font-semibold">Current Result</p>
+                                    <p className="mt-1">Score: {assessment.score}%</p>
+                                    {assessment.teacher_feedback && (
+                                      <p className="mt-2 text-xs text-emerald-700">{assessment.teacher_feedback}</p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {submitMessage && <p className="text-xs text-slate-600">{submitMessage}</p>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
-          </>
+          </div>
         )}
       </section>
     </>

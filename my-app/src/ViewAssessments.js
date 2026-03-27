@@ -56,7 +56,7 @@ const ViewAssessments = ({ compact = false }) => {
 
     return (
         <div className="space-y-6">
-            <section className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+            <section className="page-hero-card p-6">
                 <div className="flex items-center justify-between">
                     <div>
                         <p className="text-xs uppercase tracking-[0.4em] text-slate-400">View</p>
@@ -114,7 +114,7 @@ const ViewAssessments = ({ compact = false }) => {
                 )}
             </section>
 
-            <section className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+            <section className="page-hero-card p-6">
                 <div className="flex items-center justify-between">
                     <div>
                         <p className="text-xs uppercase tracking-[0.4em] text-slate-400">View</p>

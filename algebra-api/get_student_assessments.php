@@ -40,13 +40,18 @@ try {
             s.semester,
             s.school_year,
             COUNT(DISTINCT ei.item_id) AS item_count,
+            COUNT(DISTINCT cs.solution_id) AS submission_count,
+            COUNT(DISTINCT sc.score_id) AS graded_count,
             MAX(cs.date_uploaded) AS latest_submission_at,
-            COUNT(DISTINCT cs.solution_id) AS submission_count
+            MAX(sc.score_id) AS score_id,
+            MAX(sc.total_score_earned) AS total_score_earned,
+            MAX(sc.teacher_feedback) AS teacher_feedback
         FROM exercises_problem ep
         INNER JOIN Subject s ON s.subject_id = ep.subject_id
         INNER JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_id = ?
         LEFT JOIN exercise_items ei ON ei.exercise_id = ep.exercise_id
         LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_id = ?
+        LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
         WHERE s.archived = 0
     ";
 
@@ -104,11 +109,75 @@ try {
             'subject_meta' => implode(' - ', $subjectMeta),
             'item_count' => (int)$row['item_count'],
             'already_submitted' => ((int)$row['submission_count']) > 0,
+            'submission_status' => ((int)$row['graded_count']) > 0
+                ? 'Graded'
+                : (((int)$row['submission_count']) > 0 ? 'Pending Review' : 'Not Submitted'),
+            'submission_count' => (int)$row['submission_count'],
             'latest_submission_at' => $row['latest_submission_at'],
+            'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
+            'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
+            'teacher_feedback' => $row['teacher_feedback'] ?? '',
+            'items' => [],
         ];
     }
 
     $stmt->close();
+
+    if (count($assessments) > 0) {
+        $exerciseIds = array_values(array_unique(array_map(
+            fn($assessment) => (int)$assessment['exercise_id'],
+            $assessments
+        )));
+
+        if (count($exerciseIds) > 0) {
+            $placeholders = implode(',', array_fill(0, count($exerciseIds), '?'));
+            $types = str_repeat('i', count($exerciseIds));
+            $itemStmt = $conn->prepare(
+                "SELECT
+                    exercise_id,
+                    item_no,
+                    question_type,
+                    question_content,
+                    options,
+                    max_score
+                 FROM exercise_items
+                 WHERE exercise_id IN ($placeholders)
+                 ORDER BY exercise_id ASC, item_no ASC"
+            );
+            $itemStmt->bind_param($types, ...$exerciseIds);
+            $itemStmt->execute();
+            $itemResult = $itemStmt->get_result();
+
+            $itemsByExercise = [];
+            while ($itemRow = $itemResult->fetch_assoc()) {
+                $decodedOptions = null;
+                if (!empty($itemRow['options'])) {
+                    $decoded = json_decode($itemRow['options'], true);
+                    $decodedOptions = json_last_error() === JSON_ERROR_NONE ? $decoded : $itemRow['options'];
+                }
+
+                $exerciseId = (int)$itemRow['exercise_id'];
+                if (!isset($itemsByExercise[$exerciseId])) {
+                    $itemsByExercise[$exerciseId] = [];
+                }
+
+                $itemsByExercise[$exerciseId][] = [
+                    'item_no' => isset($itemRow['item_no']) ? (int)$itemRow['item_no'] : 1,
+                    'question_type' => $itemRow['question_type'] ?? 'handwritten_algebra',
+                    'question_content' => $itemRow['question_content'],
+                    'options' => $decodedOptions,
+                    'max_score' => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 1.0,
+                ];
+            }
+            $itemStmt->close();
+
+            foreach ($assessments as &$assessment) {
+                $exerciseId = (int)$assessment['exercise_id'];
+                $assessment['items'] = $itemsByExercise[$exerciseId] ?? [];
+            }
+            unset($assessment);
+        }
+    }
 
     echo json_encode([
         'status' => 'success',
