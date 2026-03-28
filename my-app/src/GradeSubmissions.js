@@ -50,9 +50,6 @@ const GradeSubmissions = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [aiScore, setAiScore] = useState(null);
   const [generating, setGenerating] = useState(false);
-  const [createdAssessments, setCreatedAssessments] = useState([]);
-  const [assessmentLoading, setAssessmentLoading] = useState(false);
-  const [assessmentError, setAssessmentError] = useState('');
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -133,69 +130,6 @@ const GradeSubmissions = () => {
 
   useEffect(() => {
     setSelectedAssessment('all');
-  }, [teacherId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const controller = new AbortController();
-
-    const fetchAssessments = async () => {
-      if (!teacherId) {
-        if (isMounted) {
-          setCreatedAssessments([]);
-          setAssessmentLoading(false);
-          setAssessmentError('');
-        }
-        return;
-      }
-
-      setAssessmentLoading(true);
-      setAssessmentError('');
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/get_assessments.php?teacher_id=${teacherId}`, {
-          signal: controller.signal,
-        });
-        const text = await response.text();
-
-        if (!response.ok) {
-          throw new Error(text || 'Unable to load created assessments.');
-        }
-
-        let payload;
-        try {
-          payload = JSON.parse(text);
-        } catch (parseError) {
-          console.error('Failed to decode assessments payload:', text);
-          throw new Error('Received invalid assessment data from the server.');
-        }
-
-        if (payload.status !== 'success' || !Array.isArray(payload.assessments)) {
-          throw new Error(payload.message || 'Unable to load created assessments.');
-        }
-
-        if (!isMounted) return;
-        setCreatedAssessments(payload.assessments);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        console.error(error);
-        if (isMounted) {
-          setAssessmentError(error.message || 'Unable to load created assessments.');
-          setCreatedAssessments([]);
-        }
-      } finally {
-        if (isMounted) {
-          setAssessmentLoading(false);
-        }
-      }
-    };
-
-    fetchAssessments();
-
-    return () => {
-      isMounted = false;
-      controller.abort();
-    };
   }, [teacherId]);
 
   useEffect(() => {
@@ -309,16 +243,6 @@ const GradeSubmissions = () => {
     }
   };
 
-  const pendingAssessmentIds = useMemo(
-    () => new Set(submissions.filter((submission) => submission.status !== 'Graded').map((submission) => String(submission.exercise_id ?? ''))),
-    [submissions]
-  );
-
-  const visibleCreatedAssessments = useMemo(
-    () => createdAssessments.filter((assessment) => pendingAssessmentIds.has(String(assessment.exercise_id))),
-    [createdAssessments, pendingAssessmentIds]
-  );
-
   const assessmentOptions = useMemo(() => {
     const grouped = new Map();
 
@@ -428,59 +352,6 @@ const GradeSubmissions = () => {
 
             <div className="rounded-[2rem] bg-white p-6 border border-slate-100 shadow-lg space-y-6">
               <div className="space-y-1">
-                <p className="text-md font-semibold text-slate-900">Created Assessments</p>
-                <p className="text-sm text-slate-500">
-                  {assessmentLoading ? 'Loading assessments...' : `${visibleCreatedAssessments.length} assessment(s) still need grading`}
-                </p>
-                {assessmentError && <p className="text-xs text-red-600">{assessmentError}</p>}
-              </div>
-
-              <div className="teacher-scrollbar max-h-[320px] space-y-4 overflow-y-auto pr-2">
-                {visibleCreatedAssessments.length === 0 && !assessmentLoading && (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm text-slate-500">No assessments have ungraded submissions right now.</p>
-                    <a
-                      href="/teacher/assessments"
-                      className="mt-3 inline-flex items-center justify-center rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-50"
-                    >
-                      Create Assessment
-                    </a>
-                  </div>
-                )}
-
-                {visibleCreatedAssessments.map((assessment) => (
-                  <div
-                    key={assessment.exercise_id}
-                    className="rounded-2xl border border-slate-100 bg-slate-50 p-4 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{assessment.title}</p>
-                        <p className="text-sm text-slate-500">
-                          {assessment.subject || 'Unassigned Subject'}
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                          statusStyle[assessment.assessment_status] ?? 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {assessment.assessment_status || assessment.status || 'Draft'}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                      <span>Topic: {assessment.topic || '-'}</span>
-                      <span>Items: {assessment.item_count ?? assessment.items?.length ?? 0}</span>
-                      {assessment.difficulty && <span>Difficulty: {assessment.difficulty}</span>}
-                      <span>Rubric: {assessment.rubric_name || 'Not set'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] bg-white p-6 border border-slate-100 shadow-lg space-y-6">
-              <div className="space-y-1">
                 <p className="text-md font-semibold text-slate-900">Student Submissions</p>
                 <p className="text-sm text-slate-500">
                   {loading ? 'Loading submissions...' : `${visibleSubmissions.length} submission(s) found`}
@@ -511,26 +382,27 @@ const GradeSubmissions = () => {
                       key={submission.id}
                       type="button"
                       onClick={() => setSelectedSubmission(submission)}
-                      className={`w-full text-left flex flex-col gap-2 rounded-2xl border p-4 shadow-sm transition ${isActive
+                      className={`w-full text-left rounded-[1.25rem] border px-4 py-3 shadow-sm transition ${isActive
                           ? 'border-blue-300 bg-blue-50'
                           : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/40'
                         }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{submission.student_name}</p>
-                          <p className="text-sm text-slate-500">{submission.assessment_title}</p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-900">{submission.student_name}</p>
+                            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusStyle[submission.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                              {submission.status}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">{submission.assessment_title}</p>
                         </div>
-                        <span
-                          className={`text-xs font-semibold px-3 py-1 rounded-full ${statusStyle[submission.status] ?? 'bg-slate-100 text-slate-600'
-                            }`}
-                        >
-                          {submission.status}
+                        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                          {submission.subject_display}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500 flex flex-wrap gap-3">
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
                         <span>Date: {submission.submission_date}</span>
-                        <span>Subject: {submission.subject_display}</span>
                         {submission.subject_meta && <span>{submission.subject_meta}</span>}
                       </div>
                     </button>
