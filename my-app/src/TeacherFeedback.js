@@ -10,10 +10,20 @@ const TeacherFeedback = () => {
 
   const [records, setRecords] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [selectedSubject, setSelectedSubject] = useState('all');
+  const [selectedSubject, setSelectedSubject] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  const formatExactScore = (record) => {
+    const rawScore = record?.raw_score_earned;
+    const maxScore = record?.max_score_possible;
+    if (rawScore === null || rawScore === undefined || maxScore === null || maxScore === undefined) {
+      return 'Exact score unavailable';
+    }
+
+    return `${Number(rawScore).toFixed(2)} / ${Number(maxScore).toFixed(2)} pts`;
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -35,7 +45,7 @@ const TeacherFeedback = () => {
 
       try {
         const params = new URLSearchParams({ teacher_id: String(teacherId) });
-        if (selectedSubject !== 'all') {
+        if (selectedSubject) {
           params.set('subject_id', selectedSubject);
         }
 
@@ -59,7 +69,16 @@ const TeacherFeedback = () => {
             subjectMap.set(record.subject_id, record.subject_name);
           }
         });
-        setSubjects(Array.from(subjectMap.entries()).map(([value, label]) => ({ value: String(value), label })));
+        const nextSubjects = Array.from(subjectMap.entries()).map(([value, label]) => ({ value: String(value), label }));
+        setSubjects(nextSubjects);
+
+        setSelectedSubject((current) => {
+          if (nextSubjects.length === 0) {
+            return '';
+          }
+          const stillValid = nextSubjects.some((subject) => subject.value === current);
+          return stillValid ? current : nextSubjects[0].value;
+        });
       } catch (error) {
         if (controller.signal.aborted) return;
         console.error(error);
@@ -84,10 +103,7 @@ const TeacherFeedback = () => {
     };
   }, [teacherId, selectedSubject]);
 
-  const subjectOptions = useMemo(
-    () => [{ value: 'all', label: 'All Subjects' }, ...subjects],
-    [subjects]
-  );
+  const subjectOptions = useMemo(() => subjects, [subjects]);
 
   return (
     <div className="space-y-8 px-4 py-6 md:px-6 md:py-8">
@@ -188,6 +204,7 @@ const TeacherFeedback = () => {
                   <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Saved Grade</p>
                     <p className="mt-3 text-4xl font-black text-slate-900">{selectedRecord.score}%</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-500">{formatExactScore(selectedRecord)}</p>
                   </div>
                   <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Scored At</p>
@@ -197,10 +214,18 @@ const TeacherFeedback = () => {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Teacher Feedback</p>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                    {selectedRecord.teacher_feedback || 'No written feedback was saved for this submission.'}
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">AI Feedback</p>
+                      <p className="mt-2 text-sm text-slate-500">This combines the explanation, score review, and edit notes for the submission.</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-600">
+                      Returned
+                    </span>
+                  </div>
+                  <p className="mt-4 whitespace-pre-wrap text-sm leading-8 text-slate-700">
+                    {selectedRecord.ai_feedback || 'No AI feedback was saved for this submission.'}
                   </p>
                 </div>
               </div>

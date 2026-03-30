@@ -403,7 +403,7 @@ const Signup = () => {
                                                             disabled={optionsLoading}
                                                             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
                                                         >
-                                                            <option value="">Select course</option>
+                                                            <option value="" disabled hidden>Select course</option>
                                                             {registrationOptions.courses.map((course) => (
                                                                 <option key={course.course_id} value={course.course_id}>
                                                                     {course.course_name} ({course.course_code})
@@ -421,7 +421,7 @@ const Signup = () => {
                                                             disabled={optionsLoading}
                                                             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
                                                         >
-                                                            <option value="">Select year level</option>
+                                                            <option value="" disabled hidden>Select year level</option>
                                                             {registrationOptions.years.map((year) => (
                                                                 <option key={year.year_id} value={year.year_id}>
                                                                     {year.year_level}
@@ -439,7 +439,7 @@ const Signup = () => {
                                                             disabled={optionsLoading}
                                                             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
                                                         >
-                                                            <option value="">Select section</option>
+                                                            <option value="" disabled hidden>Select section</option>
                                                             {registrationOptions.sections.map((section) => (
                                                                 <option key={section.section_id} value={section.section_id}>
                                                                     {section.section_name}

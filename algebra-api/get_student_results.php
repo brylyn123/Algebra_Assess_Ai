@@ -2,13 +2,11 @@
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
-$subject_id = isset($_GET['subject_id']) ? intval($_GET['subject_id']) : null;
-$exercise_id = isset($_GET['exercise_id']) ? intval($_GET['exercise_id']) : null;
+$student_id = isset($_GET['student_id']) ? intval($_GET['student_id']) : null;
 
-if (!$teacher_id) {
+if (!$student_id) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher ID is required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Student ID is required.']);
     exit();
 }
 
@@ -16,7 +14,7 @@ try {
     ensureScoreAiFeedbackColumn($conn);
     ensureScoreMetricsColumns($conn);
 
-    $query = "
+    $stmt = $conn->prepare("
         SELECT
             sc.score_id,
             sc.solution_id,
@@ -38,41 +36,21 @@ try {
             subj.subject_id,
             subj.subject_name,
             subj.join_code AS subject_code,
-            CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name) AS student_name,
-            st.student_id,
             DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date
         FROM Scores sc
         INNER JOIN Captured_Solution cs ON cs.solution_id = sc.solution_id
         INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
         INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
-        LEFT JOIN Student st ON st.student_id = cs.student_id
         LEFT JOIN (
             SELECT exercise_id, COALESCE(SUM(max_score), 0) AS max_score_possible
             FROM exercise_items
             GROUP BY exercise_id
         ) ex ON ex.exercise_id = ep.exercise_id
-        WHERE subj.teacher_id = ?
-    ";
+        WHERE cs.student_id = ?
+        ORDER BY subj.subject_name ASC, ep.title ASC, sc.date_scored DESC, sc.score_id DESC
+    ");
 
-    $types = 'i';
-    $params = [$teacher_id];
-
-    if ($subject_id) {
-        $query .= " AND subj.subject_id = ? ";
-        $types .= 'i';
-        $params[] = $subject_id;
-    }
-
-    if ($exercise_id) {
-        $query .= " AND ep.exercise_id = ? ";
-        $types .= 'i';
-        $params[] = $exercise_id;
-    }
-
-    $query .= " ORDER BY sc.date_scored DESC, sc.score_id DESC";
-
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param($types, ...$params);
+    $stmt->bind_param('i', $student_id);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -86,8 +64,6 @@ try {
             'subject_id' => (int)$row['subject_id'],
             'subject_name' => $row['subject_name'],
             'subject_code' => $row['subject_code'],
-            'student_name' => $row['student_name'] ?: 'Unknown Student',
-            'student_id' => $row['student_id'],
             'submission_date' => $row['submission_date'],
             'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
             'raw_score_earned' => $row['raw_score_earned'] !== null ? round((float)$row['raw_score_earned'], 2) : null,
@@ -97,15 +73,17 @@ try {
             'date_scored' => $row['date_scored'],
         ];
     }
+
     $stmt->close();
 
+    header('Content-Type: application/json');
     echo json_encode([
         'status' => 'success',
         'records' => $records,
     ]);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Unable to load feedback records: ' . $e->getMessage()]);
+    echo json_encode(['status' => 'error', 'message' => 'Unable to load student results: ' . $e->getMessage()]);
 }
 
 $conn->close();

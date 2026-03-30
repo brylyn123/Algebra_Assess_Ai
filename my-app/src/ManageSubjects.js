@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import axios from './axiosClient';
 import { loadSubjects, saveSubjects } from './subjectsStore';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
@@ -364,6 +365,20 @@ const ManageSubjects = () => {
         ? subjectsWithCounts.find((subject) => subject.id === selectedSubject.id) || selectedSubject
         : null;
     const enrolledList = selectedSubjectRecord ? (subjectEnrollments[selectedSubjectRecord.id] || []) : [];
+
+    useEffect(() => {
+        if (!selectedSubjectRecord && !editingSubject) {
+            return undefined;
+        }
+
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [editingSubject, selectedSubjectRecord]);
+
     const activeSubjects = subjectsWithCounts;
     const searchLower = searchQuery.trim().toLowerCase();
     const filteredSubjects = activeSubjects.filter((subject) => {
@@ -494,7 +509,7 @@ const ManageSubjects = () => {
                                     onChange={handleInputChange}
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
                                 >
-                                    <option value="">Select year</option>
+                                    <option value="" disabled hidden>Select year</option>
                                     {dropdownYearOptions.map((yearOption) => (
                                         <option key={yearOption} value={yearOption}>
                                             {yearOption}
@@ -510,7 +525,7 @@ const ManageSubjects = () => {
                                     onChange={handleInputChange}
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
                                 >
-                                    <option value="">Select section</option>
+                                    <option value="" disabled hidden>Select section</option>
                                     {dropdownSectionOptions.map((sectionOption) => (
                                         <option key={sectionOption} value={sectionOption}>
                                             {sectionOption}
@@ -528,7 +543,7 @@ const ManageSubjects = () => {
                                     onChange={handleInputChange}
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
                                 >
-                                    <option value="">Select school year</option>
+                                    <option value="" disabled hidden>Select school year</option>
                                     {dropdownSchoolYearOptions.map((schoolYear) => (
                                         <option key={schoolYear} value={schoolYear}>
                                             {schoolYear}
@@ -544,7 +559,7 @@ const ManageSubjects = () => {
                                     onChange={handleInputChange}
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
                                 >
-                                    <option value="">Select semester</option>
+                                    <option value="" disabled hidden>Select semester</option>
                                     {dropdownSemesterOptions.map((semester) => (
                                         <option key={semester} value={semester}>
                                             {semester}
@@ -672,11 +687,11 @@ const ManageSubjects = () => {
                 </div>
             </div>
 
-            {selectedSubjectRecord && (
-                <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6">
-                    <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-8 shadow-[0_25px_60px_rgba(15,23,42,0.4)]">
-                        <div className="teacher-scrollbar max-h-[calc(90vh-4rem)] space-y-8 overflow-y-auto pr-2">
-                        <div className="flex items-start justify-between gap-6">
+            {selectedSubjectRecord && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 px-4 backdrop-blur-sm">
+                    <div className="w-full max-w-5xl max-h-[calc(100vh-4rem)] overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-8 shadow-[0_25px_60px_rgba(15,23,42,0.35)]">
+                        <div className="teacher-scrollbar flex h-full min-h-0 flex-col gap-8 overflow-y-auto pr-2">
+                        <div className="flex items-start justify-between gap-6 pt-1">
                             <div className="space-y-2">
                                 <p className="text-sm uppercase tracking-[0.4em] text-slate-400">Enrollment</p>
                                 <h3 className="text-3xl font-bold text-slate-900">{selectedSubjectRecord.name}</h3>
@@ -703,42 +718,63 @@ const ManageSubjects = () => {
                                 <button
                                     type="button"
                                     onClick={() => fetchEnrollments()}
-                                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                    className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
                                 >
                                     Refresh
                                 </button>
                                 <button
                                     onClick={() => setSelectedSubject(null)}
-                                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                    className="rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
                                 >
                                     Close
                                 </button>
                             </div>
                         </div>
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Enrolled</p>
-                                <p className="mt-3 text-3xl font-black text-slate-900">{enrolledList.length}</p>
-                                <p className="mt-1 text-sm text-slate-500">Students currently in this subject</p>
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <div className="teacher-stat-card teacher-stat-card-blue min-h-[132px] p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Enrolled</p>
+                                        <p className="mt-3 text-4xl font-black leading-none text-white">{enrolledList.length}</p>
+                                    </div>
+                                    <div className="teacher-stat-icon h-10 w-10 text-[10px]">EN</div>
+                                </div>
+                                <div className="mt-4">
+                                    <p className="text-sm font-bold text-white">Students currently in this subject</p>
+                                </div>
                             </div>
-                            <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Join Code</p>
-                                <p className="mt-3 font-mono text-2xl font-black text-slate-900">{selectedSubjectRecord.joinCode}</p>
-                                <p className="mt-1 text-sm text-slate-500">Share this code so students can enroll</p>
+                            <div className="teacher-stat-card teacher-stat-card-amber min-h-[132px] p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Join Code</p>
+                                        <p className="mt-3 font-mono text-xl font-black leading-none text-white">{selectedSubjectRecord.joinCode}</p>
+                                    </div>
+                                    <div className="teacher-stat-icon h-10 w-10 text-[10px]">JC</div>
+                                </div>
+                                <div className="mt-4">
+                                    <p className="text-sm font-bold text-white">Share this code so students can enroll</p>
+                                </div>
                             </div>
-                            <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5">
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">Schedule</p>
-                                <p className="mt-3 text-lg font-bold text-slate-900">{selectedSubjectRecord.semester}</p>
-                                <p className="mt-1 text-sm text-slate-500">SY {selectedSubjectRecord.schoolYear}</p>
+                            <div className="teacher-stat-card teacher-stat-card-emerald min-h-[132px] p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Schedule</p>
+                                        <p className="mt-3 text-lg font-black leading-none text-white">{selectedSubjectRecord.semester}</p>
+                                    </div>
+                                    <div className="teacher-stat-icon h-10 w-10 text-[10px]">SC</div>
+                                </div>
+                                <div className="mt-4">
+                                    <p className="text-sm font-bold text-white">SY {selectedSubjectRecord.schoolYear}</p>
+                                </div>
                             </div>
                         </div>
-                        <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-6">
+                        <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-4">
                             <div className="flex items-center justify-between mb-4">
                                 <p className="text-sm font-semibold uppercase tracking-[0.4em] text-slate-400">Students</p>
                                 <p className="text-xs text-slate-500">{enrolledList.length} recorded</p>
                             </div>
                             {enrolledList.length > 0 ? (
-                                <div className="teacher-scrollbar grid max-h-[360px] gap-3 overflow-y-auto pr-2">
+                                <div className="teacher-scrollbar grid max-h-[40vh] gap-3 overflow-y-auto pr-2">
                                     {enrolledList.map((student) => (
                                         <div
                                             key={student.enrollment_id ?? student.student_id}
@@ -771,11 +807,12 @@ const ManageSubjects = () => {
                         </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
-            {editingSubject && (
-                <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6">
-                    <div className="w-full max-w-3xl rounded-[2rem] bg-white p-6 shadow-[0_35px_70px_rgba(15,23,42,0.35)] border border-slate-100 space-y-6">
+            {editingSubject && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 px-4 backdrop-blur-sm">
+                    <div className="w-full max-w-3xl rounded-[2rem] border border-slate-100 bg-white p-6 shadow-[0_25px_60px_rgba(15,23,42,0.35)] space-y-6">
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-sm uppercase tracking-[0.4em] text-slate-400 mb-1">Edit Subject</p>
@@ -816,7 +853,7 @@ const ManageSubjects = () => {
                                     onChange={handleEditInputChange}
                                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700"
                                 >
-                                    <option value="">Select year</option>
+                                    <option value="" disabled hidden>Select year</option>
                                     {dropdownYearOptions.map((yearOption) => (
                                         <option key={yearOption} value={yearOption}>
                                             {yearOption}
@@ -832,7 +869,7 @@ const ManageSubjects = () => {
                                     onChange={handleEditInputChange}
                                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700"
                                 >
-                                    <option value="">Select section</option>
+                                    <option value="" disabled hidden>Select section</option>
                                     {dropdownSectionOptions.map((sectionOption) => (
                                         <option key={sectionOption} value={sectionOption}>
                                             {sectionOption}
@@ -848,7 +885,7 @@ const ManageSubjects = () => {
                                     onChange={handleEditInputChange}
                                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700"
                                 >
-                                    <option value="">Select school year</option>
+                                    <option value="" disabled hidden>Select school year</option>
                                     {dropdownSchoolYearOptions.map((schoolYear) => (
                                         <option key={schoolYear} value={schoolYear}>
                                             {schoolYear}
@@ -864,7 +901,7 @@ const ManageSubjects = () => {
                                     onChange={handleEditInputChange}
                                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700"
                                 >
-                                    <option value="">Select semester</option>
+                                    <option value="" disabled hidden>Select semester</option>
                                     {dropdownSemesterOptions.map((semester) => (
                                         <option key={semester} value={semester}>
                                             {semester}
@@ -890,7 +927,8 @@ const ManageSubjects = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );

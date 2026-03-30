@@ -6,7 +6,7 @@ const quickActions = [
   { label: 'Dashboard', icon: 'D', path: '/dashboard' },
   { label: 'Manage Subjects', icon: 'S', path: '/dashboard/subjects' },
   { label: 'Manage Assessments', icon: 'A', path: '/teacher/assessments' },
-  { label: 'Grade Submissions', icon: 'G', path: '/teacher/grade-submissions' },
+  { label: 'Generate Score', icon: 'G', path: '/teacher/grade-submissions' },
   { label: 'Results & Feedback', icon: 'F', path: '/teacher/feedback' },
   { label: 'View Reports', icon: 'R', path: '/teacher/reports' },
 ];

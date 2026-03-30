@@ -6,7 +6,7 @@ header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Content-Type: application/json");
 
 // If the browser is just "checking" the connection (OPTIONS), exit early with a 200 OK
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
     exit();
 }

@@ -2,7 +2,7 @@
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 
 const ViewHistoryCard = ({ maxHeight = '260px' }) => {
-    const { assessments, rubrics, loading, statusMessage, deleteAssessment, deleteRubric } = useTeacherRecords();
+    const { assessments, rubrics, loading, statusMessage } = useTeacherRecords();
 
     const formatLevelLabel = (level) => {
         const label = String(level?.label ?? '').trim();
@@ -20,20 +20,6 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
             return value;
         }
         return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    };
-
-    const handleDeleteAssessment = async (exerciseId) => {
-        if (!window.confirm('Delete this assessment? This cannot be undone.')) {
-            return;
-        }
-        await deleteAssessment(exerciseId);
-    };
-
-    const handleDeleteRubric = async (rubricSetId) => {
-        if (!window.confirm('Delete this rubric? This cannot be undone.')) {
-            return;
-        }
-        await deleteRubric(rubricSetId);
     };
 
     const renderStatusBadge = (value) => {
@@ -100,12 +86,9 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                                             <p className="text-xs text-slate-500">{item.ideal_solution}</p>
                                         )}
                                         <div className="flex justify-end">
-                                            <button
-                                                className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white shadow-sm transition hover:bg-blue-700"
-                                                onClick={() => handleDeleteAssessment(item.exercise_id)}
-                                            >
-                                                Delete
-                                            </button>
+                                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                                                Saved
+                                            </span>
                                         </div>
                                     </div>
                                 ))
@@ -151,12 +134,9 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                                             </div>
                                         )}
                                         <div className="flex justify-end">
-                                            <button
-                                                className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white shadow-sm transition hover:bg-blue-700"
-                                                onClick={() => handleDeleteRubric(rubric.rubric_set_id)}
-                                            >
-                                                Delete
-                                            </button>
+                                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                                                Saved
+                                            </span>
                                         </div>
                                     </div>
                                 ))

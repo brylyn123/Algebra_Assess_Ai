@@ -13,7 +13,7 @@ const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 const quickActions = [
   { label: 'Dashboard', icon: 'D', path: '/student' },
   { label: 'My Subjects', icon: 'S', path: '/student/subjects' },
-  { label: 'Reports & Feedback', icon: 'R', path: '/student/reports' },
+  { label: 'Scores & Feedback', icon: 'R', path: '/student/reports' },
   { label: 'Manage Profile', icon: 'P', path: '/student/profile' },
 ];
 

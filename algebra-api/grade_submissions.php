@@ -47,6 +47,7 @@ SELECT
     cs.ai_raw_json,
     sc.score_id,
     sc.total_score_earned,
+    sc.ai_feedback,
     sc.teacher_feedback,
     DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date,
     CASE
@@ -180,6 +181,7 @@ while ($row = $result->fetch_assoc()) {
         'files' => $files,
         'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
         'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
+        'ai_feedback' => $row['ai_feedback'] ?? '',
         'teacher_feedback' => $row['teacher_feedback'] ?? '',
     ];
 }

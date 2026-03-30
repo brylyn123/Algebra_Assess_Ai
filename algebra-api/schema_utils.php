@@ -74,6 +74,69 @@ function ensureAssessmentRubricColumn(mysqli $conn): void {
     }
 }
 
+function ensureScoreAiFeedbackColumn(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    $result = $conn->query("SHOW COLUMNS FROM Scores LIKE 'ai_feedback'");
+    if ($result && $result->num_rows > 0) {
+        $result->free();
+        return;
+    }
+
+    if ($result) {
+        $result->free();
+    }
+
+    if (!$conn->query("ALTER TABLE Scores ADD COLUMN ai_feedback TEXT NULL AFTER total_score_earned")) {
+        throw new Exception('Unable to add AI feedback support to Scores: ' . $conn->error);
+    }
+}
+
+function ensureScoreMetricsColumns(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    $rawScoreResult = $conn->query("SHOW COLUMNS FROM Scores LIKE 'raw_score_earned'");
+    $hasRawScore = $rawScoreResult && $rawScoreResult->num_rows > 0;
+    if ($rawScoreResult) {
+        $rawScoreResult->free();
+    }
+
+    $maxScoreResult = $conn->query("SHOW COLUMNS FROM Scores LIKE 'max_score_possible'");
+    $hasMaxScore = $maxScoreResult && $maxScoreResult->num_rows > 0;
+    if ($maxScoreResult) {
+        $maxScoreResult->free();
+    }
+
+    $alterStatements = [];
+    if (!$hasRawScore) {
+        $alterStatements[] = "ADD COLUMN raw_score_earned DECIMAL(10,2) NULL AFTER total_score_earned";
+    }
+    if (!$hasMaxScore) {
+        $alterStatements[] = "ADD COLUMN max_score_possible DECIMAL(10,2) NULL AFTER raw_score_earned";
+    }
+
+    if (empty($alterStatements)) {
+        return;
+    }
+
+    $sql = "ALTER TABLE Scores " . implode(', ', $alterStatements);
+    if (!$conn->query($sql)) {
+        throw new Exception('Unable to add score metric support to Scores: ' . $conn->error);
+    }
+}
+
 function ensureStudentProfileColumns(mysqli $conn): void {
     static $checked = false;
 

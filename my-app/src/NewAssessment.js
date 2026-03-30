@@ -861,7 +861,7 @@ const NewAssessment = () => {
 
             >
 
-              <option value="">Select a subject</option>
+              <option value="" disabled hidden>Select a subject</option>
 
               {subjects.map((subject) => (
 
@@ -891,7 +891,7 @@ const NewAssessment = () => {
               disabled={rubricLoading || rubrics.length === 0}
               className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <option value="">Select a rubric</option>
+              <option value="" disabled hidden>Select a rubric</option>
               {rubrics.map((rubric) => (
                 <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
                   {rubric.rubric_name}
@@ -1223,7 +1223,7 @@ const NewAssessment = () => {
                       onChange={(e) => dispatch({ type: 'SET_MC_CORRECT_ANSWER', payload: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none transition"
                     >
-                      <option value="">Select the correct answer</option>
+                      <option value="" disabled hidden>Select the correct answer</option>
                       {mcOptions.map((option, index) => (
                         <option key={`${option}-${index}`} value={option}>
                           {option}
