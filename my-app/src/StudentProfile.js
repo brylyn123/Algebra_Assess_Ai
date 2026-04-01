@@ -21,9 +21,10 @@ const getNormalizedStudentProfile = (stored) => {
   return {
     fullName,
     email: stored?.email || 'student@example.com',
-    school: stored?.collegeName || stored?.college_id || 'Algebra High School',
-    section: stored?.sectionName || stored?.section || 'Section A',
-    year: stored?.yearLevel || stored?.year || '11th Grade',
+    school: stored?.collegeName || 'Algebra High School',
+    course: stored?.courseName || 'Not set',
+    section: stored?.sectionName || 'Section A',
+    year: stored?.yearLevel || 'Year 1',
     role: stored?.role || 'Student',
     avatarInitials: avatarInitials.toUpperCase(),
   };
@@ -69,9 +70,9 @@ const StudentProfile = () => {
       firstName: stored?.firstName ?? stored?.first_Name ?? '',
       middleName: stored?.middleName ?? stored?.middle_Name ?? '',
       lastName: stored?.lastName ?? stored?.last_Name ?? '',
-      school: stored?.collegeName ?? stored?.college_id ?? '',
-      section: stored?.sectionName ?? stored?.section ?? '',
-      year: stored?.yearLevel ?? stored?.year ?? '',
+      school: stored?.collegeName ?? '',
+      section: stored?.sectionName ?? '',
+      year: stored?.yearLevel ?? '',
     });
   }, [stored]);
 
@@ -94,9 +95,7 @@ const StudentProfile = () => {
       name: [formValues.firstName, formValues.middleName, formValues.lastName].filter(Boolean).join(' ').trim(),
       collegeName: formValues.school.trim(),
       sectionName: formValues.section.trim(),
-      section: formValues.section.trim(),
       yearLevel: formValues.year.trim(),
-      year: formValues.year.trim(),
     });
 
     setSaveMessage('Profile updated.');
@@ -224,6 +223,7 @@ const StudentProfile = () => {
         <div className="grid gap-4 md:grid-cols-2">
           {[
             { label: 'School', value: profileSummary.school },
+            { label: 'Course', value: profileSummary.course },
             { label: 'Email', value: profileSummary.email },
             { label: 'Section', value: profileSummary.section },
             { label: 'Year Level', value: profileSummary.year },

@@ -536,9 +536,9 @@ try {
 
         $studentId = insertAndGetId(
             $conn,
-            'INSERT INTO Student (first_name, middle_name, last_name, email, college_id, course_id, section_id, year_id, user_id) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, ?)',
-            'ssssi',
-            [$student['first_name'], $student['middle_name'], $student['last_name'], $student['email'], $studentUserId]
+            'INSERT INTO Student (first_name, middle_name, last_name, email, college_id, course_id, section_id, year_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'ssssiiiii',
+            [$student['first_name'], $student['middle_name'], $student['last_name'], $student['email'], 2, 3, 1, 3, $studentUserId]
         );
 
         $students[] = [
@@ -592,17 +592,18 @@ try {
 
         $subjectId = insertAndGetId(
             $conn,
-            'INSERT INTO Subject (teacher_id, subject_name, course, section, semester, school_year, join_code, year) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            'issssssi',
+            'INSERT INTO Subject (teacher_id, college_id, course_id, section_id, year_id, subject_name, semester, school_year, join_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'iiiiissss',
             [
                 $teacherId,
+                2,
+                3,
+                1,
+                3,
                 $subject['subject_name'],
-                $demoCourseName,
-                $demoSection,
                 $demoSemester,
                 $demoSchoolYear,
                 $subject['join_code'],
-                3,
             ]
         );
 
@@ -682,14 +683,17 @@ try {
                 if ($isReturned) {
                     $aiScore = 72 + ((($subjectIndex * 9) + ($assessmentIndex * 3) + $studentIndex) % 25);
                     $teacherScore = min(100, $aiScore + (($assessmentIndex % 3) - 1));
+                    $maxScorePossible = 10.0;
+                    $rawScoreEarned = round(($teacherScore / 100) * $maxScorePossible, 2);
                     executeStatement(
                         $conn,
-                        'INSERT INTO Scores (solution_id, total_score_earned, ai_feedback, teacher_feedback, date_scored) VALUES (?, ?, ?, ?, ?)',
-                        'idsss',
+                        'INSERT INTO Scores (solution_id, total_score_earned, raw_score_earned, max_score_possible, ai_feedback, date_scored) VALUES (?, ?, ?, ?, ?, ?)',
+                        'idddss',
                         [
                             $solutionId,
                             $teacherScore,
-                            generatedAiFeedback($subject['subject_name'], $assessmentTitle, $aiScore),
+                            $rawScoreEarned,
+                            $maxScorePossible,
                             teacherFeedback($subject['subject_name'], $assessmentTitle, $teacherScore),
                             $scoreDate,
                         ]

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 
 const ViewHistoryCard = ({ maxHeight = '260px' }) => {

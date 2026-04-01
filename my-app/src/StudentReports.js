@@ -24,21 +24,6 @@ const getDisplayName = (user) => {
   return 'Student';
 };
 
-const formatDate = (value) => {
-  if (!value) return 'Not available';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-};
-
 const formatExactScore = (record) => {
   const rawScore = record?.raw_score_earned;
   const maxScore = record?.max_score_possible;

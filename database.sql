@@ -87,17 +87,22 @@ CREATE TABLE Section (
 CREATE TABLE Subject (
     subject_id INT PRIMARY KEY AUTO_INCREMENT,
     teacher_id INT NOT NULL,
+    college_id INT,
+    course_id INT,
+    section_id INT,
+    year_id INT,
     subject_name VARCHAR(255) NOT NULL,
     subject_code VARCHAR(50) UNIQUE,
-    course VARCHAR(255) NOT NULL,
-    section VARCHAR(64),
-    semester VARCHAR(64),
+    semester VARCHAR(64),   
     school_year VARCHAR(64),
     join_code VARCHAR(20) UNIQUE,
     archived TINYINT(1) DEFAULT 0,
-    year INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id)
+    FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id),
+    FOREIGN KEY (college_id) REFERENCES Colleges(college_id),
+    FOREIGN KEY (course_id) REFERENCES Course(course_id),
+    FOREIGN KEY (section_id) REFERENCES Section(section_id),
+    FOREIGN KEY (year_id) REFERENCES Year_Level(year_id)
 );
 
 -- 4. Class Instances
@@ -189,7 +194,9 @@ CREATE TABLE Scores (
     score_id INT PRIMARY KEY AUTO_INCREMENT,
     solution_id INT NOT NULL,
     total_score_earned DECIMAL(5,2),
-    teacher_feedback TEXT,
+    raw_score_earned DECIMAL(10,2),
+    max_score_possible DECIMAL(10,2),
+    ai_feedback TEXT,
     date_scored TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (solution_id) REFERENCES Captured_Solution(solution_id)
 ) ENGINE=InnoDB;

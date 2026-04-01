@@ -44,7 +44,8 @@ const TeacherProfile = () => {
         const normalizedSubjects = sourceSubjects.map((subject) => ({
           id: subject.subject_id ?? subject.id,
           name: subject.subject_name ?? 'Untitled Class',
-          section: subject.section ?? 'Section —',
+          course: subject.course ?? '',
+          section: subject.section ?? 'Section -',
           year: subject.year ?? '',
           schoolYear: subject.school_year ?? '',
           joinCode: subject.join_code ?? '',
@@ -133,12 +134,12 @@ const TeacherProfile = () => {
           </div>
           <div className="rounded-2xl border border-slate-100 bg-white p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subjects</p>
-            <p className="text-2xl font-bold text-slate-900">{loading ? '—' : statistics.subjects}</p>
+            <p className="text-2xl font-bold text-slate-900">{loading ? '-' : statistics.subjects}</p>
             <p className="text-xs text-slate-500">Active classes assigned to you.</p>
           </div>
           <div className="rounded-2xl border border-slate-100 bg-white p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Learners</p>
-            <p className="text-2xl font-bold text-slate-900">{loading ? '—' : statistics.students}</p>
+            <p className="text-2xl font-bold text-slate-900">{loading ? '-' : statistics.students}</p>
             <p className="text-xs text-slate-500">Students enrolled across all subjects.</p>
           </div>
         </div>
@@ -170,7 +171,7 @@ const TeacherProfile = () => {
                     <p className="text-sm font-semibold text-slate-900">{entry.student_name || entry.student_id}</p>
                     <p className="text-[11px] text-slate-500">{entry.subjectName}</p>
                   </div>
-                  <span className="text-[11px] text-slate-500">{entry.date_enrolled ?? '—'}</span>
+                  <span className="text-[11px] text-slate-500">{entry.date_enrolled ?? '-'}</span>
                 </div>
               ))
             )}
@@ -187,7 +188,7 @@ const TeacherProfile = () => {
           <div className="grid gap-3">
             <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
               <span className="text-xs text-slate-500">Teacher ID</span>
-              <span className="font-semibold text-slate-900">{teacherId ?? '—'}</span>
+              <span className="font-semibold text-slate-900">{teacherId ?? '-'}</span>
             </div>
             <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
               <span className="text-xs text-slate-500">Email</span>
@@ -214,7 +215,7 @@ const TeacherProfile = () => {
           </div>
           <div className="space-y-3">
             {loading ? (
-              <p className="text-xs text-slate-500">Loading subjects…</p>
+              <p className="text-xs text-slate-500">Loading subjects...</p>
             ) : subjects.length === 0 ? (
               <p className="text-xs text-slate-500">No subjects found yet.</p>
             ) : (
@@ -222,7 +223,7 @@ const TeacherProfile = () => {
                 <div key={subject.id} className="rounded-2xl border border-slate-100 px-4 py-3 bg-slate-50 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{subject.name}</p>
-                    <p className="text-[11px] text-slate-500">{`${subject.year} · ${subject.section}`}</p>
+                    <p className="text-[11px] text-slate-500">{[subject.course, subject.year, subject.section].filter(Boolean).join(' | ')}</p>
                   </div>
                   <span className="text-[11px] text-slate-500">{subject.joinCode || 'No join code'}</span>
                 </div>

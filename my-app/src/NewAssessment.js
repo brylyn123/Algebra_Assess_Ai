@@ -8,49 +8,6 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 
 
 
-const SYMBOL_OPTIONS = [
-
-  'x',
-
-  'y',
-
-  'z',
-
-  '2',
-
-  '3',
-
-  '±',
-
-  '√',
-
-  'Σ',
-
-  '∫',
-
-  'Δ',
-
-  'π',
-
-  '+',
-
-  '-',
-
-  '÷',
-
-  '×',
-
-  '=',
-
-  '<',
-
-  '>',
-
-  '≤',
-
-  '≥',
-
-];
 
 
 
@@ -185,7 +142,6 @@ const NewAssessment = () => {
   const navigate = useNavigate();
 
   const [mathExpression, setMathExpression] = useState('');
-  const [showSymbolPanel, setShowSymbolPanel] = useState(false);
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const {
@@ -272,6 +228,10 @@ const NewAssessment = () => {
 
     section: raw.section ?? '',
 
+    subjectMeta: [raw.course ?? '', raw.year ?? '', raw.section ?? '', raw.semester ?? '', raw.school_year ?? '']
+      .filter(Boolean)
+      .join(' | '),
+
   });
 
 
@@ -318,61 +278,6 @@ const NewAssessment = () => {
 
 
 
-  const handleSymbolInsert = (symbol) => {
-
-    const mathfield = mathfieldRef.current;
-
-    if (questionType === 'handwritten_algebra' && mathfield) {
-
-      if (typeof mathfield.insert === 'function') {
-
-        mathfield.insert(symbol);
-
-      } else if (typeof mathfield.executeCommand === 'function') {
-
-        mathfield.executeCommand('insert', symbol);
-
-      }
-
-      mathfield.focus();
-      const updated = mathfield.getValue?.() ?? '';
-      setMathExpression(updated);
-      return;
-
-    }
-
-    const input = itemInputRef.current;
-
-    const prev = itemEntry;
-    let nextValue;
-    if (!input) {
-      nextValue = prev + symbol;
-    } else {
-      const start = input.selectionStart ?? prev.length;
-      const end = input.selectionEnd ?? start;
-      nextValue = prev.slice(0, start) + symbol + prev.slice(end);
-      const caretPosition = start + symbol.length;
-      setTimeout(() => {
-        if (input.setSelectionRange) {
-
-          input.setSelectionRange(caretPosition, caretPosition);
-
-        }
-
-        input.focus();
-
-      }, 0);
-    }
-    dispatch({ type: 'SET_ITEM_ENTRY', payload: nextValue });
-  };
-
-  const handleMathExpressionChange = (event) => {
-    const value = event.target.value;
-    setMathExpression(value);
-    if (mathfieldRef.current?.setValue) {
-      mathfieldRef.current.setValue(value);
-    }
-  };
 
   const syncMathExpression = () => {
     const value = mathfieldRef.current?.getValue?.() ?? '';
@@ -1077,7 +982,7 @@ const NewAssessment = () => {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-400 px-1">
-                      <p>Describe the equation or symbol if needed before hitting “Add Item.”</p>
+                      <p>Describe the equation or symbol if needed before hitting â€œAdd Item.â€</p>
                     </div>
 
                     <div className="mt-4 space-y-1">
@@ -1098,7 +1003,7 @@ const NewAssessment = () => {
 
                   <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
 
-                    Loading math editor… please wait before entering equations.
+                    Loading math editorâ€¦ please wait before entering equations.
 
                   </p>
 
@@ -1184,7 +1089,7 @@ const NewAssessment = () => {
 
                         >
 
-                          ×
+                          Ã—
 
                         </button>
 

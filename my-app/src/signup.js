@@ -144,7 +144,7 @@ const Signup = () => {
             email: formData.email,
             password: formData.password,
             role,
-            collegeName: role === 'teacher' ? formData.collegeName : '',
+            collegeName: formData.collegeName,
             courseId: formData.courseId,
             sectionId: formData.sectionId,
             yearId: formData.yearId,
@@ -393,6 +393,16 @@ const Signup = () => {
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
+                                                    <div className="sm:col-span-2">
+                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">College Name</label>
+                                                        <input
+                                                            name="collegeName"
+                                                            required
+                                                            value={formData.collegeName}
+                                                            onChange={handleChange}
+                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                                        />
+                                                    </div>
                                                     <div>
                                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Course</label>
                                                         <select
@@ -456,7 +466,7 @@ const Signup = () => {
                                         <p className="text-xs text-slate-400">
                                             {optionsLoading
                                                 ? 'Loading course, year, and section lists...'
-                                                : optionsError || 'These selections are stored with the student profile.'}
+                                                : optionsError || 'These selections are stored with the student profile, including the college link.'}
                                         </p>
                                     )}
 

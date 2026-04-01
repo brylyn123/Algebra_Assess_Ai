@@ -23,6 +23,9 @@ if (!$student_id) {
 
 try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
+    ensureSubjectLookupColumns($conn);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
 
     $query = "
         SELECT
@@ -35,8 +38,8 @@ try {
             ep.date_created,
             s.subject_name,
             s.join_code,
-            s.course,
-            s.section,
+            COALESCE(c.course_code, c.course_name) AS course,
+            sec.section_name AS section,
             s.semester,
             s.school_year,
             COUNT(DISTINCT ei.item_id) AS item_count,
@@ -45,9 +48,11 @@ try {
             MAX(cs.date_uploaded) AS latest_submission_at,
             MAX(sc.score_id) AS score_id,
             MAX(sc.total_score_earned) AS total_score_earned,
-            MAX(sc.teacher_feedback) AS teacher_feedback
+            MAX(sc.ai_feedback) AS ai_feedback
         FROM exercises_problem ep
         INNER JOIN Subject s ON s.subject_id = ep.subject_id
+        LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+        LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
         INNER JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_id = ?
         LEFT JOIN exercise_items ei ON ei.exercise_id = ep.exercise_id
         LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_id = ?
@@ -75,8 +80,9 @@ try {
             ep.date_created,
             s.subject_name,
             s.join_code,
-            s.course,
-            s.section,
+            c.course_code,
+            c.course_name,
+            sec.section_name,
             s.semester,
             s.school_year
         ORDER BY ep.date_created DESC, ep.exercise_id DESC
@@ -116,7 +122,7 @@ try {
             'latest_submission_at' => $row['latest_submission_at'],
             'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
             'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
-            'teacher_feedback' => $row['teacher_feedback'] ?? '',
+            'ai_feedback' => $row['ai_feedback'] ?? '',
             'items' => [],
         ];
     }

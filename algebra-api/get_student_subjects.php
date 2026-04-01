@@ -21,6 +21,10 @@ if (!$student_id) {
 
 try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
+    ensureSubjectLookupColumns($conn);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
     $stmt = $conn->prepare(
         "SELECT
@@ -29,17 +33,20 @@ try {
             s.archived AS status,
             s.subject_name,
             CONCAT(t.first_name, ' ', t.last_name) AS teacher_name,
-            s.course,
-            s.section,
+            COALESCE(c.course_code, c.course_name) AS course,
+            sec.section_name AS section,
             s.semester,
             s.school_year,
-            s.year,
+            yl.year_level AS year_level,
             CASE
                 WHEN e.enrollment_id IS NOT NULL THEN 1
                 ELSE 0
             END AS enrolled
          FROM Subject s
          LEFT JOIN Teacher t ON t.teacher_id = s.teacher_id
+         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
          LEFT JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_id = ?
          WHERE s.archived = 0
          ORDER BY s.subject_name ASC"
@@ -63,7 +70,7 @@ try {
             'section_name' => $row['section'],
             'semester' => $row['semester'],
             'school_year' => $row['school_year'],
-            'year_level' => $row['year'],
+            'year_level' => $row['year_level'],
             'enrolled' => (bool)$row['enrolled'],
         ];
 

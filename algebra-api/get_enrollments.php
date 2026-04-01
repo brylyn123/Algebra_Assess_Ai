@@ -5,6 +5,7 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 header("Content-Type: application/json");
 
 require_once 'db_connection.php';
+require_once 'schema_utils.php';
 
 $teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
 if (!$teacher_id) {
@@ -14,13 +15,17 @@ if (!$teacher_id) {
 }
 
 try {
+    ensureSubjectLookupColumns($conn);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+
     $stmt = $conn->prepare(
         "SELECT
             s.subject_id,
             s.subject_name,
             s.join_code,
-            s.course,
-            s.section,
+            COALESCE(c.course_code, c.course_name) AS course,
+            sec.section_name AS section,
             s.semester,
             s.school_year,
             e.enrollment_id,
@@ -30,6 +35,8 @@ try {
             CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name) AS student_name
          FROM Enrollment e
          JOIN Subject s ON s.subject_id = e.subject_id
+         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          JOIN Student st ON st.student_id = e.student_id
          WHERE s.teacher_id = ?
          ORDER BY s.subject_name ASC, e.date_enrolled DESC"

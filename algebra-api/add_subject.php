@@ -4,6 +4,7 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 include 'db_connect.php'; // Your XAMPP config
+require_once 'schema_utils.php';
 
 function ensureArchivedColumn($conn) {
     $columnCheck = $conn->query("SHOW COLUMNS FROM subject LIKE 'archived'");
@@ -26,9 +27,9 @@ function generateJoinCode($length = 6) {
 
 // 2. Extract and Validate
 $subject_name = $data['subject_name'] ?? '';
-$course       = $data['course'] ?? '';
-$year         = $data['year'] ?? '';
-$section      = $data['section'] ?? '';
+$courseId     = isset($data['course_id']) ? intval($data['course_id']) : 0;
+$yearId       = isset($data['year_id']) ? intval($data['year_id']) : 0;
+$sectionId    = isset($data['section_id']) ? intval($data['section_id']) : 0;
 $school_year  = $data['school_year'] ?? '';
 $semester     = $data['semester'] ?? '';
 $teacher_id   = $data['teacher_id'] ?? null;
@@ -53,19 +54,111 @@ if (empty($subject_name) || empty($teacher_id)) {
 }
 
 ensureArchivedColumn($conn);
+ensureSubjectLookupColumns($conn);
 
 // 3. Prepared Statement
 try {
-    // Note: seven string columns plus an integer teacher_id
-$stmt = $conn->prepare("INSERT INTO subject (subject_name, course, year, section, school_year, semester, teacher_id, join_code, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)");
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
-$stmt->bind_param("ssssssis", $subject_name, $course, $year, $section, $school_year, $semester, $teacher_id, $join_code);
+    $collegeId = null;
+    $teacherStmt = $conn->prepare("SELECT college_id FROM Teacher WHERE teacher_id = ? LIMIT 1");
+    $teacherStmt->bind_param("i", $teacher_id);
+    $teacherStmt->execute();
+    $teacherResult = $teacherStmt->get_result();
+    $teacherRow = $teacherResult ? $teacherResult->fetch_assoc() : null;
+    $teacherStmt->close();
+    if ($teacherRow && $teacherRow['college_id'] !== null) {
+        $collegeId = (int)$teacherRow['college_id'];
+    }
+
+    if ($courseId > 0) {
+        $courseStmt = $conn->prepare("SELECT course_id, college_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
+        $courseStmt->bind_param("i", $courseId);
+        $courseStmt->execute();
+        $courseResult = $courseStmt->get_result();
+        $courseRow = $courseResult ? $courseResult->fetch_assoc() : null;
+        $courseStmt->close();
+        if (!$courseRow) {
+            throw new Exception("Selected course was not found.");
+        }
+
+        $courseCollegeId = $courseRow['college_id'] !== null ? (int)$courseRow['college_id'] : null;
+        if ($collegeId !== null && $courseCollegeId === null) {
+            $updateCourseCollegeStmt = $conn->prepare("UPDATE {$courseTable} SET college_id = ? WHERE course_id = ? AND college_id IS NULL");
+            $updateCourseCollegeStmt->bind_param("ii", $collegeId, $courseId);
+            $updateCourseCollegeStmt->execute();
+            $updateCourseCollegeStmt->close();
+        } elseif ($collegeId !== null && $courseCollegeId !== null && $courseCollegeId !== $collegeId) {
+            throw new Exception("Selected course does not belong to the teacher's college.");
+        }
+    }
+
+    if ($sectionId > 0) {
+        $sectionStmt = $conn->prepare("SELECT section_id, section_name FROM {$sectionTable} WHERE section_id = ? LIMIT 1");
+        $sectionStmt->bind_param("i", $sectionId);
+        $sectionStmt->execute();
+        $sectionResult = $sectionStmt->get_result();
+        $sectionRow = $sectionResult ? $sectionResult->fetch_assoc() : null;
+        $sectionStmt->close();
+        if (!$sectionRow) {
+            throw new Exception("Selected section was not found.");
+        }
+    }
+
+    if ($yearId > 0) {
+        $yearStmt = $conn->prepare("SELECT year_id, year_level FROM {$yearTable} WHERE year_id = ? LIMIT 1");
+        $yearStmt->bind_param("i", $yearId);
+        $yearStmt->execute();
+        $yearResult = $yearStmt->get_result();
+        $yearRow = $yearResult ? $yearResult->fetch_assoc() : null;
+        $yearStmt->close();
+        if (!$yearRow) {
+            throw new Exception("Selected year level was not found.");
+        }
+    }
+
+    if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
+        throw new Exception("Please choose a course, section, and year level.");
+    }
+
+    $stmt = $conn->prepare(
+        "INSERT INTO subject (
+            subject_name,
+            college_id,
+            course_id,
+            section_id,
+            year_id,
+            school_year,
+            semester,
+            teacher_id,
+            join_code,
+            archived
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
+    );
+
+    $stmt->bind_param(
+        "siiiissis",
+        $subject_name,
+        $collegeId,
+        $courseId,
+        $sectionId,
+        $yearId,
+        $school_year,
+        $semester,
+        $teacher_id,
+        $join_code
+    );
     
     if ($stmt->execute()) {
         echo json_encode([
             "status" => "success", 
                 "message" => "Subject added!",
                 "join_code" => $join_code,
+                "course_id" => $courseId,
+                "section_id" => $sectionId,
+                "year_id" => $yearId,
                 "school_year" => $school_year,
                 "semester" => $semester
             ]); 

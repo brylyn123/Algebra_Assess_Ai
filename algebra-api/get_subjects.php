@@ -2,6 +2,7 @@
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 include 'db_connect.php';
+require_once 'schema_utils.php';
 
 function ensureArchivedColumn($conn) {
     $columnCheck = $conn->query("SHOW COLUMNS FROM subject LIKE 'archived'");
@@ -20,8 +21,25 @@ if (!$teacher_id) {
 
 try {
     ensureArchivedColumn($conn);
+    ensureSubjectLookupColumns($conn);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+
     // Select subjects for this specific teacher
-    $stmt = $conn->prepare("SELECT * FROM subject WHERE teacher_id = ? AND archived = 0 ORDER BY subject_id DESC");
+    $stmt = $conn->prepare(
+        "SELECT
+            s.*,
+            COALESCE(c.course_code, c.course_name) AS course,
+            sec.section_name AS section,
+            yl.year_level AS year
+         FROM subject s
+         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
+         WHERE s.teacher_id = ? AND s.archived = 0
+         ORDER BY s.subject_id DESC"
+    );
     $stmt->bind_param("s", $teacher_id);
     $stmt->execute();
     $result = $stmt->get_result();

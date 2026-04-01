@@ -4,6 +4,7 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 include 'db_connect.php';
+require_once 'schema_utils.php';
 
 function ensureArchivedColumn($conn) {
     $columnCheck = $conn->query("SHOW COLUMNS FROM subject LIKE 'archived'");
@@ -38,13 +39,29 @@ try {
     }
 
     ensureArchivedColumn($conn);
+    ensureSubjectLookupColumns($conn);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
     $conn->begin_transaction();
 
     $stmt = $conn->prepare(
         "INSERT INTO {$archiveTable} (subject_id, teacher_id, subject_name, course, year, section, school_year, semester, join_code)
-         SELECT subject_id, teacher_id, subject_name, course, year, section, school_year, semester, join_code
-         FROM subject
-         WHERE subject_id = ? AND teacher_id = ?"
+         SELECT
+            s.subject_id,
+            s.teacher_id,
+            s.subject_name,
+            COALESCE(c.course_code, c.course_name),
+            yl.year_level,
+            sec.section_name,
+            s.school_year,
+            s.semester,
+            s.join_code
+         FROM subject s
+         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+         LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
+         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         WHERE s.subject_id = ? AND s.teacher_id = ?"
     );
     $stmt->bind_param("ii", $subject_id, $teacher_id);
 

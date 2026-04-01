@@ -1,8 +1,10 @@
 <?php
 require_once 'cors.php';
 require_once 'db_connection.php';
+require_once 'schema_utils.php';
 
-$sql = "SELECT * FROM Colleges";
+$collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
+$sql = "SELECT * FROM {$collegeTable}";
 $result = $conn->query($sql);
 
 $colleges = [];

@@ -52,7 +52,6 @@ const GradeSubmissions = () => {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [aiScore, setAiScore] = useState(null);
-  const [aiFeedback, setAiFeedback] = useState('');
   const [draftScore, setDraftScore] = useState(null);
   const [draftFeedback, setDraftFeedback] = useState('');
   const [reviewMode, setReviewMode] = useState(false);
@@ -144,9 +143,8 @@ const GradeSubmissions = () => {
 
   useEffect(() => {
     setAiScore(selectedSubmission?.score ?? null);
-    setAiFeedback(selectedSubmission?.ai_feedback ?? '');
     setDraftScore(selectedSubmission?.score ?? null);
-    setDraftFeedback(selectedSubmission?.teacher_feedback ?? selectedSubmission?.ai_feedback ?? '');
+    setDraftFeedback(selectedSubmission?.ai_feedback ?? '');
     setReviewSaved(false);
     setReviewMode(false);
     setGenerating(false);
@@ -170,9 +168,6 @@ const GradeSubmissions = () => {
         if (parsedDraft.aiScore !== undefined && parsedDraft.aiScore !== null) {
           setAiScore(parsedDraft.aiScore);
         }
-        if (parsedDraft.aiFeedback !== undefined && parsedDraft.aiFeedback !== null) {
-          setAiFeedback(parsedDraft.aiFeedback);
-        }
         if (parsedDraft.draftScore !== undefined && parsedDraft.draftScore !== null) {
           setDraftScore(parsedDraft.draftScore);
         }
@@ -184,7 +179,7 @@ const GradeSubmissions = () => {
     } catch (error) {
       console.error('Unable to restore saved review draft', error);
     }
-  }, [selectedSubmission?.id, selectedSubmission?.score, selectedSubmission?.teacher_feedback, selectedSubmission?.ai_feedback]);
+  }, [selectedSubmission?.id, selectedSubmission?.score, selectedSubmission?.ai_feedback]);
 
   const buildGeneratedGrade = (submission, offset = 0) => {
     const base = 84 + ((submission?.exercise_id ?? submission?.id ?? 0) % 11);
@@ -197,7 +192,7 @@ const GradeSubmissions = () => {
     };
   };
 
-  const persistSubmissionGrade = async (submission, scoreValue, aiFeedbackValue, teacherFeedbackValue) => {
+  const persistSubmissionGrade = async (submission, scoreValue, feedbackValue) => {
     if (!submission || !teacherId) return null;
 
     const response = await fetch(`${API_BASE_URL}/save_submission_grade.php`, {
@@ -207,8 +202,7 @@ const GradeSubmissions = () => {
         teacher_id: teacherId,
         solution_id: submission.id,
         total_score_earned: scoreValue,
-        ai_feedback: aiFeedbackValue,
-        teacher_feedback: teacherFeedbackValue,
+        ai_feedback: feedbackValue,
       }),
     });
 
@@ -223,7 +217,6 @@ const GradeSubmissions = () => {
       score_id: payload.score_id,
       score: payload.score,
       ai_feedback: payload.ai_feedback,
-      teacher_feedback: payload.teacher_feedback,
     };
 
     setSubmissions((current) =>
@@ -246,7 +239,6 @@ const GradeSubmissions = () => {
       const generated = buildGeneratedGrade(selectedSubmission);
       await new Promise((resolve) => setTimeout(resolve, 900));
       setAiScore(generated.score);
-      setAiFeedback(generated.feedback);
       setDraftScore(generated.score);
       setDraftFeedback(generated.feedback);
       setReviewMode(true);
@@ -279,7 +271,6 @@ const GradeSubmissions = () => {
         getDraftStorageKey(selectedSubmission.id),
         JSON.stringify({
           aiScore,
-          aiFeedback,
           draftScore,
           draftFeedback,
           reviewSaved: true,
@@ -306,7 +297,7 @@ const GradeSubmissions = () => {
     setSaveMessage('');
 
     try {
-      await persistSubmissionGrade(selectedSubmission, numericDraftScore, aiFeedback || draftFeedback, draftFeedback);
+      await persistSubmissionGrade(selectedSubmission, numericDraftScore, draftFeedback);
       localStorage.removeItem(getDraftStorageKey(selectedSubmission.id));
       setAiScore(numericDraftScore);
       setSaveMessage('Result returned to the student and saved in Results & Feedback.');

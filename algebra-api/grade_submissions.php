@@ -15,6 +15,10 @@ if (!$teacher_id) {
 }
 
 ensureAssessmentRubricColumn($conn);
+ensureSubjectLookupColumns($conn);
+$courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+$sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+$yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
 if ($subject_filter_raw !== null) {
     if ($subject_filter_raw === 'unassigned' || $subject_filter_raw === '0') {
@@ -38,9 +42,9 @@ SELECT
     subj.subject_id,
     subj.subject_name,
     subj.join_code AS subject_code,
-    subj.course,
-    subj.section,
-    subj.year,
+    COALESCE(c.course_code, c.course_name) AS course,
+    sec.section_name AS section,
+    yl.year_level AS year,
     subj.semester,
     subj.school_year,
     cs.file_path,
@@ -48,7 +52,6 @@ SELECT
     sc.score_id,
     sc.total_score_earned,
     sc.ai_feedback,
-    sc.teacher_feedback,
     DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date,
     CASE
         WHEN sc.score_id IS NOT NULL THEN 'Graded'
@@ -60,6 +63,9 @@ LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
 JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
 LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
 LEFT JOIN Subject subj ON subj.subject_id = ep.subject_id
+LEFT JOIN {$courseTable} c ON c.course_id = subj.course_id
+LEFT JOIN {$sectionTable} sec ON sec.section_id = subj.section_id
+LEFT JOIN {$yearTable} yl ON yl.year_id = subj.year_id
 LEFT JOIN Student s ON s.student_id = cs.student_id
 ";
 
@@ -182,7 +188,6 @@ while ($row = $result->fetch_assoc()) {
         'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
         'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
         'ai_feedback' => $row['ai_feedback'] ?? '',
-        'teacher_feedback' => $row['teacher_feedback'] ?? '',
     ];
 }
 $result->free();

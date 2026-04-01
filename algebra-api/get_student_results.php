@@ -29,7 +29,6 @@ try {
             ) AS raw_score_earned,
             COALESCE(sc.max_score_possible, ex.max_score_possible) AS max_score_possible,
             sc.ai_feedback,
-            sc.teacher_feedback,
             sc.date_scored,
             ep.exercise_id,
             ep.title AS assessment_title,
@@ -69,7 +68,6 @@ try {
             'raw_score_earned' => $row['raw_score_earned'] !== null ? round((float)$row['raw_score_earned'], 2) : null,
             'max_score_possible' => $row['max_score_possible'] !== null ? round((float)$row['max_score_possible'], 2) : null,
             'ai_feedback' => $row['ai_feedback'] ?? '',
-            'teacher_feedback' => $row['teacher_feedback'] ?? '',
             'date_scored' => $row['date_scored'],
         ];
     }

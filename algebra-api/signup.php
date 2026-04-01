@@ -34,8 +34,6 @@ $college    = trim($data['collegeName'] ?? '');
 $courseId   = isset($data['courseId']) ? intval($data['courseId']) : 0;
 $sectionId  = isset($data['sectionId']) ? intval($data['sectionId']) : 0;
 $yearId     = isset($data['yearId']) ? intval($data['yearId']) : 0;
-$section    = trim($data['sectionName'] ?? ''); // Student fallback
-$yearLevel  = trim($data['yearLevel'] ?? '');   // Student fallback
 
 // 4. Start Database Transaction
 $conn->begin_transaction();
@@ -68,41 +66,52 @@ try {
 
     // 2. Insert into profile table (Identity + Linking)
    // If your database uses lowercase 'firstname', etc.
+    $collegeId = getOrCreateCollegeId($conn, $college);
+
     if ($role === 'teacher') {
-        $collegeId = null;
-        if ($college !== '') {
-        $lookupCollege = $conn->prepare("SELECT college_id FROM Colleges WHERE college_name = ?");
-            $lookupCollege->bind_param("s", $college);
-            $lookupCollege->execute();
-            $collegeResult = $lookupCollege->get_result();
-            if ($row = $collegeResult->fetch_assoc()) {
-                $collegeId = (int)$row['college_id'];
-            } else {
-                $newCollegeId = $conn->query("SELECT COALESCE(MAX(college_id), 0) + 1 AS next_id FROM Colleges")->fetch_assoc()['next_id'] ?? 1;
-                $insertCollege = $conn->prepare("INSERT INTO Colleges (college_id, college_name) VALUES (?, ?)");
-                $insertCollege->bind_param("is", $newCollegeId, $college);
-                $insertCollege->execute();
-                $insertCollege->close();
-                $collegeId = $newCollegeId;
-            }
-            $lookupCollege->close();
+        if ($collegeId === null) {
+            throw new Exception("Please provide a college.");
         }
         $stmtProf = $conn->prepare("INSERT INTO Teacher (user_id, teacher_id, first_name, middle_name, last_name, email, college_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmtProf->bind_param("isssssi", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email, $collegeId);
     } else {
+        if ($collegeId === null) {
+            throw new Exception("Please provide a college.");
+        }
         if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
-            throw new Exception("Please choose a course, section, and year level.");
+            throw new Exception("Please choose a college, course, section, and year level.");
         }
 
         $courseStmt = $conn->prepare("SELECT course_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
         $courseStmt->bind_param("i", $courseId);
         $courseStmt->execute();
         $courseResult = $courseStmt->get_result();
-        if (!$courseResult || $courseResult->num_rows === 0) {
+        $courseRow = $courseResult ? $courseResult->fetch_assoc() : null;
+        if (!$courseRow) {
             $courseStmt->close();
             throw new Exception("Selected course was not found.");
         }
         $courseStmt->close();
+
+        $courseCollegeStmt = $conn->prepare("SELECT college_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
+        $courseCollegeStmt->bind_param("i", $courseId);
+        $courseCollegeStmt->execute();
+        $courseCollegeResult = $courseCollegeStmt->get_result();
+        $courseCollegeRow = $courseCollegeResult ? $courseCollegeResult->fetch_assoc() : null;
+        $courseCollegeStmt->close();
+
+        $courseCollegeId = $courseCollegeRow && $courseCollegeRow['college_id'] !== null
+            ? (int)$courseCollegeRow['college_id']
+            : null;
+
+        if ($courseCollegeId === null) {
+            $updateCourseCollegeStmt = $conn->prepare("UPDATE {$courseTable} SET college_id = ? WHERE course_id = ? AND college_id IS NULL");
+            $updateCourseCollegeStmt->bind_param("ii", $collegeId, $courseId);
+            $updateCourseCollegeStmt->execute();
+            $updateCourseCollegeStmt->close();
+        } elseif ($courseCollegeId !== $collegeId) {
+            throw new Exception("Selected course does not belong to the chosen college.");
+        }
 
         $sectionStmt = $conn->prepare("SELECT section_id FROM {$sectionTable} WHERE section_id = ? LIMIT 1");
         $sectionStmt->bind_param("i", $sectionId);
@@ -132,19 +141,21 @@ try {
                 middle_name,
                 last_name,
                 email,
+                college_id,
                 course_id,
                 section_id,
                 year_id
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmtProf->bind_param(
-            "isssssiii",
+            "isssssiiii",
             $newUserId,
             $idNumber,
             $firstName,
             $middleName,
             $lastName,
             $email,
+            $collegeId,
             $courseId,
             $sectionId,
             $yearId

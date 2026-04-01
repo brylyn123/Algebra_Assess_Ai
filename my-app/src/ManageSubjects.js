@@ -13,9 +13,9 @@ const ManageSubjects = () => {
     const [subjects, setSubjects] = useState([]);
     const [newSubject, setNewSubject] = useState({
         name: '',
-        course: '',
-        year: '',
-        section: '',
+        courseId: '',
+        yearId: '',
+        sectionId: '',
         schoolYear: '',
         semester: ''
     });
@@ -38,6 +38,11 @@ const ManageSubjects = () => {
         sections: [],
         schoolYears: [],
         semesters: []
+    });
+    const [registrationOptions, setRegistrationOptions] = useState({
+        courses: [],
+        sections: [],
+        years: []
     });
 
     const showToast = (message, variant = 'default', details = null) => {
@@ -90,7 +95,7 @@ const ManageSubjects = () => {
             return;
         }
 
-        if (!newSubject.name || !newSubject.course || !newSubject.year || !newSubject.section || !newSubject.schoolYear || !newSubject.semester) {
+        if (!newSubject.name || !newSubject.courseId || !newSubject.yearId || !newSubject.sectionId || !newSubject.schoolYear || !newSubject.semester) {
             showToast('Please fill out all fields before adding a subject.');
             return;
         }
@@ -100,9 +105,9 @@ const ManageSubjects = () => {
         try {
             const response = await axios.post('http://localhost/Algebra_Assess_Ai/algebra-api/add_subject.php', {
                 subject_name: newSubject.name,
-                course: newSubject.course,
-                year: newSubject.year,
-                section: newSubject.section,
+                course_id: Number(newSubject.courseId),
+                year_id: Number(newSubject.yearId),
+                section_id: Number(newSubject.sectionId),
                 school_year: newSubject.schoolYear,
                 semester: newSubject.semester,
                 teacher_id: teacherId
@@ -113,7 +118,7 @@ const ManageSubjects = () => {
                 showToast(`"${newSubject.name}" added!`, 'success', {
                     joinCode: response.data.join_code ?? 'Not Set'
                 });
-                setNewSubject({ name: '', course: '', year: '', section: '', schoolYear: '', semester: '' });
+                setNewSubject({ name: '', courseId: '', yearId: '', sectionId: '', schoolYear: '', semester: '' });
                 fetchSubjects();
             } else {
                 console.error('Add subject failed', responseData);
@@ -135,6 +140,9 @@ const ManageSubjects = () => {
         // Use the exact column names from your phpMyAdmin screenshot
         id: raw.subject_id,
         name: raw.subject_name, // This matches "subject_name" in DB
+        courseId: raw.course_id ?? '',
+        yearId: raw.year_id ?? '',
+        sectionId: raw.section_id ?? '',
         course: raw.course ?? '',
         year: raw.year ?? '',
         section: raw.section ?? '',
@@ -207,6 +215,34 @@ const ManageSubjects = () => {
     }, [fetchEnrollments]);
 
     useEffect(() => {
+        let isMounted = true;
+
+        const loadRegistrationOptions = async () => {
+            try {
+                const response = await axios.get('http://localhost/Algebra_Assess_Ai/algebra-api/get_registration_options.php');
+                const data = response.data || {};
+                if (!isMounted || data.status !== 'success') {
+                    return;
+                }
+
+                setRegistrationOptions({
+                    courses: Array.isArray(data.courses) ? data.courses : [],
+                    sections: Array.isArray(data.sections) ? data.sections : [],
+                    years: Array.isArray(data.years) ? data.years : []
+                });
+            } catch (error) {
+                console.error('Failed to load registration options:', error);
+            }
+        };
+
+        loadRegistrationOptions();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
         if (!teacherId) {
             return undefined;
         }
@@ -266,11 +302,6 @@ const ManageSubjects = () => {
     useEffect(() => {
         fetchArchivedSubjects();
     }, [fetchArchivedSubjects]);
-
-    const handleRemoveSubject = (id) => {
-        setSubjects(prevSubjects => prevSubjects.filter(subject => subject.id !== id));
-        showToast('Subject removed.');
-    };
 
     const handleEditSubject = (subject) => {
         setEditingSubject({
@@ -396,11 +427,13 @@ const ManageSubjects = () => {
     const courseOptions = Array.from(new Set(normalizedSubjects.map((subject) => subject.course))).filter(Boolean);
     const yearOptions = Array.from(new Set(normalizedSubjects.map((subject) => subject.year))).filter(Boolean);
     const dropdownYearOptions = Array.from(new Set([
+        ...registrationOptions.years.map((year) => year.year_level).filter(Boolean),
         ...YEAR_DROPDOWN_OPTIONS,
         ...subjectFilters.years,
         ...normalizedSubjects.map((subject) => subject.year).filter(Boolean),
     ])).filter(Boolean);
     const dropdownSectionOptions = Array.from(new Set([
+        ...registrationOptions.sections.map((section) => section.section_name).filter(Boolean),
         ...SECTION_OPTIONS,
         ...subjectFilters.sections,
         ...normalizedSubjects.map((subject) => subject.section).filter(Boolean),
@@ -491,28 +524,33 @@ const ManageSubjects = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">Course</label>
-                            <input
-                                type="text"
-                                name="course"
-                                value={newSubject.course}
+                            <select
+                                name="courseId"
+                                value={newSubject.courseId}
                                 onChange={handleInputChange}
-                                placeholder="e.g., BSCS"
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                            />
+                            >
+                                <option value="" disabled hidden>Select course</option>
+                                {registrationOptions.courses.map((courseOption) => (
+                                    <option key={courseOption.course_id} value={courseOption.course_id}>
+                                        {courseOption.course_code || courseOption.course_name}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-600 mb-1">Year</label>
                                 <select
-                                    name="year"
-                                    value={newSubject.year}
+                                    name="yearId"
+                                    value={newSubject.yearId}
                                     onChange={handleInputChange}
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
                                 >
                                     <option value="" disabled hidden>Select year</option>
-                                    {dropdownYearOptions.map((yearOption) => (
-                                        <option key={yearOption} value={yearOption}>
-                                            {yearOption}
+                                    {registrationOptions.years.map((yearOption) => (
+                                        <option key={yearOption.year_id} value={yearOption.year_id}>
+                                            {yearOption.year_level}
                                         </option>
                                     ))}
                                 </select>
@@ -520,15 +558,15 @@ const ManageSubjects = () => {
                             <div>
                                 <label className="block text-sm font-medium text-slate-600 mb-1">Section</label>
                                 <select
-                                    name="section"
-                                    value={newSubject.section}
+                                    name="sectionId"
+                                    value={newSubject.sectionId}
                                     onChange={handleInputChange}
                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
                                 >
                                     <option value="" disabled hidden>Select section</option>
-                                    {dropdownSectionOptions.map((sectionOption) => (
-                                        <option key={sectionOption} value={sectionOption}>
-                                            {sectionOption}
+                                    {registrationOptions.sections.map((sectionOption) => (
+                                        <option key={sectionOption.section_id} value={sectionOption.section_id}>
+                                            {sectionOption.section_name}
                                         </option>
                                     ))}
                                 </select>
@@ -621,7 +659,7 @@ const ManageSubjects = () => {
                                     <div className="flex justify-between gap-3">
                                         <div>
                                             <p className="font-semibold text-slate-800">{subject.name}</p>
-                                            <p className="text-sm text-slate-500">{subject.course} | {subject.year} - Section {subject.section}</p>
+                                            <p className="text-sm text-slate-500">{subject.course} | {subject.year} | {subject.section}</p>
                                             <p className="text-xs text-slate-400">SY {subject.schoolYear} | Semester {subject.semester}</p>
                                             <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
                                                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
@@ -697,7 +735,7 @@ const ManageSubjects = () => {
                                 <h3 className="text-3xl font-bold text-slate-900">{selectedSubjectRecord.name}</h3>
                                 <p className="text-lg text-slate-600">{selectedSubjectRecord.course}</p>
                                 <div className="flex flex-wrap gap-3 text-sm text-slate-500">
-                                    <span>{selectedSubjectRecord.year} · Section {selectedSubjectRecord.section}</span>
+                                    <span>{selectedSubjectRecord.year} · {selectedSubjectRecord.section}</span>
                                     <span>SY {selectedSubjectRecord.schoolYear}</span>
                                     <span>{selectedSubjectRecord.semester}</span>
                                 </div>

@@ -16,6 +16,9 @@ if (!$teacher_id) {
 
 try {
     ensureAssessmentRubricColumn($conn);
+    ensureSubjectLookupColumns($conn);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
 
     $stmt = $conn->prepare(
         "SELECT
@@ -30,8 +33,8 @@ try {
             ep.date_created,
             rs.rubric_name,
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
-            s.course,
-            s.section,
+            COALESCE(c.course_code, c.course_name) AS course,
+            sec.section_name AS section,
             s.semester,
             s.school_year,
             CASE
@@ -50,6 +53,8 @@ try {
             END AS assessment_status
          FROM exercises_problem ep
          LEFT JOIN subject s ON ep.subject_id = s.subject_id
+         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
          WHERE s.teacher_id = ?
          ORDER BY ep.date_created DESC"

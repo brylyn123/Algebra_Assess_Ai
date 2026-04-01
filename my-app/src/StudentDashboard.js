@@ -10,11 +10,42 @@ import {
 
 const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 
+const iconClassName = 'h-[18px] w-[18px]';
+
+const navIcons = {
+  home: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M3 10.5 12 3l9 7.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.5 9.5V20h13V9.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  subjects: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M6 4.5h9A2.5 2.5 0 0 1 17.5 7v12H8.5A2.5 2.5 0 0 0 6 21.5v-17Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 19h11.5" strokeLinecap="round" />
+    </svg>
+  ),
+  reports: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M5 19.5h14" strokeLinecap="round" />
+      <path d="M7.5 16V10" strokeLinecap="round" />
+      <path d="M12 16V6.5" strokeLinecap="round" />
+      <path d="M16.5 16v-4" strokeLinecap="round" />
+    </svg>
+  ),
+  profile: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 19a7 7 0 0 1 14 0" strokeLinecap="round" />
+    </svg>
+  ),
+};
+
 const quickActions = [
-  { label: 'Dashboard', icon: 'D', path: '/student' },
-  { label: 'My Subjects', icon: 'S', path: '/student/subjects' },
-  { label: 'Scores & Feedback', icon: 'R', path: '/student/reports' },
-  { label: 'Manage Profile', icon: 'P', path: '/student/profile' },
+  { label: 'Home', icon: navIcons.home, path: '/student' },
+  { label: 'My Subjects', icon: navIcons.subjects, path: '/student/subjects' },
+  { label: 'Scores & Feedback', icon: navIcons.reports, path: '/student/reports' },
+  { label: 'Manage Profile', icon: navIcons.profile, path: '/student/profile' },
 ];
 
 const dashboardWidgets = [
@@ -322,7 +353,7 @@ const StudentDashboard = () => {
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20 text-2xl font-bold">A</div>
               <div>
                 <p className="text-sm uppercase tracking-[0.2em] text-white/80">AlgebraAssess</p>
-                <p className="text-lg font-bold">Student Dashboard</p>
+                <p className="text-lg font-bold">Student Home</p>
               </div>
             </div>
 
@@ -435,7 +466,7 @@ export const StudentOverview = () => {
       <section className="page-hero-card mb-6 px-8 py-10 md:mb-8 md:px-10 md:py-11">
         <div className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Overview</p>
-          <h1 className="text-3xl font-bold text-slate-900">Student Dashboard</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Student Home</h1>
           <p className="text-sm text-slate-500">
             See your progress, check pending work, and keep track of active assessments.
           </p>
@@ -1009,10 +1040,10 @@ export const StudentSubjects = () => {
                             )}
                           </div>
 
-                          {selectedAssessment.teacher_feedback && (
+                          {selectedAssessment.ai_feedback && (
                             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                              <p className="font-semibold">Teacher Feedback</p>
-                              <p className="mt-1 text-xs text-emerald-700">{selectedAssessment.teacher_feedback}</p>
+                              <p className="font-semibold">Feedback</p>
+                              <p className="mt-1 text-xs text-emerald-700">{selectedAssessment.ai_feedback}</p>
                             </div>
                           )}
 

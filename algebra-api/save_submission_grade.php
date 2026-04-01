@@ -7,8 +7,7 @@ $data = json_decode(file_get_contents("php://input"), true);
 $teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
 $solution_id = isset($data['solution_id']) ? intval($data['solution_id']) : null;
 $score = isset($data['total_score_earned']) ? (float)$data['total_score_earned'] : null;
-$ai_feedback = trim((string)($data['ai_feedback'] ?? ''));
-$teacher_feedback = trim((string)($data['teacher_feedback'] ?? ''));
+$ai_feedback = trim((string)($data['ai_feedback'] ?? $data['teacher_feedback'] ?? ''));
 
 if (!$teacher_id || !$solution_id || $score === null) {
     http_response_code(400);
@@ -70,19 +69,19 @@ try {
     if ($existingScore) {
         $updateStmt = $conn->prepare(
             "UPDATE Scores
-             SET total_score_earned = ?, raw_score_earned = ?, max_score_possible = ?, ai_feedback = ?, teacher_feedback = ?, date_scored = CURRENT_TIMESTAMP
+             SET total_score_earned = ?, raw_score_earned = ?, max_score_possible = ?, ai_feedback = ?, date_scored = CURRENT_TIMESTAMP
              WHERE score_id = ?"
         );
         $scoreId = (int)$existingScore['score_id'];
-        $updateStmt->bind_param("dddssi", $score, $rawScore, $maxScorePossible, $ai_feedback, $teacher_feedback, $scoreId);
+        $updateStmt->bind_param("dddsi", $score, $rawScore, $maxScorePossible, $ai_feedback, $scoreId);
         $updateStmt->execute();
         $updateStmt->close();
     } else {
         $insertStmt = $conn->prepare(
-            "INSERT INTO Scores (solution_id, total_score_earned, raw_score_earned, max_score_possible, ai_feedback, teacher_feedback)
-             VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO Scores (solution_id, total_score_earned, raw_score_earned, max_score_possible, ai_feedback)
+             VALUES (?, ?, ?, ?, ?)"
         );
-        $insertStmt->bind_param("idddss", $solution_id, $score, $rawScore, $maxScorePossible, $ai_feedback, $teacher_feedback);
+        $insertStmt->bind_param("iddds", $solution_id, $score, $rawScore, $maxScorePossible, $ai_feedback);
         $insertStmt->execute();
         $scoreId = $conn->insert_id;
         $insertStmt->close();
@@ -97,7 +96,6 @@ try {
         'raw_score_earned' => $rawScore,
         'max_score_possible' => $maxScorePossible > 0 ? round($maxScorePossible, 2) : null,
         'ai_feedback' => $ai_feedback,
-        'teacher_feedback' => $teacher_feedback,
     ]);
 } catch (Exception $e) {
     http_response_code(500);

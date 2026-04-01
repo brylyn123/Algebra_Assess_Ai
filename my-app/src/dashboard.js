@@ -2,13 +2,72 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 
+const iconClassName = 'h-[18px] w-[18px]';
+
+const navIcons = {
+  home: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M3 10.5 12 3l9 7.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.5 9.5V20h13V9.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  subjects: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M6 4.5h9A2.5 2.5 0 0 1 17.5 7v12H8.5A2.5 2.5 0 0 0 6 21.5v-17Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 19h11.5" strokeLinecap="round" />
+    </svg>
+  ),
+  assessments: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M8 6.5h11" strokeLinecap="round" />
+      <path d="M8 12h11" strokeLinecap="round" />
+      <path d="M8 17.5h7" strokeLinecap="round" />
+      <path d="m4.5 6.5 1 1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m4.5 12 1 1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="5.5" cy="17.5" r="1" />
+    </svg>
+  ),
+  submissions: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M12 4v10" strokeLinecap="round" />
+      <path d="m8.5 10.5 3.5 3.5 3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 18.5h14" strokeLinecap="round" />
+    </svg>
+  ),
+  feedback: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v6A2.5 2.5 0 0 1 16.5 15H10l-4.5 4v-4A2.5 2.5 0 0 1 3 12.5v-6Z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  reports: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M5 19.5h14" strokeLinecap="round" />
+      <path d="M7.5 16V10" strokeLinecap="round" />
+      <path d="M12 16V6.5" strokeLinecap="round" />
+      <path d="M16.5 16v-4" strokeLinecap="round" />
+    </svg>
+  ),
+  profile: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 19a7 7 0 0 1 14 0" strokeLinecap="round" />
+    </svg>
+  ),
+  settings: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M12 8.5A3.5 3.5 0 1 0 12 15.5A3.5 3.5 0 1 0 12 8.5Z" />
+      <path d="M19 12a7.6 7.6 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7.8 7.8 0 0 0-1.8-1l-.3-2.6h-4l-.3 2.6a7.8 7.8 0 0 0-1.8 1l-2.4-1-2 3.5 2 1.5a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7.8 7.8 0 0 0 1.8 1l.3 2.6h4l.3-2.6a7.8 7.8 0 0 0 1.8-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+};
+
 const quickActions = [
-  { label: 'Dashboard', icon: 'D', path: '/dashboard' },
-  { label: 'Manage Subjects', icon: 'S', path: '/dashboard/subjects' },
-  { label: 'Manage Assessments', icon: 'A', path: '/teacher/assessments' },
-  { label: 'Generate Score', icon: 'G', path: '/teacher/grade-submissions' },
-  { label: 'Results & Feedback', icon: 'F', path: '/teacher/feedback' },
-  { label: 'View Reports', icon: 'R', path: '/teacher/reports' },
+  { label: 'Home', icon: navIcons.home, path: '/dashboard' },
+  { label: 'Manage Subjects', icon: navIcons.subjects, path: '/dashboard/subjects' },
+  { label: 'Manage Assessments', icon: navIcons.assessments, path: '/teacher/assessments' },
+  { label: 'Generate Score', icon: navIcons.submissions, path: '/teacher/grade-submissions' },
+  { label: 'Results & Feedback', icon: navIcons.feedback, path: '/teacher/feedback' },
+  { label: 'View Reports', icon: navIcons.reports, path: '/teacher/reports' },
 ];
 
 const navSpring = { type: 'spring', stiffness: 360, damping: 30 };
@@ -59,7 +118,7 @@ const Dashboard = () => {
             transition={navSpring}
           />
         )}
-        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs font-extrabold">
+        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15">
           {icon}
         </span>
         <span className="relative z-10 block flex-1 whitespace-nowrap leading-tight">{label}</span>
@@ -89,7 +148,7 @@ const Dashboard = () => {
             transition={navSpring}
           />
         )}
-        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white text-xs font-extrabold">
+        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white">
           {icon}
         </span>
         <span className="relative z-10 block flex-1 whitespace-nowrap leading-tight">{label}</span>
@@ -148,10 +207,12 @@ const Dashboard = () => {
               className="flex cursor-pointer items-center gap-3"
               onClick={() => navigate('/dashboard')}
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20 text-2xl font-bold">A</div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
+                {navIcons.home}
+              </div>
               <div>
                 <p className="text-sm uppercase tracking-[0.2em] text-white/80">AlgebraAssess</p>
-                <p className="text-lg font-bold">Teacher Dashboard</p>
+                <p className="text-lg font-bold">Teacher Home</p>
               </div>
             </motion.div>
 
@@ -203,8 +264,8 @@ const Dashboard = () => {
                     Account Settings
                   </p>
                   <div className="space-y-1">
-                    {renderAccountButton({ label: 'Profile', icon: 'P', path: profilePath })}
-                    {renderAccountButton({ label: 'Settings', icon: 'S', path: settingsPath })}
+                    {renderAccountButton({ label: 'Profile', icon: navIcons.profile, path: profilePath })}
+                    {renderAccountButton({ label: 'Settings', icon: navIcons.settings, path: settingsPath })}
                   </div>
                 </div>
               </motion.div>
