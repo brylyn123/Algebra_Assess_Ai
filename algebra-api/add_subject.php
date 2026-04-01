@@ -62,16 +62,13 @@ try {
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
-    $collegeId = null;
     $teacherStmt = $conn->prepare("SELECT college_id FROM Teacher WHERE teacher_id = ? LIMIT 1");
     $teacherStmt->bind_param("i", $teacher_id);
     $teacherStmt->execute();
     $teacherResult = $teacherStmt->get_result();
     $teacherRow = $teacherResult ? $teacherResult->fetch_assoc() : null;
     $teacherStmt->close();
-    if ($teacherRow && $teacherRow['college_id'] !== null) {
-        $collegeId = (int)$teacherRow['college_id'];
-    }
+    $teacherCollegeId = ($teacherRow && $teacherRow['college_id'] !== null) ? (int)$teacherRow['college_id'] : null;
 
     if ($courseId > 0) {
         $courseStmt = $conn->prepare("SELECT course_id, college_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
@@ -85,12 +82,12 @@ try {
         }
 
         $courseCollegeId = $courseRow['college_id'] !== null ? (int)$courseRow['college_id'] : null;
-        if ($collegeId !== null && $courseCollegeId === null) {
+        if ($teacherCollegeId !== null && $courseCollegeId === null) {
             $updateCourseCollegeStmt = $conn->prepare("UPDATE {$courseTable} SET college_id = ? WHERE course_id = ? AND college_id IS NULL");
-            $updateCourseCollegeStmt->bind_param("ii", $collegeId, $courseId);
+            $updateCourseCollegeStmt->bind_param("ii", $teacherCollegeId, $courseId);
             $updateCourseCollegeStmt->execute();
             $updateCourseCollegeStmt->close();
-        } elseif ($collegeId !== null && $courseCollegeId !== null && $courseCollegeId !== $collegeId) {
+        } elseif ($teacherCollegeId !== null && $courseCollegeId !== null && $courseCollegeId !== $teacherCollegeId) {
             throw new Exception("Selected course does not belong to the teacher's college.");
         }
     }
@@ -126,7 +123,6 @@ try {
     $stmt = $conn->prepare(
         "INSERT INTO subject (
             subject_name,
-            college_id,
             course_id,
             section_id,
             year_id,
@@ -135,13 +131,12 @@ try {
             teacher_id,
             join_code,
             archived
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)"
     );
 
     $stmt->bind_param(
-        "siiiissis",
+        "siiissis",
         $subject_name,
-        $collegeId,
         $courseId,
         $sectionId,
         $yearId,

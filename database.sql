@@ -87,7 +87,6 @@ CREATE TABLE Section (
 CREATE TABLE Subject (
     subject_id INT PRIMARY KEY AUTO_INCREMENT,
     teacher_id INT NOT NULL,
-    college_id INT,
     course_id INT,
     section_id INT,
     year_id INT,
@@ -99,7 +98,6 @@ CREATE TABLE Subject (
     archived TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id),
-    FOREIGN KEY (college_id) REFERENCES Colleges(college_id),
     FOREIGN KEY (course_id) REFERENCES Course(course_id),
     FOREIGN KEY (section_id) REFERENCES Section(section_id),
     FOREIGN KEY (year_id) REFERENCES Year_Level(year_id)

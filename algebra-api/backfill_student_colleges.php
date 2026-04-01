@@ -24,7 +24,6 @@ try {
     echo json_encode([
         'status' => 'success',
         'message' => 'Student college backfill completed.',
-        'updated_course_links' => $summary['updated_course_links'],
         'updated_from_course' => $summary['updated_from_course'],
         'remaining_null' => $summary['remaining_null'],
     ]);

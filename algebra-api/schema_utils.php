@@ -444,8 +444,7 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
     ensureRegistrationLookupData($conn);
 
     $columns = [
-        'college_id' => "ALTER TABLE Subject ADD COLUMN college_id INT NULL AFTER teacher_id",
-        'course_id' => "ALTER TABLE Subject ADD COLUMN course_id INT NULL AFTER college_id",
+        'course_id' => "ALTER TABLE Subject ADD COLUMN course_id INT NULL AFTER teacher_id",
         'section_id' => "ALTER TABLE Subject ADD COLUMN section_id INT NULL AFTER course_id",
         'year_id' => "ALTER TABLE Subject ADD COLUMN year_id INT NULL AFTER section_id",
     ];
@@ -466,13 +465,11 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
         }
     }
 
-    $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
     $fkChecks = [
-        'subject_college_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_college_fk FOREIGN KEY (college_id) REFERENCES {$collegeTable}(college_id)",
         'subject_course_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_course_fk FOREIGN KEY (course_id) REFERENCES {$courseTable}(course_id)",
         'subject_section_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_section_fk FOREIGN KEY (section_id) REFERENCES {$sectionTable}(section_id)",
         'subject_year_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_year_fk FOREIGN KEY (year_id) REFERENCES {$yearTable}(year_id)",
@@ -514,8 +511,6 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
     if ($legacyColumns['course'] || $legacyColumns['section'] || $legacyColumns['year']) {
         $selectColumns = [
             'subject_id',
-            'teacher_id',
-            'college_id',
             'course_id',
             'section_id',
             'year_id',
@@ -538,7 +533,6 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
             throw new Exception('Unable to inspect subjects for lookup backfill: ' . $conn->error);
         }
 
-        $teacherCollegeStmt = $conn->prepare("SELECT college_id FROM Teacher WHERE teacher_id = ? LIMIT 1");
         $courseLookupStmt = $conn->prepare(
             "SELECT course_id, course_code, course_name
              FROM {$courseTable}
@@ -559,30 +553,18 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
         );
         $updateStmt = $conn->prepare(
             "UPDATE Subject
-             SET college_id = ?, course_id = ?, section_id = ?, year_id = ?
+             SET course_id = ?, section_id = ?, year_id = ?
              WHERE subject_id = ?"
         );
 
         while ($row = $subjectResult->fetch_assoc()) {
             $subjectId = (int)$row['subject_id'];
-            $collegeId = $row['college_id'] !== null ? (int)$row['college_id'] : null;
             $courseId = $row['course_id'] !== null ? (int)$row['course_id'] : null;
             $sectionId = $row['section_id'] !== null ? (int)$row['section_id'] : null;
             $yearId = $row['year_id'] !== null ? (int)$row['year_id'] : null;
 
             $courseValue = trim((string)($row['course'] ?? ''));
             $sectionValue = trim((string)($row['section'] ?? ''));
-
-            if ($collegeId === null && !empty($row['teacher_id'])) {
-                $teacherId = (int)$row['teacher_id'];
-                $teacherCollegeStmt->bind_param('i', $teacherId);
-                $teacherCollegeStmt->execute();
-                $teacherCollegeResult = $teacherCollegeStmt->get_result();
-                $teacherRow = $teacherCollegeResult ? $teacherCollegeResult->fetch_assoc() : null;
-                if ($teacherRow && $teacherRow['college_id'] !== null) {
-                    $collegeId = (int)$teacherRow['college_id'];
-                }
-            }
 
             if ($courseId === null && $courseValue !== '') {
                 $lookupCourseId = 0;
@@ -620,11 +602,9 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
             $courseIdValue = $courseId ?? null;
             $sectionIdValue = $sectionId ?? null;
             $yearIdValue = $yearId ?? null;
-            $collegeIdValue = $collegeId ?? null;
 
             $updateStmt->bind_param(
-                'iiiii',
-                $collegeIdValue,
+                'iiii',
                 $courseIdValue,
                 $sectionIdValue,
                 $yearIdValue,
@@ -633,7 +613,6 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
             $updateStmt->execute();
         }
 
-        $teacherCollegeStmt->close();
         $courseLookupStmt->close();
         $sectionLookupStmt->close();
         $yearLookupStmt->close();
@@ -648,6 +627,41 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
             }
         }
     }
+
+    $subjectConstraints = [];
+    $constraintResult = $conn->query(
+        "SELECT CONSTRAINT_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'Subject'
+           AND COLUMN_NAME = 'college_id'
+           AND REFERENCED_TABLE_NAME IS NOT NULL"
+    );
+    if ($constraintResult) {
+        while ($row = $constraintResult->fetch_assoc()) {
+            $constraintName = preg_replace('/[^A-Za-z0-9_]/', '', (string)($row['CONSTRAINT_NAME'] ?? ''));
+            if ($constraintName !== '') {
+                $subjectConstraints[] = $constraintName;
+            }
+        }
+        $constraintResult->free();
+    }
+
+    foreach (array_unique($subjectConstraints) as $constraintName) {
+        if (!$conn->query("ALTER TABLE Subject DROP FOREIGN KEY {$constraintName}")) {
+            throw new Exception("Unable to drop Subject college foreign key {$constraintName}: " . $conn->error);
+        }
+    }
+
+    $collegeColumnResult = $conn->query("SHOW COLUMNS FROM Subject LIKE 'college_id'");
+    $hasCollegeColumn = $collegeColumnResult && $collegeColumnResult->num_rows > 0;
+    if ($collegeColumnResult) {
+        $collegeColumnResult->free();
+    }
+
+    if ($hasCollegeColumn && !$conn->query("ALTER TABLE Subject DROP COLUMN college_id")) {
+        throw new Exception('Unable to drop Subject.college_id: ' . $conn->error);
+    }
 }
 
 function backfillStudentCollegeIds(mysqli $conn): array {
@@ -655,29 +669,11 @@ function backfillStudentCollegeIds(mysqli $conn): array {
     ensureSubjectLookupColumns($conn);
 
     $summary = [
-        'updated_course_links' => 0,
         'updated_from_course' => 0,
         'remaining_null' => 0,
     ];
 
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
-
-    $courseLinkStmt = $conn->prepare(
-        "UPDATE {$courseTable} c
-         INNER JOIN (
-             SELECT course_id, MIN(college_id) AS inferred_college_id
-             FROM Subject
-             WHERE course_id IS NOT NULL
-               AND college_id IS NOT NULL
-             GROUP BY course_id
-             HAVING COUNT(DISTINCT college_id) = 1
-         ) resolved ON resolved.course_id = c.course_id
-         SET c.college_id = resolved.inferred_college_id
-         WHERE c.college_id IS NULL"
-    );
-    $courseLinkStmt->execute();
-    $summary['updated_course_links'] = $courseLinkStmt->affected_rows > 0 ? $courseLinkStmt->affected_rows : 0;
-    $courseLinkStmt->close();
 
     $updateStmt = $conn->prepare(
         "UPDATE Student st

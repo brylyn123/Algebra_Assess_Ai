@@ -592,11 +592,10 @@ try {
 
         $subjectId = insertAndGetId(
             $conn,
-            'INSERT INTO Subject (teacher_id, college_id, course_id, section_id, year_id, subject_name, semester, school_year, join_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            'iiiiissss',
+            'INSERT INTO Subject (teacher_id, course_id, section_id, year_id, subject_name, semester, school_year, join_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'iiiissss',
             [
                 $teacherId,
-                2,
                 3,
                 1,
                 3,
