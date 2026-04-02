@@ -5,7 +5,7 @@ USE algebraassess;
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `Scores`, `Item_Scores`, `Captured_Solution`, `item_rubric_mapping`, 
                      `rubric_set_items`, `rubric_sets`, `Exercise_Items`, `Exercises_Problem`, 
-                     `Enrollment`, `Subject`, `Student`, `Teacher`, `Users`, `Course`, `Colleges`;
+                     `Enrollment`, `Subject`, `Student`, `Teacher`, `Users`, `Course`, `Year_Level`, `Colleges`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 1. Organizations & Structure
@@ -25,7 +25,6 @@ CREATE TABLE Course (
 -- 2. User Management
 CREATE TABLE Users (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
-    username VARCHAR(100) UNIQUE,
     email VARCHAR(150) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role ENUM('admin', 'teacher', 'student') NOT NULL
@@ -60,18 +59,6 @@ CREATE TABLE Student (
 );
 
 -- 3. Academic Calendar & Organization
-CREATE TABLE School_Year (
-    school_year_id INT PRIMARY KEY AUTO_INCREMENT,
-    start_year YEAR NOT NULL,
-    end_year YEAR NOT NULL,
-    label VARCHAR(50)
-);
-
-CREATE TABLE Semester (
-    semester_id INT PRIMARY KEY AUTO_INCREMENT,
-    semester_name VARCHAR(50) NOT NULL
-);
-
 CREATE TABLE Year_Level (
     year_id INT PRIMARY KEY AUTO_INCREMENT,
     year_level VARCHAR(50) NOT NULL
@@ -120,6 +107,8 @@ CREATE TABLE Exercises_Problem (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     topic VARCHAR(100),
+    difficulty ENUM('Easy', 'Medium', 'Hard') DEFAULT 'Medium',
+    ideal_solution TEXT,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
 );
@@ -127,8 +116,12 @@ CREATE TABLE Exercises_Problem (
 CREATE TABLE Exercise_Items (
     item_id INT PRIMARY KEY AUTO_INCREMENT,
     exercise_id INT NOT NULL,
-    item_label VARCHAR(100),
-    prompt TEXT,
+    item_no INT DEFAULT 1,
+    question_type ENUM('handwritten_algebra', 'multiple_choice') DEFAULT 'handwritten_algebra',
+    question_content TEXT NOT NULL,
+    options JSON,
+    correct_answer TEXT,
+    model_solution TEXT,
     max_score DECIMAL(5,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (exercise_id) REFERENCES Exercises_Problem(exercise_id) ON DELETE CASCADE
@@ -140,7 +133,9 @@ CREATE TABLE rubric_sets (
     rubric_set_id INT AUTO_INCREMENT PRIMARY KEY,
     teacher_id INT NOT NULL,
     rubric_name VARCHAR(255) NOT NULL,
-    global_instructions TEXT,
+    criteria TEXT NOT NULL,
+    ai_instructions TEXT,
+    level_definitions JSON,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_rubric_sets_teacher FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id)
 ) ENGINE=InnoDB;

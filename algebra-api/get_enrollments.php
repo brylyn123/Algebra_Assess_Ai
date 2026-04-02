@@ -15,6 +15,7 @@ if (!$teacher_id) {
 }
 
 try {
+    $enrollmentCol = getEnrollmentSubjectColumn($conn);
     ensureSubjectLookupColumns($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
@@ -34,7 +35,7 @@ try {
             e.date_enrolled,
             CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name) AS student_name
          FROM Enrollment e
-         JOIN Subject s ON s.subject_id = e.subject_id
+         JOIN Subject s ON s.subject_id = e.{$enrollmentCol}
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          JOIN Student st ON st.student_id = e.student_id

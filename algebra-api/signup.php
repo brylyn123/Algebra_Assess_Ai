@@ -83,13 +83,11 @@ try {
 
         $collegeId = (int)$collegeRow['college_id'];
         $college = trim((string)($collegeRow['college_name'] ?? ''));
-    } else {
-        throw new Exception("Please choose one of the built-in colleges.");
     }
 
     if ($role === 'teacher') {
         if ($collegeId === null) {
-            throw new Exception("Please provide a college.");
+            throw new Exception("Please choose one of the built-in colleges.");
         }
         $stmtProf = $conn->prepare("INSERT INTO Teacher (user_id, teacher_id, first_name, middle_name, last_name, email, college_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmtProf->bind_param("isssssi", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email, $collegeId);

@@ -1,14 +1,56 @@
 <?php
-include 'db_connection.php'; // Your DB config
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json");
 
-$subject_id = $_GET['id'];
+require_once 'db_connect.php';
+require_once 'schema_utils.php';
 
-$sql = "SELECT * FROM subjects WHERE id = '$subject_id'";
-$result = $conn->query($sql);
+$subjectId = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-if ($result->num_rows > 0) {
-    echo json_encode($result->fetch_assoc());
-} else {
-    echo json_encode(["error" => "Subject not found"]);
+if ($subjectId <= 0) {
+    http_response_code(400);
+    echo json_encode(["status" => "error", "message" => "A valid subject ID is required."]);
+    exit;
 }
+
+try {
+    ensureSubjectLookupColumns($conn);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+
+    $stmt = $conn->prepare(
+        "SELECT
+            s.subject_id,
+            s.subject_name,
+            s.join_code AS enrollment_code,
+            COALESCE(c.course_code, c.course_name) AS course,
+            yl.year_level AS year,
+            sec.section_name AS section
+         FROM Subject s
+         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+         LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
+         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         WHERE s.subject_id = ?
+         LIMIT 1"
+    );
+    $stmt->bind_param("i", $subjectId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $subject = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$subject) {
+        http_response_code(404);
+        echo json_encode(["status" => "error", "message" => "Subject not found."]);
+        exit;
+    }
+
+    echo json_encode($subject);
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+}
+
+$conn->close();
 ?>

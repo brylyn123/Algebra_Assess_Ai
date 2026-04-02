@@ -181,7 +181,7 @@ while ($row = $result->fetch_assoc()) {
         'subject_id' => $row['subject_id'] !== null ? (int)$row['subject_id'] : null,
         'subject_display' => $subjectDisplay,
         'subject_code' => $subjectCode,
-        'subject_meta' => implode(' · ', $metaFields),
+        'subject_meta' => implode(' - ', $metaFields),
         'submission_date' => $row['submission_date'],
         'status' => $row['status'],
         'files' => $files,
