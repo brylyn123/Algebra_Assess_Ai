@@ -31,6 +31,7 @@ $password = password_hash($data['password'] ?? '', PASSWORD_BCRYPT); // In produ
 $role       = $data['role'] ?? '';
 $idNumber   = $data['idNumber'] ?? '';
 $college    = trim($data['collegeName'] ?? '');
+$collegeIdFromPayload = isset($data['collegeId']) ? intval($data['collegeId']) : 0;
 $courseId   = isset($data['courseId']) ? intval($data['courseId']) : 0;
 $sectionId  = isset($data['sectionId']) ? intval($data['sectionId']) : 0;
 $yearId     = isset($data['yearId']) ? intval($data['yearId']) : 0;
@@ -45,6 +46,7 @@ try {
 
     ensureRegistrationLookupData($conn);
 
+    $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
@@ -66,7 +68,24 @@ try {
 
     // 2. Insert into profile table (Identity + Linking)
    // If your database uses lowercase 'firstname', etc.
-    $collegeId = getOrCreateCollegeId($conn, $college);
+    $collegeId = null;
+    if ($collegeIdFromPayload > 0) {
+        $collegeStmt = $conn->prepare("SELECT college_id, college_name FROM {$collegeTable} WHERE college_id = ? LIMIT 1");
+        $collegeStmt->bind_param("i", $collegeIdFromPayload);
+        $collegeStmt->execute();
+        $collegeResult = $collegeStmt->get_result();
+        $collegeRow = $collegeResult ? $collegeResult->fetch_assoc() : null;
+        $collegeStmt->close();
+
+        if (!$collegeRow) {
+            throw new Exception("Selected college was not found.");
+        }
+
+        $collegeId = (int)$collegeRow['college_id'];
+        $college = trim((string)($collegeRow['college_name'] ?? ''));
+    } else {
+        throw new Exception("Please choose one of the built-in colleges.");
+    }
 
     if ($role === 'teacher') {
         if ($collegeId === null) {
@@ -75,11 +94,8 @@ try {
         $stmtProf = $conn->prepare("INSERT INTO Teacher (user_id, teacher_id, first_name, middle_name, last_name, email, college_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmtProf->bind_param("isssssi", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email, $collegeId);
     } else {
-        if ($collegeId === null) {
-            throw new Exception("Please provide a college.");
-        }
         if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
-            throw new Exception("Please choose a college, course, section, and year level.");
+            throw new Exception("Please choose a course, section, and year level.");
         }
 
         $courseStmt = $conn->prepare("SELECT course_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
@@ -105,13 +121,14 @@ try {
             : null;
 
         if ($courseCollegeId === null) {
-            $updateCourseCollegeStmt = $conn->prepare("UPDATE {$courseTable} SET college_id = ? WHERE course_id = ? AND college_id IS NULL");
-            $updateCourseCollegeStmt->bind_param("ii", $collegeId, $courseId);
-            $updateCourseCollegeStmt->execute();
-            $updateCourseCollegeStmt->close();
-        } elseif ($courseCollegeId !== $collegeId) {
+            throw new Exception("Selected course is not linked to a college.");
+        }
+
+        if ($collegeId !== null && $courseCollegeId !== $collegeId) {
             throw new Exception("Selected course does not belong to the chosen college.");
         }
+
+        $collegeId = $courseCollegeId;
 
         $sectionStmt = $conn->prepare("SELECT section_id FROM {$sectionTable} WHERE section_id = ? LIMIT 1");
         $sectionStmt->bind_param("i", $sectionId);
@@ -141,21 +158,19 @@ try {
                 middle_name,
                 last_name,
                 email,
-                college_id,
                 course_id,
                 section_id,
                 year_id
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmtProf->bind_param(
-            "isssssiiii",
+            "isssssiii",
             $newUserId,
             $idNumber,
             $firstName,
             $middleName,
             $lastName,
             $email,
-            $collegeId,
             $courseId,
             $sectionId,
             $yearId

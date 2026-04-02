@@ -44,6 +44,7 @@ const ManageSubjects = () => {
         sections: [],
         years: []
     });
+    const [showArchivedSubjects, setShowArchivedSubjects] = useState(false);
 
     const showToast = (message, variant = 'default', details = null) => {
         setToast({ message, variant, details });
@@ -424,6 +425,18 @@ const ManageSubjects = () => {
         const matchesYear = filterYear ? subject.year === filterYear : true;
         return matchesSearch && matchesCourse && matchesYear;
     });
+    const filteredArchivedSubjects = archivedSubjects.filter((subject) => {
+        const matchesSearch =
+            subject.name.toLowerCase().includes(searchLower) ||
+            subject.course.toLowerCase().includes(searchLower) ||
+            subject.year.toLowerCase().includes(searchLower) ||
+            subject.section.toLowerCase().includes(searchLower) ||
+            subject.schoolYear.toLowerCase().includes(searchLower) ||
+            subject.semester.toLowerCase().includes(searchLower);
+        const matchesCourse = filterCourse ? subject.course === filterCourse : true;
+        const matchesYear = filterYear ? subject.year === filterYear : true;
+        return matchesSearch && matchesCourse && matchesYear;
+    });
     const courseOptions = Array.from(new Set(normalizedSubjects.map((subject) => subject.course))).filter(Boolean);
     const yearOptions = Array.from(new Set(normalizedSubjects.map((subject) => subject.year))).filter(Boolean);
     const dropdownYearOptions = Array.from(new Set([
@@ -618,7 +631,25 @@ const ManageSubjects = () => {
 
                 {/* View Subjects Card */}
                 <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 space-y-6">
-                    <h2 className="text-xl font-bold text-slate-900">View Subjects</h2>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900">View Subjects</h2>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Switch between your active and archived classes anytime.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowArchivedSubjects((current) => !current)}
+                            className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition ${
+                                showArchivedSubjects
+                                    ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                            }`}
+                        >
+                            {showArchivedSubjects ? 'Show Active Subjects' : `Archived Subjects (${archivedSubjects.length})`}
+                        </button>
+                    </div>
                     <div className="flex flex-wrap gap-3 items-center">
                         <input
                             type="text"
@@ -653,8 +684,8 @@ const ManageSubjects = () => {
                         </select>
                     </div>
                     <div className="teacher-scrollbar space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                        {filteredSubjects.length > 0 ? (
-                            filteredSubjects.map((subject) => (
+                        {(showArchivedSubjects ? filteredArchivedSubjects : filteredSubjects).length > 0 ? (
+                            (showArchivedSubjects ? filteredArchivedSubjects : filteredSubjects).map((subject) => (
                                 <div key={subject.id} className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
                                     <div className="flex justify-between gap-3">
                                         <div>
@@ -692,33 +723,41 @@ const ManageSubjects = () => {
                                             }}
                                             className="rounded-full border border-blue-200 bg-blue-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
                                         >
-                                            View Enrolled
+                                            {showArchivedSubjects ? 'View Details' : 'View Enrolled'}
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleEditSubject(subject)}
-                                            className="rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleArchive(subject)}
-                                            className="rounded-full border border-amber-200 bg-amber-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-600 transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                                        >
-                                            Archive
-                                        </button>
+                                        {!showArchivedSubjects && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEditSubject(subject)}
+                                                    className="rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleArchive(subject)}
+                                                    className="rounded-full border border-amber-200 bg-amber-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-600 transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                                                >
+                                                    Archive
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             ))
                         ) : (
                             <p className="text-center text-slate-400 py-8">
-                                No subjects match your search. Add the first class on the left to get started.
+                                {showArchivedSubjects
+                                    ? 'No archived subjects match your search yet.'
+                                    : 'No subjects match your search. Add the first class on the left to get started.'}
                             </p>
                         )}
                         {archivedSubjects.length > 0 && (
                             <p className="text-xs uppercase tracking-[0.3em] text-slate-500 pt-2">
-                                {archivedSubjects.length} archived subject(s) hidden. Archived subjects keep their history safe.
+                                {showArchivedSubjects
+                                    ? `${archivedSubjects.length} archived subject(s) available in your history.`
+                                    : `${archivedSubjects.length} archived subject(s) hidden. Archived subjects keep their history safe.`}
                             </p>
                         )}
                     </div>

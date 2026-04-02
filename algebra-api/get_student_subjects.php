@@ -48,7 +48,6 @@ try {
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
          LEFT JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_id = ?
-         WHERE s.archived = 0
          ORDER BY s.subject_name ASC"
     );
     $stmt->bind_param("i", $student_id);
@@ -58,11 +57,13 @@ try {
     $subjects = [];
     $enrolledSubjects = [];
     $availableSubjects = [];
+    $archivedSubjects = [];
     while ($row = $result->fetch_assoc()) {
         $entry = [
             'subject_id' => (int)$row['subject_id'],
             'join_code' => $row['join_code'],
-            'status' => $row['status'],
+            'status' => (int)$row['status'],
+            'archived' => (bool)$row['status'],
             'subject_name' => $row['subject_name'],
             'subject_code' => $row['join_code'],
             'teacher_name' => trim((string)$row['teacher_name']),
@@ -74,9 +75,11 @@ try {
             'enrolled' => (bool)$row['enrolled'],
         ];
 
-        if ((bool)$row['enrolled']) {
+        if ((bool)$row['enrolled'] && (bool)$row['status']) {
+            $archivedSubjects[] = $entry;
+        } elseif ((bool)$row['enrolled']) {
             $enrolledSubjects[] = $entry;
-        } else {
+        } elseif (!(bool)$row['status']) {
             $availableSubjects[] = $entry;
         }
     }
@@ -85,6 +88,7 @@ try {
     echo json_encode([
         'status' => 'success',
         'enrolled_subjects' => $enrolledSubjects,
+        'archived_subjects' => $archivedSubjects,
         'available_subjects' => $availableSubjects,
     ]);
 } catch (Exception $e) {

@@ -536,9 +536,9 @@ try {
 
         $studentId = insertAndGetId(
             $conn,
-            'INSERT INTO Student (first_name, middle_name, last_name, email, college_id, course_id, section_id, year_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            'ssssiiiii',
-            [$student['first_name'], $student['middle_name'], $student['last_name'], $student['email'], 2, 3, 1, 3, $studentUserId]
+            'INSERT INTO Student (first_name, middle_name, last_name, email, course_id, section_id, year_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'ssssiiii',
+            [$student['first_name'], $student['middle_name'], $student['last_name'], $student['email'], 3, 1, 3, $studentUserId]
         );
 
         $students[] = [

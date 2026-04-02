@@ -110,6 +110,7 @@ const StudentDashboard = () => {
 
   const studentId = currentUser?.student_id ?? currentUser?.user_id ?? null;
   const [enrolledSubjects, setEnrolledSubjects] = useState([]);
+  const [archivedSubjects, setArchivedSubjects] = useState([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [subjectsError, setSubjectsError] = useState('');
   const [enrollCode, setEnrollCode] = useState('');
@@ -140,6 +141,7 @@ const StudentDashboard = () => {
   const fetchSubjects = useCallback(async () => {
     if (!studentId) {
       setEnrolledSubjects([]);
+      setArchivedSubjects([]);
       return;
     }
 
@@ -153,9 +155,11 @@ const StudentDashboard = () => {
         throw new Error(payload.message || 'Unable to load subjects.');
       }
       setEnrolledSubjects(Array.isArray(payload.enrolled_subjects) ? payload.enrolled_subjects : []);
+      setArchivedSubjects(Array.isArray(payload.archived_subjects) ? payload.archived_subjects : []);
     } catch (error) {
       setSubjectsError(error.message || 'Unable to load subjects.');
       setEnrolledSubjects([]);
+      setArchivedSubjects([]);
     } finally {
       setLoadingSubjects(false);
     }
@@ -279,6 +283,7 @@ const StudentDashboard = () => {
   const outletContext = useMemo(
     () => ({
       enrolledSubjects,
+      archivedSubjects,
       loadingSubjects,
       subjectsError,
       availableAssessments,
@@ -289,6 +294,7 @@ const StudentDashboard = () => {
     }),
     [
       enrolledSubjects,
+      archivedSubjects,
       loadingSubjects,
       subjectsError,
       availableAssessments,
@@ -549,6 +555,7 @@ export const StudentSubjects = () => {
   const { id: subjectIdParam = '' } = useParams();
   const {
     enrolledSubjects = [],
+    archivedSubjects = [],
     loadingSubjects = false,
     subjectsError = '',
     availableAssessments = [],
@@ -564,6 +571,7 @@ export const StudentSubjects = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
+  const [showArchivedSubjects, setShowArchivedSubjects] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -577,8 +585,10 @@ export const StudentSubjects = () => {
   }, [subjectIdParam]);
 
   const selectedSubject = useMemo(
-    () => enrolledSubjects.find((subject) => String(subject.subject_id) === String(subjectIdParam)) ?? null,
-    [enrolledSubjects, subjectIdParam]
+    () =>
+      [...enrolledSubjects, ...archivedSubjects].find((subject) => String(subject.subject_id) === String(subjectIdParam)) ??
+      null,
+    [archivedSubjects, enrolledSubjects, subjectIdParam]
   );
 
   const assessmentCountBySubject = useMemo(() => {
@@ -713,6 +723,7 @@ export const StudentSubjects = () => {
 
   const subjectAssessmentCount = subjectAssessments.length;
   const isSubjectAssessmentPage = Boolean(subjectIdParam);
+  const visibleSubjects = showArchivedSubjects ? archivedSubjects : enrolledSubjects;
 
   return (
     <>
@@ -734,27 +745,54 @@ export const StudentSubjects = () => {
 
       <section className="space-y-6">
         {!isSubjectAssessmentPage && (
-          <div className="teacher-scrollbar mx-auto grid max-h-[calc(100vh-340px)] w-full max-w-5xl gap-4 overflow-y-auto pr-2">
+          <>
+            <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-slate-100 bg-white px-5 py-4 shadow-sm">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subject Library</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Switch between your current classes and your archived subject history.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowArchivedSubjects((current) => !current)}
+                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition ${
+                  showArchivedSubjects
+                    ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                {showArchivedSubjects ? 'Show Active Subjects' : `Archived Subjects (${archivedSubjects.length})`}
+              </button>
+            </div>
+
+            <div className="teacher-scrollbar mx-auto grid max-h-[calc(100vh-340px)] w-full max-w-5xl gap-4 overflow-y-auto pr-2">
             {loadingSubjects ? (
               <p className="text-sm text-slate-500">Loading subjects...</p>
             ) : subjectsError ? (
               <p className="text-sm text-rose-600">{subjectsError}</p>
-            ) : enrolledSubjects.length === 0 ? (
+            ) : visibleSubjects.length === 0 ? (
               <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                <p className="text-lg font-semibold text-slate-900">No subjects yet</p>
+                <p className="text-lg font-semibold text-slate-900">
+                  {showArchivedSubjects ? 'No archived subjects yet' : 'No subjects yet'}
+                </p>
                 <p className="mt-2 text-sm text-slate-500">
-                  Paste a teacher-provided join code from the sidebar to unlock your classes.
+                  {showArchivedSubjects
+                    ? 'Archived subjects will appear here once one of your enrolled classes is archived by your teacher.'
+                    : 'Paste a teacher-provided join code from the sidebar to unlock your classes.'}
                 </p>
               </div>
             ) : (
-              enrolledSubjects.map((subject) => {
+              visibleSubjects.map((subject) => {
                 const assessmentCount = assessmentCountBySubject.get(String(subject.subject_id)) ?? 0;
                 return (
                   <button
                     key={subject.subject_id}
                     type="button"
                     onClick={() => {
-                      navigate(`/student/subjects/${subject.subject_id}`);
+                      if (!showArchivedSubjects) {
+                        navigate(`/student/subjects/${subject.subject_id}`);
+                      }
                     }}
                     className={`${compactListCardClass} border-slate-100`}
                   >
@@ -769,14 +807,22 @@ export const StudentSubjects = () => {
                       </div>
 
                       <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
-                        <span className="rounded-full border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-600">
-                          Enrolled
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                          showArchivedSubjects
+                            ? 'border-amber-200 text-amber-700 bg-amber-50'
+                            : 'border-blue-200 text-blue-600'
+                        }`}>
+                          {showArchivedSubjects ? 'Archived' : 'Enrolled'}
                         </span>
                         <span className="text-xs font-semibold text-slate-500">
-                          {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'} assigned
+                          {showArchivedSubjects
+                            ? 'Saved in your history'
+                            : `${assessmentCount} assessment${assessmentCount === 1 ? '' : 's'} assigned`}
                         </span>
-                        <span className="rounded-full bg-blue-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-700">
-                          View Assessments
+                        <span className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                          showArchivedSubjects ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
+                        }`}>
+                          {showArchivedSubjects ? 'Archived Subject' : 'View Assessments'}
                         </span>
                       </div>
                     </div>
@@ -784,7 +830,8 @@ export const StudentSubjects = () => {
                 );
               })
             )}
-          </div>
+            </div>
+          </>
         )}
 
         {isSubjectAssessmentPage && (
@@ -813,6 +860,13 @@ export const StudentSubjects = () => {
               <>
                 {loadingAssessments ? (
                   <p className="text-sm text-slate-500">Loading assessments...</p>
+                ) : selectedSubject.archived ? (
+                  <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-6 py-10 text-center">
+                    <p className="text-lg font-semibold text-slate-900">This subject is archived</p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      You can still see it in your archived subject list, but new assessment submissions are closed here.
+                    </p>
+                  </div>
                 ) : assessmentsError ? (
                   <p className="text-sm text-rose-600">{assessmentsError}</p>
                 ) : subjectAssessments.length === 0 ? (

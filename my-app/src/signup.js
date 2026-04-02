@@ -30,6 +30,7 @@ const Signup = () => {
         middleName: '',
         lastName: '',
         idNumber: '',
+        collegeId: '',
         collegeName: '',
         courseId: '',
         sectionId: '',
@@ -42,6 +43,7 @@ const Signup = () => {
     const [toast, setToast] = useState(null);
     const [loading, setLoading] = useState(false);
     const [registrationOptions, setRegistrationOptions] = useState({
+        colleges: [],
         courses: [],
         sections: [],
         years: [],
@@ -70,15 +72,32 @@ const Signup = () => {
 
     const handleRoleChange = (newRole) => {
         setRole(newRole);
-        if (newRole === 'teacher') {
+        setFormData((prev) => ({
+            ...prev,
+            courseId: '',
+            sectionId: '',
+            yearId: '',
+            collegeId: newRole === 'teacher' ? prev.collegeId : '',
+        }));
+    };
+
+    useEffect(() => {
+        if (!formData.collegeId) {
+            return;
+        }
+
+        const selectedCourseStillMatches = registrationOptions.courses.some((course) => (
+            String(course.course_id) === String(formData.courseId)
+                && (!course.college_id || String(course.college_id) === String(formData.collegeId))
+        ));
+
+        if (!selectedCourseStillMatches && formData.courseId) {
             setFormData((prev) => ({
                 ...prev,
                 courseId: '',
-                sectionId: '',
-                yearId: '',
             }));
         }
-    };
+    }, [formData.collegeId, formData.courseId, registrationOptions.courses]);
 
     useEffect(() => {
         let isMounted = true;
@@ -105,6 +124,7 @@ const Signup = () => {
 
                 if (isMounted) {
                     setRegistrationOptions({
+                        colleges: Array.isArray(payload.colleges) ? payload.colleges : [],
                         courses: Array.isArray(payload.courses) ? payload.courses : [],
                         sections: Array.isArray(payload.sections) ? payload.sections : [],
                         years: Array.isArray(payload.years) ? payload.years : [],
@@ -114,7 +134,7 @@ const Signup = () => {
                 if (controller.signal.aborted) return;
                 if (isMounted) {
                     setOptionsError(error.message || 'Unable to load registration options.');
-                    setRegistrationOptions({ courses: [], sections: [], years: [] });
+                    setRegistrationOptions({ colleges: [], courses: [], sections: [], years: [] });
                 }
             } finally {
                 if (isMounted) {
@@ -144,12 +164,14 @@ const Signup = () => {
             email: formData.email,
             password: formData.password,
             role,
+            collegeId: formData.collegeId,
             collegeName: formData.collegeName,
             courseId: formData.courseId,
             sectionId: formData.sectionId,
             yearId: formData.yearId,
         };
 
+        const selectedCollege = registrationOptions.colleges.find((college) => String(college.college_id) === String(formData.collegeId));
         const selectedCourse = registrationOptions.courses.find((course) => String(course.course_id) === String(formData.courseId));
         const selectedSection = registrationOptions.sections.find((section) => String(section.section_id) === String(formData.sectionId));
         const selectedYear = registrationOptions.years.find((year) => String(year.year_id) === String(formData.yearId));
@@ -177,7 +199,8 @@ const Signup = () => {
                     middleName: formData.middleName,
                     lastName: formData.lastName,
                     idNumber: formData.idNumber,
-                    collegeName: formData.collegeName,
+                    collegeId: formData.collegeId,
+                    collegeName: selectedCollege?.college_name ?? formData.collegeName,
                     courseId: formData.courseId,
                     courseName: selectedCourse?.course_name ?? '',
                     sectionId: formData.sectionId,
@@ -206,6 +229,11 @@ const Signup = () => {
         { label: 'I am a Teacher', value: 'teacher' },
         { label: 'I am a Student', value: 'student' },
     ];
+    const filteredCourseOptions = role === 'student'
+        ? registrationOptions.courses
+        : registrationOptions.courses.filter((course) => (
+            !formData.collegeId || !course.college_id || String(course.college_id) === String(formData.collegeId)
+        ));
 
     return (
         <div
@@ -376,13 +404,22 @@ const Signup = () => {
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
-                                                    <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">College Name</label>
-                                                    <input
-                                                        name="collegeName"
+                                                    <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">College</label>
+                                                    <select
+                                                        name="collegeId"
                                                         required
+                                                        value={formData.collegeId}
                                                         onChange={handleChange}
-                                                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
-                                                    />
+                                                        disabled={optionsLoading}
+                                                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                                    >
+                                                        <option value="" disabled hidden>Select college</option>
+                                                        {registrationOptions.colleges.map((college) => (
+                                                            <option key={college.college_id} value={college.college_id}>
+                                                                {college.college_name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
                                                 </motion.div>
                                             ) : (
                                                 <motion.div
@@ -393,16 +430,6 @@ const Signup = () => {
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
-                                                    <div className="sm:col-span-2">
-                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">College Name</label>
-                                                        <input
-                                                            name="collegeName"
-                                                            required
-                                                            value={formData.collegeName}
-                                                            onChange={handleChange}
-                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
-                                                        />
-                                                    </div>
                                                     <div>
                                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Course</label>
                                                         <select
@@ -414,7 +441,7 @@ const Signup = () => {
                                                             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
                                                         >
                                                             <option value="" disabled hidden>Select course</option>
-                                                            {registrationOptions.courses.map((course) => (
+                                                            {filteredCourseOptions.map((course) => (
                                                                 <option key={course.course_id} value={course.course_id}>
                                                                     {course.course_name} ({course.course_code})
                                                                 </option>

@@ -10,18 +10,25 @@ try {
     ensureRegistrationLookupData($conn);
 
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
 
     $payload = [
         'status' => 'success',
+        'colleges' => [],
         'courses' => [],
         'years' => [],
         'sections' => [],
     ];
 
     $queries = [
-        'courses' => "SELECT course_id, course_name, course_code FROM {$courseTable} ORDER BY course_name ASC",
+        'colleges' => "SELECT MIN(college_id) AS college_id, college_name
+                       FROM {$collegeTable}
+                       WHERE college_name IN ('College of Teacher Education', 'College of Sciences')
+                       GROUP BY college_name
+                       ORDER BY FIELD(college_name, 'College of Teacher Education', 'College of Sciences')",
+        'courses' => "SELECT course_id, course_name, course_code, college_id FROM {$courseTable} ORDER BY course_name ASC",
         'years' => "SELECT year_id, year_level FROM {$yearTable} ORDER BY year_level ASC",
         'sections' => "SELECT section_id, section_name FROM {$sectionTable} ORDER BY section_name ASC",
     ];
