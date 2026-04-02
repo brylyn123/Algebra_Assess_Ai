@@ -281,7 +281,7 @@ function deleteByIds(mysqli $conn, string $table, string $column, array $ids): v
     executeStatement($conn, "DELETE FROM {$table} WHERE {$column} IN ({$placeholders})", $types, $ids);
 }
 
-function getOrCreateCollegeId(mysqli $conn, string $tableName, string $name): int
+function getOrCreateCollegeIdLocal(mysqli $conn, string $tableName, string $name): int
 {
     $existing = fetchScalar($conn, "SELECT college_id FROM {$tableName} WHERE college_name = ? LIMIT 1", 's', [$name]);
     if ($existing !== null) {
@@ -417,6 +417,21 @@ function teacherFeedback(string $subjectName, string $assessmentTitle, int $scor
         $score,
         $strength,
         $improvement
+    );
+}
+
+function buildItemFeedback(string $subjectName, string $assessmentTitle, int $itemNumber, float $scoreEarned, float $maxScore): string
+{
+    $status = $scoreEarned >= $maxScore
+        ? 'Full credit earned.'
+        : ($scoreEarned >= ($maxScore / 2) ? 'Partial credit awarded.' : 'Needs more work.');
+
+    return sprintf(
+        'Item %d feedback for %s in %s: %s',
+        $itemNumber,
+        $assessmentTitle,
+        $subjectName,
+        $status
     );
 }
 
@@ -642,8 +657,9 @@ try {
                 ]
             );
 
+            $createdItems = [];
             foreach (buildAssessmentItems($subject['subject_name'], $assessmentTitle) as $itemIndex => $item) {
-                executeStatement(
+                $itemId = insertAndGetId(
                     $conn,
                     'INSERT INTO Exercise_Items (exercise_id, item_no, question_type, question_content, options, max_score) VALUES (?, ?, ?, ?, NULL, ?)',
                     'iissd',
@@ -654,6 +670,19 @@ try {
                         $item['question_content'],
                         $item['max_score'],
                     ]
+                );
+
+                $createdItems[] = [
+                    'item_id' => $itemId,
+                    'item_no' => (int)$item['item_no'],
+                    'max_score' => (float)$item['max_score'],
+                ];
+
+                executeStatement(
+                    $conn,
+                    'INSERT INTO item_rubric_mapping (item_id, rubric_set_id) VALUES (?, ?)',
+                    'ii',
+                    [$itemId, $rubricId]
                 );
             }
 
@@ -697,6 +726,38 @@ try {
                             $scoreDate,
                         ]
                     );
+
+                    $itemCount = count($createdItems);
+                    $remainingRawScore = $rawScoreEarned;
+                    foreach ($createdItems as $createdItemIndex => $createdItem) {
+                        $itemMaxScore = (float)$createdItem['max_score'];
+                        if ($createdItemIndex === $itemCount - 1) {
+                            $itemScoreEarned = max(0.0, min($itemMaxScore, round($remainingRawScore, 2)));
+                        } else {
+                            $suggestedScore = round($rawScoreEarned / max(1, $itemCount), 2);
+                            $itemScoreEarned = max(0.0, min($itemMaxScore, $suggestedScore));
+                            $remainingRawScore = round($remainingRawScore - $itemScoreEarned, 2);
+                        }
+
+                        executeStatement(
+                            $conn,
+                            'INSERT INTO Item_Scores (solution_id, item_id, score_earned, ai_feedback, is_manual_override) VALUES (?, ?, ?, ?, ?)',
+                            'iidsi',
+                            [
+                                $solutionId,
+                                $createdItem['item_id'],
+                                $itemScoreEarned,
+                                buildItemFeedback(
+                                    $subject['subject_name'],
+                                    $assessmentTitle,
+                                    $createdItem['item_no'],
+                                    $itemScoreEarned,
+                                    $itemMaxScore
+                                ),
+                                0,
+                            ]
+                        );
+                    }
                     $returnedCount++;
                 } else {
                     $pendingCount++;
