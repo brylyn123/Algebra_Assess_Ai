@@ -2,12 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 
-const statusStyle = {
-  Pending: 'bg-amber-100 text-amber-700',
-  Graded: 'bg-emerald-100 text-emerald-700',
-  'Needs Review': 'bg-cyan-100 text-cyan-700',
-};
-
 const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 
 const toAbsoluteFileUrl = (path) => {
@@ -360,6 +354,20 @@ const GradeSubmissions = () => {
     return ungraded.filter((submission) => String(submission.exercise_id ?? '') === selectedAssessment);
   }, [selectedAssessment, submissions]);
 
+  const submissionSummary = useMemo(() => {
+    return submissions.reduce(
+      (acc, submission) => {
+        const status = String(submission.status || 'Pending').toLowerCase();
+        acc.total += 1;
+        if (status === 'graded') acc.graded += 1;
+        else if (status === 'pending') acc.pending += 1;
+        else acc.review += 1;
+        return acc;
+      },
+      { total: 0, pending: 0, graded: 0, review: 0 }
+    );
+  }, [submissions]);
+
   useEffect(() => {
     if (visibleSubmissions.length === 0) {
       setSelectedSubmission(null);
@@ -391,55 +399,67 @@ const GradeSubmissions = () => {
           </p>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+            Total {submissionSummary.total}
+          </span>
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-semibold text-amber-700 shadow-sm">
+            Pending {submissionSummary.pending}
+          </span>
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold text-emerald-700 shadow-sm">
+            Graded {submissionSummary.graded}
+          </span>
+          <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[10px] font-semibold text-cyan-700 shadow-sm">
+            Review {submissionSummary.review}
+          </span>
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-semibold text-blue-700 shadow-sm">
+            Visible {visibleSubmissions.length}
+          </span>
+        </div>
+
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
-          <div className="teacher-float-card space-y-5 p-8">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-sm font-semibold text-slate-500 mb-2">Select Assessment</p>
-                <select
-                  value={selectedAssessment}
-                  onChange={(e) => setSelectedAssessment(e.target.value)}
-                  className="w-full rounded-2xl border border-blue-500 px-4 py-3 text-slate-700 font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                >
-                  {assessmentOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedAssessment(assessmentOptions[0]?.value ?? '')}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
-                >
-                  Show First Assessment
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openGradingModal(visibleSubmissions[0], 'batch')}
-                  disabled={visibleSubmissions.length === 0 || loading}
-                  className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                >
-                  Select All Ungraded
-                </button>
-              </div>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-2xl">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Select Assessment</p>
+              <select
+                value={selectedAssessment}
+                onChange={(e) => setSelectedAssessment(e.target.value)}
+                className="w-full max-w-[420px] rounded-2xl border border-blue-500 px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                {assessmentOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
+            <button
+              type="button"
+              onClick={() => openGradingModal(visibleSubmissions[0], 'batch')}
+              disabled={visibleSubmissions.length === 0 || loading}
+              className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+            >
+              Select All Ungraded
+            </button>
           </div>
 
-          <div className="teacher-float-card flex min-h-0 flex-1 flex-col space-y-6 p-8">
+          <div className="flex min-h-0 flex-1 flex-col space-y-4">
             <div className="space-y-1">
-              <p className="text-md font-semibold text-slate-900">Student Submissions</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-md font-semibold text-slate-900">Student Submissions</p>
+                <span className="teacher-status-pill bg-slate-100 text-slate-700">
+                  {visibleSubmissions.length} visible
+                </span>
+              </div>
               <p className="text-sm text-slate-500">
                 {loading ? 'Loading submissions...' : `${visibleSubmissions.length} submission(s) found`}
               </p>
               {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
             </div>
 
-            <div className="teacher-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
+            <div className="teacher-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-3 pb-2 max-h-[calc(100vh-430px)] md:max-h-[calc(100vh-390px)]">
               {visibleSubmissions.length === 0 && !loading && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 px-5 py-6 text-sm text-slate-500 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm">
                   <p className="text-sm text-slate-500">No ungraded submissions match that assessment yet.</p>
                   <p className="mt-2 text-xs text-slate-400">
                     Created assessments will appear on the dashboard and in the assessment list first. They move into this grading queue once students submit work.
@@ -455,33 +475,41 @@ const GradeSubmissions = () => {
 
               {visibleSubmissions.map((submission) => {
                 const isActive = selectedSubmission?.id === submission.id;
+                const submissionStatus = String(submission.status || 'Pending');
+                const statusTone =
+                  submissionStatus.toLowerCase() === 'graded'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : submissionStatus.toLowerCase() === 'pending'
+                      ? 'bg-amber-50 text-amber-700'
+                      : 'bg-cyan-50 text-cyan-700';
                 return (
                   <button
                     key={submission.id}
                     type="button"
                     onClick={() => openGradingModal(submission, 'single')}
-                    className={`teacher-float-card w-full text-left px-4 py-3 transition ${isActive
-                      ? 'border-blue-300 bg-blue-50'
-                      : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/40'
+                    className={`relative w-full overflow-hidden rounded-[1.3rem] border p-3 text-left shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
+                      isActive
+                        ? 'border-blue-300 bg-blue-50'
+                        : 'border-slate-900/10 bg-slate-100/70 hover:border-blue-200'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-base font-semibold text-slate-900">{submission.student_name}</p>
-                          <span className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full ${statusStyle[submission.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                            {submission.status}
-                          </span>
+                        <h3 className="truncate text-[0.98rem] font-bold text-slate-900">
+                          {submission.student_name}
+                        </h3>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                          <span>Submission date: {submission.submission_date}</span>
+                          <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+                          <span className="truncate">{submission.assessment_title}</span>
                         </div>
-                        <p className="mt-1 truncate text-sm text-slate-500">{submission.assessment_title}</p>
                       </div>
-                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        {submission.subject_display}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
-                      <span>Date: {submission.submission_date}</span>
-                      {submission.subject_meta && <span>{submission.subject_meta}</span>}
+                      <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2 text-center text-xs text-slate-500 shadow-sm">
+                        <p className={`mt-0.5 text-[11px] font-medium capitalize ${statusTone}`}>
+                          {submissionStatus}
+                        </p>
+                      </div>
                     </div>
                   </button>
                 );
@@ -493,14 +521,24 @@ const GradeSubmissions = () => {
 
       {gradingModalOpen && selectedSubmission && typeof document !== 'undefined' && createPortal((
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 p-0 backdrop-blur-md">
-          <div className="mx-auto flex max-h-[88vh] w-[min(1180px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.35)] ring-1 ring-white/70">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div
+            className={`mx-auto flex flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.35)] ring-1 ring-white/70 ${
+              gradingMode === 'batch'
+                ? 'max-h-[88vh] w-[min(1180px,calc(100vw-2rem))]'
+                : 'max-h-[82vh] w-[min(900px,calc(100vw-2rem))]'
+            }`}
+          >
+            <div className={`flex items-center justify-between border-b border-slate-200 ${gradingMode === 'batch' ? 'px-6 py-4' : 'px-5 py-3.5'}`}>
               <div>
                 <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
                   {gradingMode === 'batch' ? 'Select All Ungraded' : 'Student Review'}
                 </p>
-                <h2 className="text-xl font-semibold text-slate-900">{selectedSubmission.student_name}</h2>
-                <p className="text-sm text-slate-500">{selectedSubmission.assessment_title}</p>
+                <h2 className={`${gradingMode === 'batch' ? 'text-xl' : 'text-lg'} font-semibold text-slate-900`}>
+                  {selectedSubmission.student_name}
+                </h2>
+                <p className={`${gradingMode === 'batch' ? 'text-sm' : 'text-xs'} text-slate-500`}>
+                  {selectedSubmission.assessment_title}
+                </p>
               </div>
               <button
                 type="button"
@@ -531,9 +569,9 @@ const GradeSubmissions = () => {
                 </div>
               </div>
             )}
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-blue-50 p-4">
+            <div className={`min-h-0 flex-1 overflow-y-auto ${gradingMode === 'batch' ? 'p-5' : 'p-4'}`}>
+              <div className={`${gradingMode === 'batch' ? 'space-y-4' : 'space-y-3'}`}>
+                <div className={`rounded-2xl bg-blue-50 ${gradingMode === 'batch' ? 'p-4' : 'p-3.5'}`}>
                   <div className="grid grid-cols-2 gap-4 text-sm text-slate-700">
                     <div>
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student</p>
@@ -548,9 +586,11 @@ const GradeSubmissions = () => {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800">
+                <div className={`rounded-2xl border border-amber-200 bg-amber-50/70 ${gradingMode === 'batch' ? 'p-4' : 'p-3.5'} text-sm text-amber-800`}>
                   <p className="font-semibold">Assessment Rubric</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedSubmission.rubric_name || 'No rubric attached'}</p>
+                  <p className={`${gradingMode === 'batch' ? 'mt-2 text-sm' : 'mt-1.5 text-sm'} font-semibold text-slate-900`}>
+                    {selectedSubmission.rubric_name || 'No rubric attached'}
+                  </p>
                   {selectedSubmission.rubric_criteria && (
                     <p className="mt-1 text-xs text-slate-600">{selectedSubmission.rubric_criteria}</p>
                   )}
@@ -559,10 +599,10 @@ const GradeSubmissions = () => {
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-slate-100 bg-white p-4 text-sm text-slate-600">
-                  <p className="font-semibold text-slate-900 mb-2">Submitted Work</p>
+                <div className={`rounded-2xl border border-slate-100 bg-white ${gradingMode === 'batch' ? 'p-4' : 'p-3.5'} text-sm text-slate-600`}>
+                  <p className="mb-2 font-semibold text-slate-900">Submitted Work</p>
                   {submissionFiles.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-xs text-slate-400">
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-xs text-slate-400">
                       No uploaded files were found for this submission.
                     </div>
                   ) : (
@@ -591,7 +631,7 @@ const GradeSubmissions = () => {
                         onClick={() => setIsPreviewOpen(true)}
                         className="block w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-300"
                       >
-                        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                        <div className={`flex items-center justify-between border-b border-slate-100 ${gradingMode === 'batch' ? 'px-4 py-3' : 'px-3.5 py-2.5'}`}>
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{activeFile?.name}</p>
                             <p className="text-xs text-slate-500">Click the preview to open the full file.</p>
@@ -601,7 +641,7 @@ const GradeSubmissions = () => {
                           </span>
                         </div>
                         {activeFile?.type === 'pdf' ? (
-                          <div className="flex h-56 items-center justify-center bg-slate-50 px-6 text-center">
+                          <div className={`flex items-center justify-center bg-slate-50 px-6 text-center ${gradingMode === 'batch' ? 'h-56' : 'h-44'}`}>
                             <div>
                               <p className="text-sm font-semibold text-slate-900">PDF submission</p>
                               <p className="mt-1 text-xs text-slate-500">Click to inspect this file without leaving the page.</p>
@@ -611,7 +651,7 @@ const GradeSubmissions = () => {
                           <img
                             src={activeFile?.url}
                             alt={`${selectedSubmission.student_name} submission ${selectedFileIndex + 1}`}
-                            className="h-56 w-full object-contain bg-slate-50"
+                            className={`w-full object-contain bg-slate-50 ${gradingMode === 'batch' ? 'h-56' : 'h-44'}`}
                           />
                         )}
                       </button>
@@ -620,11 +660,13 @@ const GradeSubmissions = () => {
                 </div>
 
                 {!hasDraftResult ? (
-                  <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                  <div className={`space-y-4 rounded-2xl border border-slate-100 bg-slate-50 ${gradingMode === 'batch' ? 'p-5' : 'p-4'}`}>
                     <div>
                       <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Ready for generation</p>
                       <p className="mt-2 text-sm text-slate-600">
-                        Click Generate Score &amp; Feedback to create the AI draft for the selected student.
+                        {gradingMode === 'batch'
+                          ? 'Click Generate All to create AI drafts for the selected batch.'
+                          : 'Click Generate Score &amp; Feedback to create the AI draft for the selected student.'}
                       </p>
                     </div>
                     <button
@@ -633,20 +675,24 @@ const GradeSubmissions = () => {
                       disabled={!selectedSubmission || generating || bulkGenerating || returning}
                       className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow hover:bg-blue-700 transition disabled:cursor-not-allowed disabled:bg-blue-400"
                     >
-                      {generating && !bulkGenerating ? 'Generating...' : 'Generate Score & Feedback'}
+                      {generating && !bulkGenerating
+                        ? 'Generating...'
+                        : gradingMode === 'batch'
+                          ? 'Generate All'
+                          : 'Generate Score & Feedback'}
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
+                  <div className={`space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 ${gradingMode === 'batch' ? 'p-5' : 'p-4'}`}>
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs uppercase tracking-[0.35em] text-blue-400">Generated Result</p>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">
                         {reviewMode ? 'Ready to save' : 'Draft loaded'}
                       </span>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className={`rounded-2xl border border-slate-200 bg-white ${gradingMode === 'batch' ? 'p-4' : 'p-3.5'}`}>
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Score</p>
-                      <p className="mt-1 text-3xl font-black text-blue-700">
+                      <p className={`mt-1 font-black text-blue-700 ${gradingMode === 'batch' ? 'text-3xl' : 'text-2xl'}`}>
                         {draftScore !== null && draftScore !== undefined && draftScore !== '' ? `${draftScore}%` : 'Awaiting generation'}
                       </p>
                     </div>

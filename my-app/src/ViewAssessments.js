@@ -66,7 +66,7 @@ const ViewAssessments = ({ compact = false }) => {
                                 {activePanel === 'assessments' ? 'Assessments' : 'Rubrics'}
                             </h2>
                         </div>
-                        <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+                        <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 onClick={() => setActivePanel('assessments')}

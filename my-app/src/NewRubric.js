@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
@@ -309,19 +310,34 @@ const NewRubric = () => {
         }
     };
 
-    return (
-        <div>
-            <div className="mb-8">
-                <button
-                    onClick={() => navigate('/teacher/assessments')}
-                    className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-lg transition hover:bg-blue-700"
-                >
-                    &larr; Back to Assessments
-                </button>
-            </div>
-            <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 space-y-6 max-w-2xl mx-auto">
-                <h2 className="text-xl font-bold text-slate-900">Create a New Rubric</h2>
-                <form onSubmit={handleAddRubric} className="space-y-6">
+    const modalRoot = typeof document !== 'undefined' ? document.body : null;
+
+    if (!modalRoot) {
+        return null;
+    }
+
+    return createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center overflow-hidden bg-slate-950/55 px-4 py-6 backdrop-blur-md md:px-6 md:py-8">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(191,219,254,0.22),transparent_38%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-white/10" />
+            <div className="relative w-full max-w-[920px]">
+            <div className="teacher-float-card mx-auto overflow-hidden rounded-[2.25rem] border-white/70 bg-white/95 shadow-[0_30px_90px_rgba(59,130,246,0.2)] backdrop-blur-xl">
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 md:px-8">
+                    <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Create</p>
+                        <h2 className="text-xl font-bold text-slate-900">Create a New Rubric</h2>
+                        <p className="text-sm text-slate-500">Build the rubric here, then save it without leaving the page.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/teacher/assessments')}
+                        className="text-sm font-semibold text-slate-500 transition hover:text-slate-900"
+                    >
+                        Cancel
+                    </button>
+                </div>
+                <div className="teacher-scrollbar max-h-[calc(100vh-12rem)] overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+                    <form onSubmit={handleAddRubric} className="space-y-6">
                     <div className="space-y-3">
                         <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-slate-400">
                             <span>Guided Flow</span>
@@ -655,9 +671,12 @@ const NewRubric = () => {
                     >
                         {isEditing ? 'Update Rubric' : 'Create Rubric'}
                     </button>
-                </form>
+                    </form>
+                </div>
             </div>
-        </div>
+            </div>
+        </div>,
+        modalRoot
     );
 };
 
