@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from './axiosClient';
 import { loadSubjects, saveSubjects } from './subjectsStore';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import { getSubjectCardTheme } from './subjectCardThemes';
+import { useTeacherRecords } from './hooks/useTeacherRecords';
 
 const FALL_SCHOOL_YEAR_DEFAULTS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027'];
 const SEMESTER_OPTIONS = ['1st Semester', '2nd Semester', 'Summer'];
@@ -43,6 +45,7 @@ const ManageSubjects = () => {
     });
     const [showArchivedSubjects, setShowArchivedSubjects] = useState(false);
     const [showAddSubjectForm, setShowAddSubjectForm] = useState(false);
+    const { assessments } = useTeacherRecords();
 
     const showToast = (message, variant = 'default', details = null) => {
         setToast({ message, variant, details });
@@ -395,6 +398,32 @@ const ManageSubjects = () => {
         ? subjectsWithCounts.find((subject) => subject.id === selectedSubject.id) || selectedSubject
         : null;
     const enrolledList = selectedSubjectRecord ? (subjectEnrollments[selectedSubjectRecord.id] || []) : [];
+    const selectedSubjectAssessmentStats = useMemo(() => {
+        if (!selectedSubjectRecord) {
+            return { pending: 0, graded: 0 };
+        }
+
+        const subjectLabel = String(selectedSubjectRecord.name || selectedSubjectRecord.course || '').trim().toLowerCase();
+        const matchingAssessments = assessments.filter((assessment) => {
+            const assessmentSubject = String(
+                assessment.subject || assessment.subject_name || assessment.subject_display || ''
+            ).trim().toLowerCase();
+            return subjectLabel && assessmentSubject === subjectLabel;
+        });
+
+        return matchingAssessments.reduce(
+            (acc, assessment) => {
+                const status = String(assessment.assessment_status || assessment.status || 'Draft').toLowerCase();
+                if (status === 'graded') {
+                    acc.graded += 1;
+                } else {
+                    acc.pending += 1;
+                }
+                return acc;
+            },
+            { pending: 0, graded: 0 }
+        );
+    }, [assessments, selectedSubjectRecord]);
 
     useEffect(() => {
         if (!selectedSubjectRecord && !editingSubject) {
@@ -553,70 +582,77 @@ const ManageSubjects = () => {
 
                 <div className="teacher-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2 pb-10">
                     {visibleSubjectList.length > 0 ? (
-                        visibleSubjectList.map((subject) => (
-                            <article key={subject.id} className="relative overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm">
-                                <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
-                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                    <div className="min-w-0">
-                                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                                            {subject.course || 'Subject'}
-                                        </p>
-                                        <h3 className="mt-1.5 text-[1.02rem] font-bold text-slate-900">{subject.name}</h3>
-                                        <p className="mt-1 text-xs text-slate-500">
-                                            {subject.course} - {subject.year} - {subject.section}
-                                        </p>
-                                        <div className="mt-2.5 flex flex-wrap gap-2">
-                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                {subject.year}
-                                            </span>
-                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                Section {subject.section}
-                                            </span>
-                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                SY {subject.schoolYear}
-                                            </span>
-                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                {subject.semester}
-                                            </span>
+                        visibleSubjectList.map((subject) => {
+                            const theme = getSubjectCardTheme(subject);
+
+                            return (
+                                <article
+                                    key={subject.id}
+                                    className={`relative overflow-hidden rounded-[1.3rem] border p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm ${theme.surfaceClass}`}
+                                >
+                                    <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${theme.accentClass}`} />
+                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="min-w-0">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                                                {subject.course || 'Subject'}
+                                            </p>
+                                            <h3 className="mt-1.5 text-[1.02rem] font-bold text-slate-900">{subject.name}</h3>
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                {subject.course} - {subject.year} - {subject.section}
+                                            </p>
+                                            <div className="mt-2.5 flex flex-wrap gap-2">
+                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                    {subject.year}
+                                                </span>
+                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                    Section {subject.section}
+                                                </span>
+                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                    SY {subject.schoolYear}
+                                                </span>
+                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                    {subject.semester}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className={`rounded-2xl border px-3 py-2.5 text-center text-xs shadow-sm ${theme.chipClass}`}>
+                                            <p className="text-xs uppercase tracking-[0.25em] text-slate-400">ID {subject.id}</p>
+                                            <p className="mt-1 font-medium text-slate-600">{subject.archived ? 'Archived' : 'Active'}</p>
                                         </div>
                                     </div>
 
-                                    <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
-                                        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">ID {subject.id}</p>
-                                        <p className="mt-1 font-medium text-slate-600">{subject.archived ? 'Archived' : 'Active'}</p>
-                                    </div>
-                                </div>
-
-                                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2.5">
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm">
-                                            {subject.studentCount ?? 0} students
-                                        </span>
-                                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm">
-                                            {subject.activeAssessments ?? 0} pending
-                                        </span>
-                                        {subject.archived && (
-                                            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-600 shadow-sm">
-                                                Archived
+                                    <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2.5">
+                                        <div className="flex flex-wrap gap-2">
+                                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm ${theme.badgeClass}`}>
+                                                {subject.studentCount ?? 0} students
                                             </span>
-                                        )}
-                                    </div>
+                                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm ${theme.badgeClass}`}>
+                                                {subject.activeAssessments ?? 0} pending
+                                            </span>
+                                            {subject.archived && (
+                                                <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-600 shadow-sm">
+                                                    Archived
+                                                </span>
+                                            )}
+                                        </div>
 
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                fetchEnrollments();
-                                                setSelectedSubject(subject);
-                                            }}
-                                            className="rounded-full border border-blue-200 bg-white px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
-                                        >
-                                            View enrolled
-                                        </button>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    fetchEnrollments();
+                                                    setSelectedSubject(subject);
+                                                }}
+                                                className="rounded-full border border-blue-200 bg-white px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
+                                            >
+                                                View enrolled
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            </article>
-                        ))
+                                </article>
+                            );
+                        })
                     ) : (
                         <p className="rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center text-sm text-slate-400">
                             {subjectListEmptyMessage}
@@ -770,7 +806,7 @@ const ManageSubjects = () => {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 px-4 backdrop-blur-sm">
                     <div className="w-full max-w-5xl max-h-[calc(100vh-4rem)] overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-8 shadow-[0_25px_60px_rgba(15,23,42,0.35)]">
                         <div className="teacher-scrollbar flex h-full min-h-0 flex-col gap-8 overflow-y-auto pr-2">
-                        <div className="flex items-start justify-between gap-6 pt-1">
+                        <div className="flex flex-col gap-6 pt-1 lg:flex-row lg:items-start lg:justify-between">
                             <div className="space-y-2">
                                 <p className="text-sm uppercase tracking-[0.4em] text-slate-400">Enrollment</p>
                                 <h3 className="text-3xl font-bold text-slate-900">{selectedSubjectRecord.name}</h3>
@@ -793,78 +829,66 @@ const ManageSubjects = () => {
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 self-start">
+
+                            <div className="flex flex-col items-stretch gap-2 lg:min-w-[260px] lg:items-end">
                                 <button
                                     type="button"
-                                    onClick={() => fetchEnrollments()}
-                                    className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
-                                >
-                                    Refresh
-                                </button>
-                                <button
                                     onClick={() => setSelectedSubject(null)}
-                                    className="rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                                    className="w-full rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 lg:w-auto"
                                 >
                                     Close
                                 </button>
-                                {!selectedSubjectRecord.archived && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleEditSubject(selectedSubjectRecord)}
-                                            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                handleArchive(selectedSubjectRecord);
-                                                setSelectedSubject(null);
-                                            }}
-                                            className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-600 transition hover:bg-amber-100"
-                                        >
-                                            Archive
-                                        </button>
-                                    </>
-                                )}
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    {!selectedSubjectRecord.archived && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleEditSubject(selectedSubjectRecord)}
+                                                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    handleArchive(selectedSubjectRecord);
+                                                    setSelectedSubject(null);
+                                                }}
+                                                className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-600 transition hover:bg-amber-100"
+                                            >
+                                                Archive
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <div className="grid gap-3 md:grid-cols-3">
-                            <div className="teacher-stat-card teacher-stat-card-blue min-h-[132px] p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Enrolled</p>
-                                        <p className="mt-3 text-4xl font-black leading-none text-white">{enrolledList.length}</p>
-                                    </div>
-                                    <div className="teacher-stat-icon h-10 w-10 text-[10px]">EN</div>
+                            <div className="teacher-stat-card teacher-stat-card-blue min-h-[108px] p-3.5">
+                                <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Enrolled</p>
+                                    <p className="mt-2 text-3xl font-black leading-none text-white">{enrolledList.length}</p>
                                 </div>
-                                <div className="mt-4">
+                                <div className="mt-3">
                                     <p className="text-sm font-bold text-white">Students currently in this subject</p>
                                 </div>
                             </div>
-                            <div className="teacher-stat-card teacher-stat-card-amber min-h-[132px] p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Join Code</p>
-                                        <p className="mt-3 font-mono text-xl font-black leading-none text-white">{selectedSubjectRecord.joinCode}</p>
-                                    </div>
-                                    <div className="teacher-stat-icon h-10 w-10 text-[10px]">JC</div>
+                            <div className="teacher-stat-card teacher-stat-card-amber min-h-[108px] p-3.5">
+                                <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Pending Assessments</p>
+                                    <p className="mt-2 text-3xl font-black leading-none text-white">{selectedSubjectAssessmentStats.pending}</p>
                                 </div>
-                                <div className="mt-4">
-                                    <p className="text-sm font-bold text-white">Share this code so students can enroll</p>
+                                <div className="mt-3">
+                                    <p className="text-sm font-bold text-white">Assessments waiting for review</p>
                                 </div>
                             </div>
-                            <div className="teacher-stat-card teacher-stat-card-emerald min-h-[132px] p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Schedule</p>
-                                        <p className="mt-3 text-lg font-black leading-none text-white">{selectedSubjectRecord.semester}</p>
-                                    </div>
-                                    <div className="teacher-stat-icon h-10 w-10 text-[10px]">SC</div>
+                            <div className="teacher-stat-card teacher-stat-card-emerald min-h-[108px] p-3.5">
+                                <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Graded Assessments</p>
+                                    <p className="mt-2 text-3xl font-black leading-none text-white">{selectedSubjectAssessmentStats.graded}</p>
                                 </div>
-                                <div className="mt-4">
-                                    <p className="text-sm font-bold text-white">SY {selectedSubjectRecord.schoolYear}</p>
+                                <div className="mt-3">
+                                    <p className="text-sm font-bold text-white">Assessments already graded</p>
                                 </div>
                             </div>
                         </div>

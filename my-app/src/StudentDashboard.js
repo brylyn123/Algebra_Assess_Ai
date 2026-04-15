@@ -7,6 +7,7 @@ import {
   getLocalUserEventName,
   getCurrentLocalUserEmail,
 } from './localAuthStore';
+import { getSubjectCardTheme } from './subjectCardThemes';
 
 const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 
@@ -625,6 +626,10 @@ export const StudentSubjects = () => {
   );
 
   const selectedAssessmentItems = Array.isArray(selectedAssessment?.items) ? selectedAssessment.items : [];
+  const subjectTheme = useMemo(
+    () => getSubjectCardTheme(selectedSubject ?? selectedAssessment ?? {}),
+    [selectedAssessment, selectedSubject]
+  );
 
   const handleFiles = (event) => {
     const fileList = Array.from(event.target.files || []);
@@ -891,12 +896,13 @@ export const StudentSubjects = () => {
                         <div
                           key={assessment.exercise_id}
                           onClick={() => setSelectedAssessmentId(String(assessment.exercise_id))}
-                    className={`${compactListCardClass} ${
-                      isSelected
-                        ? 'border-blue-300 bg-[linear-gradient(135deg,rgba(239,246,255,1),rgba(219,234,254,0.96))] shadow-[0_18px_50px_rgba(59,130,246,0.14)]'
-                        : 'border-slate-100'
-                    }`}
-                  >
+                          className={`relative overflow-hidden rounded-[1.15rem] border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                            isSelected
+                              ? `${subjectTheme.surfaceClass} border-blue-300 shadow-[0_18px_50px_rgba(59,130,246,0.14)]`
+                              : `${subjectTheme.surfaceClass} border-slate-100`
+                          }`}
+                        >
+                          <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${subjectTheme.accentClass}`} />
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                             <div>
                               <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -906,7 +912,9 @@ export const StudentSubjects = () => {
                               <p className="mt-1 text-sm text-slate-500">{assessment.description || 'No description provided.'}</p>
                             </div>
                             <div className="flex flex-col items-start gap-2 lg:items-end">
-                              <span className={`${compactListBadgeClass} ${statusClass}`}>{statusLabel}</span>
+                              <span className={`${compactListBadgeClass} ${statusClass}`}>
+                                {statusLabel}
+                              </span>
                               <button
                                 type="button"
                                 onClick={(event) => {
@@ -942,6 +950,7 @@ export const StudentSubjects = () => {
                       className="flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]"
                       onClick={(event) => event.stopPropagation()}
                     >
+                      <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${subjectTheme.accentClass}`} />
                       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-[linear-gradient(135deg,rgba(255,255,255,1),rgba(239,246,255,0.92))] px-6 py-4">
                         <div>
                           <p className={sectionHeaderEyebrowClass}>Assessment</p>

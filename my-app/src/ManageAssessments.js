@@ -368,55 +368,51 @@ const ManageAssessments = () => {
                                             ) : (
                                                 assessments.map((item) => {
                                                     const statusValue = String(item.assessment_status || item.status || 'Draft');
-                                                    const statusTone =
-                                                        statusValue.toLowerCase() === 'graded'
-                                                            ? 'bg-emerald-50 text-emerald-700'
-                                                            : statusValue.toLowerCase() === 'pending'
-                                                                ? 'bg-amber-50 text-amber-700'
-                                                                : 'bg-blue-50 text-blue-700';
                                                     return (
                                                         <article
                                                             key={item.exercise_id}
-                                                            className="relative overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)]"
+                                                            className={`relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
+                                                                statusValue.toLowerCase() === 'graded'
+                                                                    ? 'border-emerald-200 bg-emerald-50/60'
+                                                                    : statusValue.toLowerCase() === 'pending'
+                                                                        ? 'border-amber-200 bg-amber-50/60'
+                                                                        : 'border-blue-200 bg-blue-50/60'
+                                                            }`}
                                                         >
                                                             <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
-                                                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                                 <div className="min-w-0">
                                                                     <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
                                                                         {item.subject || 'Assessment'}
                                                                     </p>
-                                                                    <h3 className="mt-1.5 text-[1.02rem] font-bold text-slate-900">
+                                                                    <h3 className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">
                                                                         {item.title}
                                                                     </h3>
                                                                     <p className="mt-1 text-xs text-slate-500">
                                                                         {item.topic || 'No topic set'} - {item.difficulty || 'Medium'}
                                                                     </p>
                                                                 </div>
-                                                                <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
-                                                                    <p className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
-                                                                        ID {item.exercise_id}
+                                                                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
+                                                                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                                                                        {item.item_count ?? item.items?.length ?? 0} item(s)
                                                                     </p>
-                                                                    <p className="mt-1 font-medium text-slate-600 capitalize">
+                                                                    <span
+                                                                        className={`mt-1 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${
+                                                                            statusValue.toLowerCase() === 'graded'
+                                                                                ? 'bg-emerald-50 text-emerald-700'
+                                                                                : statusValue.toLowerCase() === 'pending'
+                                                                                    ? 'bg-amber-50 text-amber-700'
+                                                                                    : 'bg-blue-50 text-blue-700'
+                                                                        }`}
+                                                                    >
                                                                         {statusValue}
-                                                                    </p>
+                                                                    </span>
                                                                 </div>
                                                             </div>
 
-                                                            <p className="mt-3 text-xs leading-6 text-slate-600">
+                                                            <p className="mt-1 text-xs leading-6 text-slate-600">
                                                                 {item.description || 'No description provided yet.'}
                                                             </p>
-
-                                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                                    {item.item_count ?? item.items?.length ?? 0} items
-                                                                </span>
-                                                                <span className={`rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold shadow-sm ${statusTone}`}>
-                                                                    {statusValue}
-                                                                </span>
-                                                                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                                    Created {formatDate(item.date_created)}
-                                                                </span>
-                                                            </div>
                                                         </article>
                                                     );
                                                 })

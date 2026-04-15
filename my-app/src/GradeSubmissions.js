@@ -487,26 +487,32 @@ const GradeSubmissions = () => {
                     key={submission.id}
                     type="button"
                     onClick={() => openGradingModal(submission, 'single')}
-                    className={`relative w-full overflow-hidden rounded-[1.3rem] border p-3 text-left shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
+                    className={`relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 text-left shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
                       isActive
                         ? 'border-blue-300 bg-blue-50'
-                        : 'border-slate-900/10 bg-slate-100/70 hover:border-blue-200'
+                        : ''
                     }`}
                   >
                     <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-[0.98rem] font-bold text-slate-900">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                          {submission.subject_display || 'Submission'}
+                        </p>
+                        <h3 className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">
                           {submission.student_name}
                         </h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {submission.assessment_title}
+                        </p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
                           <span>Submission date: {submission.submission_date}</span>
                           <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
-                          <span className="truncate">{submission.assessment_title}</span>
+                          <span className="truncate">{submission.subject_display || 'No subject'}</span>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2 text-center text-xs text-slate-500 shadow-sm">
-                        <p className={`mt-0.5 text-[11px] font-medium capitalize ${statusTone}`}>
+                      <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
+                        <p className={`text-[11px] font-semibold capitalize ${statusTone}`}>
                           {submissionStatus}
                         </p>
                       </div>

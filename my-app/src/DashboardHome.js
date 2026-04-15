@@ -147,7 +147,7 @@ const DashboardHome = () => {
                                 return (
                                     <article
                                         key={assessment.exercise_id}
-                                        className="teacher-float-card p-5"
+                                        className={`relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)]`}
                                     >
                                         <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -155,7 +155,7 @@ const DashboardHome = () => {
                                                 <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
                                                     {assessment.subject || 'Assessment'}
                                                 </p>
-                                                <p className="mt-1.5 text-[1.02rem] font-bold text-slate-900">{assessment.title}</p>
+                                                <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{assessment.title}</p>
                                                 <p className="mt-1 text-xs text-slate-500">
                                                     {assessment.subject || 'Unassigned Subject'} - {assessment.topic || 'No topic'}
                                                 </p>
