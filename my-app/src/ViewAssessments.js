@@ -56,7 +56,7 @@ const ViewAssessments = ({ compact = false }) => {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
             {!compact && (
                 <section className="page-hero-card p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -101,16 +101,16 @@ const ViewAssessments = ({ compact = false }) => {
                     {statusMessage && !loading ? (
                         <p className="mt-4 text-sm text-rose-600">{statusMessage}</p>
                     ) : activePanel === 'assessments' ? (
-                        <div className="mt-4 grid gap-4">
+                        <div className="teacher-scrollbar mt-4 grid max-h-[calc(100vh-360px)] gap-5 overflow-y-auto pr-2">
                             {activeAssessments.length === 0 && !loading ? (
-                                <p className="text-sm text-slate-500">
+                                <p className="teacher-float-card px-5 py-6 text-sm text-slate-500">
                                     No active assessments yet. Use "View All" to see completed work.
                                 </p>
                             ) : (
                                 activeAssessments.map((assessment) => (
                                     <article
                                         key={assessment.exercise_id}
-                                        className="flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                                        className="teacher-float-card flex flex-col gap-3 p-5"
                                     >
                                         <div className="flex items-center justify-between">
                                             <div>
@@ -142,14 +142,14 @@ const ViewAssessments = ({ compact = false }) => {
                             )}
                         </div>
                     ) : (
-                        <div className="mt-4 grid gap-4">
+                        <div className="teacher-scrollbar mt-4 grid max-h-[calc(100vh-360px)] gap-5 overflow-y-auto pr-2">
                             {rubrics.length === 0 && !loading ? (
-                                <p className="text-sm text-slate-500">No rubrics saved yet.</p>
+                                <p className="teacher-float-card px-5 py-6 text-sm text-slate-500">No rubrics saved yet.</p>
                             ) : (
                                 rubrics.map((rubric) => (
                                     <article
                                         key={rubric.rubric_set_id}
-                                        className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                                        className="teacher-float-card p-5"
                                     >
                                         <div className="flex items-center justify-between gap-4">
                                             <div>
@@ -180,8 +180,8 @@ const ViewAssessments = ({ compact = false }) => {
                                                 </p>
                                                 <div className="mt-2 flex flex-wrap gap-2">
                                                     {rubric.level_definitions.map((level, index) => (
-                                                        <span
-                                                            key={`${rubric.rubric_set_id}-level-${index}`}
+                                                <span
+                                                    key={`${rubric.rubric_set_id}-level-${index}`}
                                                             className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
                                                         >
                                                             {formatLevelLabel(level)}
@@ -227,12 +227,12 @@ const ViewAssessments = ({ compact = false }) => {
             )}
 
             {compact && (
-                <div>
-                    <p className="text-xs uppercase tracking-[0.4em] text-slate-400">View</p>
-                    <h3 className="text-base font-semibold text-slate-900">Assessments & rubrics</h3>
-                    <p className="text-xs text-slate-500">Tap 'View All' to inspect every assessment and rubric you created.</p>
-                </div>
-            )}
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">View</p>
+            <h3 className="text-base font-semibold text-slate-900">Assessments & rubrics</h3>
+            <p className="text-xs text-slate-500">Tap 'View All' to inspect every assessment and rubric you created.</p>
+        </div>
+    )}
 
             {compact && statusMessage && (
                 <p className="text-xs text-rose-500">{statusMessage}</p>

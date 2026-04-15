@@ -41,6 +41,44 @@
   @apply rounded-[1.6rem] border border-slate-100 bg-white p-6 shadow-[0_12px_35px_rgba(148,163,184,0.14)];
 }
 
+.teacher-float-card {
+  @apply relative overflow-hidden rounded-[1.45rem] border border-slate-200/80 bg-white shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm;
+}
+
+.teacher-float-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.95), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(226, 232, 240, 0.6), transparent 38%);
+  pointer-events: none;
+}
+
+.teacher-float-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.teacher-feature-card {
+  @apply relative overflow-hidden rounded-[2rem] border border-white/60 p-6 shadow-[0_24px_60px_rgba(59,130,246,0.12)] transition duration-300;
+}
+
+.teacher-feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.26), transparent 34%),
+    radial-gradient(circle at bottom left, rgba(255, 255, 255, 0.12), transparent 32%);
+  pointer-events: none;
+}
+
+.teacher-feature-card > * {
+  position: relative;
+  z-index: 1;
+}
+
 .teacher-soft-panel {
   @apply rounded-[1.5rem] border border-slate-100 bg-slate-50/90 p-4;
 }

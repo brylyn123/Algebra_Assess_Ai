@@ -106,19 +106,24 @@ const TeacherFeedback = () => {
   const subjectOptions = useMemo(() => subjects, [subjects]);
 
   return (
-    <div className="space-y-8 px-4 py-6 md:px-6 md:py-8">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <div className="page-hero-card p-8">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Feedback</p>
-          <h1 className="mt-3 text-3xl font-bold text-slate-900">Results & Feedback</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Review every submission that already has a saved grade and teacher feedback.
-          </p>
+    <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1440px] flex-col gap-10 pb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-2">
+            <p className="teacher-eyebrow">Feedback</p>
+            <h1 className="teacher-heading">Results & Feedback</h1>
+            <p className="text-sm text-slate-500">
+              Review every submission that already has a saved grade and teacher feedback.
+            </p>
+          </div>
+          <div className="teacher-status-pill bg-blue-50 text-blue-700">
+            {loading ? 'Loading...' : `${records.length} graded submissions`}
+          </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[0.95fr,1.05fr]">
-          <div className="space-y-6">
-            <div className="page-hero-card p-6">
+        <div className="grid min-h-0 flex-1 gap-10 lg:grid-cols-[0.95fr,1.05fr]">
+          <div className="flex min-h-0 flex-col gap-7 overflow-hidden">
+            <div className="teacher-float-card p-7">
               <label className="block text-sm font-semibold text-slate-500">Filter by Subject</label>
               <select
                 value={selectedSubject}
@@ -133,7 +138,7 @@ const TeacherFeedback = () => {
               </select>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
+            <div className="teacher-float-card flex min-h-0 flex-1 flex-col p-7">
               <div className="mb-4">
                 <p className="text-md font-semibold text-slate-900">Graded Submissions</p>
                 <p className="text-sm text-slate-500">
@@ -142,7 +147,7 @@ const TeacherFeedback = () => {
                 {errorMessage && <p className="mt-2 text-xs text-red-600">{errorMessage}</p>}
               </div>
 
-              <div className="teacher-scrollbar max-h-[520px] space-y-4 overflow-y-auto pr-2">
+              <div className="teacher-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto pr-2">
                 {!loading && records.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
                     No graded submissions yet. Save a result from Grade Submissions first.
@@ -155,7 +160,7 @@ const TeacherFeedback = () => {
                         key={record.score_id}
                         type="button"
                         onClick={() => setSelectedRecord(record)}
-                        className={`w-full rounded-2xl border p-4 text-left shadow-sm transition ${
+                        className={`teacher-float-card w-full p-5 text-left transition ${
                           isActive
                             ? 'border-blue-300 bg-blue-50'
                             : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/40'
@@ -182,14 +187,14 @@ const TeacherFeedback = () => {
             </div>
           </div>
 
-          <div className="page-hero-card p-8">
+          <div className="teacher-float-card flex min-h-0 flex-col p-7">
             {!selectedRecord ? (
               <div className="flex h-full min-h-[400px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
                 Select a graded submission to view the saved result.
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="rounded-2xl bg-blue-50 p-5">
+                <div className="teacher-float-card p-6">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Submission</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">{selectedRecord.student_name}</h2>
                   <p className="mt-1 text-sm text-slate-500">{selectedRecord.assessment_title}</p>
@@ -201,12 +206,12 @@ const TeacherFeedback = () => {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                  <div className="teacher-float-card p-6">
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Saved Grade</p>
                     <p className="mt-3 text-4xl font-black text-slate-900">{selectedRecord.score}%</p>
                     <p className="mt-2 text-sm font-semibold text-slate-500">{formatExactScore(selectedRecord)}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                  <div className="teacher-float-card p-6">
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Scored At</p>
                     <p className="mt-3 text-lg font-semibold text-slate-900">
                       {selectedRecord.date_scored ? new Date(selectedRecord.date_scored).toLocaleString() : 'Recently saved'}
@@ -214,7 +219,7 @@ const TeacherFeedback = () => {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
+                <div className="teacher-float-card p-6">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">AI Feedback</p>

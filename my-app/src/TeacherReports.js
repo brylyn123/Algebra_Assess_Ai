@@ -71,20 +71,26 @@ const TeacherReports = () => {
   ];
 
   return (
-    <div className="space-y-8 px-4 py-6 md:px-6 md:py-8">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <div className="page-hero-card p-8">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Reports</p>
-          <h1 className="mt-3 text-3xl font-bold text-slate-900">View Reports</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Track grading activity by subject and by assessment once scores are saved from the grading queue.
-          </p>
-          {errorMessage && <p className="mt-4 text-sm text-red-600">{errorMessage}</p>}
+    <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1440px] flex-col gap-10 pb-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2">
+            <p className="teacher-eyebrow">Reports</p>
+            <h1 className="teacher-heading">View Reports</h1>
+            <p className="text-sm text-slate-500">
+              Track grading activity by subject and by assessment once scores are saved from the grading queue.
+            </p>
+          </div>
+          <div className="teacher-status-pill bg-slate-100 text-slate-700">
+            {loading ? 'Updating...' : 'Report Snapshot Ready'}
+          </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+
+        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
           {statCards.map((card) => (
-            <div key={card.label} className="rounded-[1.75rem] border border-slate-100 bg-white p-6 shadow-sm">
+            <div key={card.label} className="teacher-float-card p-7">
               <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${card.accent}`}>
                 {card.label}
               </span>
@@ -93,21 +99,21 @@ const TeacherReports = () => {
           ))}
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-2">
-          <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
+        <div className="grid min-h-0 flex-1 gap-10 lg:grid-cols-2">
+          <div className="teacher-float-card flex min-h-0 flex-col p-7">
             <div className="mb-5">
               <p className="text-xl font-semibold text-slate-900">Subject Performance</p>
               <p className="text-sm text-slate-500">Average score and grading volume per subject.</p>
             </div>
 
-            <div className="space-y-4">
+            <div className="teacher-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto pr-2">
               {!loading && (!report?.subjects || report.subjects.length === 0) ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                <div className="teacher-float-card px-4 py-6 text-sm text-slate-500">
                   No subject report data yet.
                 </div>
               ) : (
                 (report?.subjects ?? []).map((subject) => (
-                  <div key={subject.subject_id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div key={subject.subject_id} className="teacher-float-card p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{subject.subject_name}</p>
@@ -123,20 +129,20 @@ const TeacherReports = () => {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
+          <div className="teacher-float-card p-7">
             <div className="mb-5">
               <p className="text-xl font-semibold text-slate-900">Assessment Performance</p>
               <p className="text-sm text-slate-500">How each assessment is doing once submissions are graded.</p>
             </div>
 
-            <div className="teacher-scrollbar max-h-[500px] space-y-4 overflow-y-auto pr-2">
+            <div className="teacher-scrollbar max-h-[520px] space-y-5 overflow-y-auto pr-2">
               {!loading && (!report?.assessments || report.assessments.length === 0) ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
                   No assessment report data yet.
                 </div>
               ) : (
                 (report?.assessments ?? []).map((assessment) => (
-                  <div key={assessment.exercise_id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div key={assessment.exercise_id} className="teacher-float-card p-5">
                     <p className="text-sm font-semibold text-slate-900">{assessment.title}</p>
                     <p className="mt-1 text-xs text-slate-500">{assessment.subject_name}</p>
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">

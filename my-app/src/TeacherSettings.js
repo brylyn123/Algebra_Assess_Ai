@@ -41,7 +41,7 @@ const TeacherSettings = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="flex h-full min-h-0 flex-col gap-8 overflow-hidden">
       <section className="page-hero-card p-8">
         <div className="flex flex-col gap-3">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">App Settings</p>
@@ -51,12 +51,12 @@ const TeacherSettings = () => {
           </p>
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+          <div className="teacher-float-card px-4 py-3">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Logged in as</p>
             <p className="text-sm font-semibold text-slate-900">{fullName}</p>
             <p className="text-xs text-slate-500">{storedTeacher?.email ?? 'teacher@example.com'}</p>
           </div>
-          <div className="rounded-2xl border border-slate-100 bg-white px-4 py-3">
+          <div className="teacher-float-card px-4 py-3">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Default view</p>
             <div className="mt-2 flex gap-2 flex-wrap">
               {['subjects', 'submissions', 'reports'].map((entry) => (
@@ -76,7 +76,7 @@ const TeacherSettings = () => {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm space-y-4">
+        <article className="teacher-float-card space-y-4 p-6">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Notifications</p>
             <h2 className="text-xl font-bold text-slate-900">Alert preferences</h2>
@@ -85,7 +85,7 @@ const TeacherSettings = () => {
             {toggles.map((toggle) => (
               <div
                 key={toggle.key}
-                className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3"
+                className="teacher-float-card flex items-center justify-between px-4 py-3"
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{toggle.label}</p>
@@ -105,7 +105,7 @@ const TeacherSettings = () => {
             ))}
           </div>
         </article>
-        <article className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm space-y-4">
+        <article className="teacher-float-card space-y-4 p-6">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Syllabus controls</p>
             <h2 className="text-xl font-bold text-slate-900">Workflow settings</h2>
@@ -122,7 +122,7 @@ const TeacherSettings = () => {
               <option>America/New_York</option>
               <option>UTC</option>
             </select>
-            <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+            <div className="teacher-float-card flex items-center justify-between px-4 py-3 text-xs text-slate-500">
               <span>Auto-archive completed assessments</span>
               <button className="rounded-full border border-slate-300 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-slate-500 hover:border-blue-300 hover:text-blue-700">
                 Toggle

@@ -114,7 +114,7 @@ const TeacherProfile = () => {
     .slice(0, 5);
 
   return (
-    <div className="space-y-8">
+    <div className="flex h-full min-h-0 flex-col gap-8 overflow-hidden">
       <section className="page-hero-card px-8 py-10">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -127,17 +127,17 @@ const TeacherProfile = () => {
           </div>
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <div className="teacher-float-card p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">School</p>
             <p className="text-sm font-semibold text-slate-900">{heroDetails.employer}</p>
             <p className="text-xs text-slate-500">{heroDetails.email}</p>
           </div>
-          <div className="rounded-2xl border border-slate-100 bg-white p-4">
+          <div className="teacher-float-card p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subjects</p>
             <p className="text-2xl font-bold text-slate-900">{loading ? '-' : statistics.subjects}</p>
             <p className="text-xs text-slate-500">Active classes assigned to you.</p>
           </div>
-          <div className="rounded-2xl border border-slate-100 bg-white p-4">
+          <div className="teacher-float-card p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Learners</p>
             <p className="text-2xl font-bold text-slate-900">{loading ? '-' : statistics.students}</p>
             <p className="text-xs text-slate-500">Students enrolled across all subjects.</p>
@@ -146,7 +146,7 @@ const TeacherProfile = () => {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
-        <article className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+        <article className="teacher-float-card p-6">
           <div className="flex items-center justify-between">
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Current Focus</p>
             <span className="text-xs text-blue-600">Updated live</span>
@@ -154,7 +154,7 @@ const TeacherProfile = () => {
           <p className="mt-3 text-lg font-semibold text-slate-900">{statistics.busiest}</p>
           <p className="text-xs text-slate-500">Most active subject based on enrollment in the last 30 days.</p>
         </article>
-        <article className="lg:col-span-2 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm space-y-4">
+        <article className="teacher-float-card lg:col-span-2 p-6 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Recent Enrollments</p>
             <button className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-800 transition">
@@ -166,7 +166,7 @@ const TeacherProfile = () => {
               <p className="rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500">No enrollments yet. Share your join code.</p>
             ) : (
               recentEnrollments.map((entry) => (
-                <div key={`${entry.enrollment_id}-${entry.student_id}`} className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 bg-slate-50">
+                <div key={`${entry.enrollment_id}-${entry.student_id}`} className="teacher-float-card flex items-center justify-between px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{entry.student_name || entry.student_id}</p>
                     <p className="text-[11px] text-slate-500">{entry.subjectName}</p>
@@ -180,21 +180,21 @@ const TeacherProfile = () => {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm space-y-4">
+        <article className="teacher-float-card space-y-4 p-6">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Quick Details</p>
             <h2 className="text-xl font-bold text-slate-900">Contact & Credentials</h2>
           </div>
           <div className="grid gap-3">
-            <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+            <div className="teacher-float-card flex items-center justify-between px-4 py-3">
               <span className="text-xs text-slate-500">Teacher ID</span>
               <span className="font-semibold text-slate-900">{teacherId ?? '-'}</span>
             </div>
-            <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+            <div className="teacher-float-card flex items-center justify-between px-4 py-3">
               <span className="text-xs text-slate-500">Email</span>
               <span className="font-semibold text-slate-900">{heroDetails.email}</span>
             </div>
-            <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+            <div className="teacher-float-card flex items-center justify-between px-4 py-3">
               <span className="text-xs text-slate-500">School</span>
               <span className="font-semibold text-slate-900">{heroDetails.employer}</span>
             </div>
@@ -208,7 +208,7 @@ const TeacherProfile = () => {
             </button>
           </div>
         </article>
-        <article className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm space-y-4">
+        <article className="teacher-float-card space-y-4 p-6">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Teaching Load</p>
             <h2 className="text-xl font-bold text-slate-900">Active Subjects</h2>
@@ -220,7 +220,7 @@ const TeacherProfile = () => {
               <p className="text-xs text-slate-500">No subjects found yet.</p>
             ) : (
               subjects.slice(0, 4).map((subject) => (
-                <div key={subject.id} className="rounded-2xl border border-slate-100 px-4 py-3 bg-slate-50 flex items-center justify-between">
+                <div key={subject.id} className="teacher-float-card flex items-center justify-between px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{subject.name}</p>
                     <p className="text-[11px] text-slate-500">{[subject.course, subject.year, subject.section].filter(Boolean).join(' | ')}</p>

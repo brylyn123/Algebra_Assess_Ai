@@ -13,23 +13,26 @@ const ViewAssessmentsPage = () => {
     };
 
     return (
-        <div className="p-4 md:p-8">
-            <div className="page-hero-card mb-8 flex items-center justify-between px-6 py-6 md:px-8">
-                <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Overview</p>
-                    <h1 className="text-3xl font-bold text-slate-900">Assessments & Rubrics</h1>
-                    <p className="mt-1 text-sm text-slate-500">Review everything you created for teaching.</p>
+        <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
+            <div className="mx-auto flex h-full min-h-0 max-w-[1400px] flex-col gap-8 pb-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="space-y-2">
+                        <p className="teacher-eyebrow">Overview</p>
+                        <h1 className="teacher-heading">Assessments & Rubrics</h1>
+                        <p className="text-sm text-slate-500">Review everything you created for teaching.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleBack}
+                        className="teacher-secondary-btn"
+                    >
+                        Back to Assessments
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    onClick={handleBack}
-                    className="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-sm transition hover:border-blue-700 hover:bg-blue-700"
-                >
-                    <span aria-hidden="true">←</span>
-                    Back to Assessments
-                </button>
+                <div className="min-h-0 flex-1 overflow-hidden">
+                    <ViewAssessments />
+                </div>
             </div>
-            <ViewAssessments />
         </div>
     );
 };

@@ -238,11 +238,11 @@ const Dashboard = () => {
         </header>
 
         <main className="mx-auto max-w-7xl px-6 py-10">
-          <div className="relative flex gap-8">
+          <div className="relative flex h-[calc(100vh-160px)] min-h-0 gap-8 overflow-hidden">
             <aside className="hidden w-[260px] shrink-0 lg:block">
               <motion.div
                 layout
-                className="sticky top-28 h-[calc(100vh-160px)] space-y-6 overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg"
+                className="sticky top-28 h-full space-y-6 overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg"
               >
                 <div>
                   <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -271,7 +271,7 @@ const Dashboard = () => {
               </motion.div>
             </aside>
 
-            <section className="min-w-0 flex-1">
+            <section className="min-w-0 flex-1 overflow-hidden">
               <motion.div
                 layout
                 transition={{
@@ -280,9 +280,9 @@ const Dashboard = () => {
                     ease: [0.22, 1, 0.36, 1],
                   },
                 }}
-                className="min-h-[600px] rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
+                className="h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
               >
-                <div className="min-h-[596px] rounded-[1.8rem] bg-[#f5f7fb]">
+                <div className="h-full min-h-0 overflow-hidden rounded-[1.8rem] bg-[#f5f7fb]">
                   <Outlet context={{ teacherName }} />
                 </div>
               </motion.div>

@@ -21,9 +21,6 @@ const ManageSubjects = () => {
     });
     const [selectedSubject, setSelectedSubject] = useState(null);
     const [editingSubject, setEditingSubject] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filterCourse, setFilterCourse] = useState('');
-    const [filterYear, setFilterYear] = useState('');
     const [isAdding, setIsAdding] = useState(false);
     const [toast, setToast] = useState(null);
     const [copiedJoinCode, setCopiedJoinCode] = useState(null);
@@ -45,6 +42,7 @@ const ManageSubjects = () => {
         years: []
     });
     const [showArchivedSubjects, setShowArchivedSubjects] = useState(false);
+    const [showAddSubjectForm, setShowAddSubjectForm] = useState(false);
 
     const showToast = (message, variant = 'default', details = null) => {
         setToast({ message, variant, details });
@@ -412,33 +410,6 @@ const ManageSubjects = () => {
     }, [editingSubject, selectedSubjectRecord]);
 
     const activeSubjects = subjectsWithCounts;
-    const searchLower = searchQuery.trim().toLowerCase();
-    const filteredSubjects = activeSubjects.filter((subject) => {
-        const matchesSearch =
-            subject.name.toLowerCase().includes(searchLower) ||
-            subject.course.toLowerCase().includes(searchLower) ||
-            subject.year.toLowerCase().includes(searchLower) ||
-            subject.section.toLowerCase().includes(searchLower) ||
-            subject.schoolYear.toLowerCase().includes(searchLower) ||
-            subject.semester.toLowerCase().includes(searchLower);
-        const matchesCourse = filterCourse ? subject.course === filterCourse : true;
-        const matchesYear = filterYear ? subject.year === filterYear : true;
-        return matchesSearch && matchesCourse && matchesYear;
-    });
-    const filteredArchivedSubjects = archivedSubjects.filter((subject) => {
-        const matchesSearch =
-            subject.name.toLowerCase().includes(searchLower) ||
-            subject.course.toLowerCase().includes(searchLower) ||
-            subject.year.toLowerCase().includes(searchLower) ||
-            subject.section.toLowerCase().includes(searchLower) ||
-            subject.schoolYear.toLowerCase().includes(searchLower) ||
-            subject.semester.toLowerCase().includes(searchLower);
-        const matchesCourse = filterCourse ? subject.course === filterCourse : true;
-        const matchesYear = filterYear ? subject.year === filterYear : true;
-        return matchesSearch && matchesCourse && matchesYear;
-    });
-    const courseOptions = Array.from(new Set(normalizedSubjects.map((subject) => subject.course))).filter(Boolean);
-    const yearOptions = Array.from(new Set(normalizedSubjects.map((subject) => subject.year))).filter(Boolean);
     const dropdownYearOptions = Array.from(new Set([
         ...registrationOptions.years.map((year) => year.year_level).filter(Boolean),
         ...YEAR_DROPDOWN_OPTIONS,
@@ -464,6 +435,11 @@ const ManageSubjects = () => {
 
     const toastCardStateClass = toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4';
     const overlayOpacityClass = toastVisible ? 'opacity-100' : 'opacity-0';
+
+    const visibleSubjectList = showArchivedSubjects ? archivedSubjects : activeSubjects;
+    const subjectListEmptyMessage = showArchivedSubjects
+        ? 'No archived subjects match your search yet.'
+        : 'No subjects match your search. Add the first class on the left to get started.';
 
     return (
         <>
@@ -519,250 +495,276 @@ const ManageSubjects = () => {
                     </div>
                 </div>
             )}
-            <div className="grid lg:grid-cols-2 gap-8 items-start">
-                {/* Add Subject Card */}
-                <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 space-y-6">
-                    <h2 className="text-xl font-bold text-slate-900">Add New Subject</h2>
-                    <form onSubmit={handleAddSubject} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-1">Subject Name</label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={newSubject.name}
-                                onChange={handleInputChange}
-                                placeholder="e.g., Algebra 101"
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-1">Course</label>
-                            <select
-                                name="courseId"
-                                value={newSubject.courseId}
-                                onChange={handleInputChange}
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                            >
-                                <option value="" disabled hidden>Select course</option>
-                                {registrationOptions.courses.map((courseOption) => (
-                                    <option key={courseOption.course_id} value={courseOption.course_id}>
-                                        {courseOption.course_code || courseOption.course_name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">Year</label>
-                                <select
-                                    name="yearId"
-                                    value={newSubject.yearId}
-                                    onChange={handleInputChange}
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                >
-                                    <option value="" disabled hidden>Select year</option>
-                                    {registrationOptions.years.map((yearOption) => (
-                                        <option key={yearOption.year_id} value={yearOption.year_id}>
-                                            {yearOption.year_level}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">Section</label>
-                                <select
-                                    name="sectionId"
-                                    value={newSubject.sectionId}
-                                    onChange={handleInputChange}
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                >
-                                    <option value="" disabled hidden>Select section</option>
-                                    {registrationOptions.sections.map((sectionOption) => (
-                                        <option key={sectionOption.section_id} value={sectionOption.section_id}>
-                                            {sectionOption.section_name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">School Year</label>
-                                <select
-                                    name="schoolYear"
-                                    value={newSubject.schoolYear}
-                                    onChange={handleInputChange}
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                >
-                                    <option value="" disabled hidden>Select school year</option>
-                                    {dropdownSchoolYearOptions.map((schoolYear) => (
-                                        <option key={schoolYear} value={schoolYear}>
-                                            {schoolYear}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">Semester</label>
-                                <select
-                                    name="semester"
-                                    value={newSubject.semester}
-                                    onChange={handleInputChange}
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                >
-                                    <option value="" disabled hidden>Select semester</option>
-                                    {dropdownSemesterOptions.map((semester) => (
-                                        <option key={semester} value={semester}>
-                                            {semester}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={isAdding}
-                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition duration-300 disabled:cursor-wait disabled:opacity-60"
-                        >
-                            {isAdding ? 'Adding...' : 'Add Subject'}
-                        </button>
-                    </form>
-                </div>
-
-                {/* View Subjects Card */}
-                <div className="bg-white rounded-[2rem] p-8 shadow-lg border border-slate-100 space-y-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-900">View Subjects</h2>
-                            <p className="mt-1 text-sm text-slate-500">
-                                Switch between your active and archived classes anytime.
-                            </p>
-                        </div>
+            <div className="sticky top-0 mx-auto flex h-[calc(100vh-210px)] w-full max-w-[1400px] min-h-0 flex-col space-y-4 overflow-hidden px-4 pt-4 sm:px-6 md:px-8 md:pt-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <p className="teacher-eyebrow">Subjects</p>
+                        <h2 className="teacher-heading text-[1.7rem] md:text-[2rem]">View Subjects</h2>
+                        <p className="mt-2 text-sm text-slate-500">
+                            Browse your classes and jump into enrollment details quickly.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
                         <button
                             type="button"
-                            onClick={() => setShowArchivedSubjects((current) => !current)}
-                            className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition ${
-                                showArchivedSubjects
-                                    ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                            onClick={() => setShowArchivedSubjects(false)}
+                        className={`rounded-full px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
+                                !showArchivedSubjects
+                                    ? 'bg-blue-600 text-white shadow-blue-200'
                                     : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
                             }`}
                         >
-                            {showArchivedSubjects ? 'Show Active Subjects' : `Archived Subjects (${archivedSubjects.length})`}
+                            View Subjects
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowAddSubjectForm(true)}
+                            className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
+                        >
+                            Add Subject
                         </button>
                     </div>
-                    <div className="flex flex-wrap gap-3 items-center">
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by subject, course, year"
-                            className="flex-1 min-w-[180px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-blue-400"
-                        />
-                        <select
-                            value={filterCourse}
-                            onChange={(e) => setFilterCourse(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700"
-                        >
-                            <option value="">All Courses</option>
-                            {courseOptions.map((course) => (
-                                <option key={course} value={course}>
-                                    {course}
-                                </option>
-                            ))}
-                        </select>
-                        <select
-                            value={filterYear}
-                            onChange={(e) => setFilterYear(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700"
-                        >
-                            <option value="">All Years</option>
-                            {yearOptions.map((year) => (
-                                <option key={year} value={year}>
-                                    {year}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="teacher-scrollbar space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                        {(showArchivedSubjects ? filteredArchivedSubjects : filteredSubjects).length > 0 ? (
-                            (showArchivedSubjects ? filteredArchivedSubjects : filteredSubjects).map((subject) => (
-                                <div key={subject.id} className="bg-slate-50 rounded-xl p-4 flex flex-col gap-3">
-                                    <div className="flex justify-between gap-3">
-                                        <div>
-                                            <p className="font-semibold text-slate-800">{subject.name}</p>
-                                            <p className="text-sm text-slate-500">{subject.course} | {subject.year} | {subject.section}</p>
-                                            <p className="text-xs text-slate-400">SY {subject.schoolYear} | Semester {subject.semester}</p>
-                                            <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
-                                                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-                                                    {subject.studentCount ?? 0} Students
-                                                </span>
-                                                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-                                                    {subject.activeAssessments ?? 0} Pending Assessments
-                                                </span>
-                                                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-                                                    Join Code: {subject.joinCode}
-                                                </span>
-                                                {subject.archived && (
-                                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
-                                                        Archived
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="text-xs text-slate-500 text-right">
-                                            <p>ID {subject.id}</p>
-                                            <p>Status {subject.archived ? 'Inactive' : 'Active'}</p>
+                </div>
+
+                <div className="inline-flex w-full max-w-[430px] rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+                    <button
+                        type="button"
+                        onClick={() => setShowArchivedSubjects(false)}
+                        className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            !showArchivedSubjects
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                                : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                        Active
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowArchivedSubjects(true)}
+                        className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            showArchivedSubjects
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                                : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                        Archived ({archivedSubjects.length})
+                    </button>
+                </div>
+
+                <div className="teacher-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2 pb-10">
+                    {visibleSubjectList.length > 0 ? (
+                        visibleSubjectList.map((subject) => (
+                            <article key={subject.id} className="relative overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm">
+                                <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="min-w-0">
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                                            {subject.course || 'Subject'}
+                                        </p>
+                                        <h3 className="mt-1.5 text-[1.02rem] font-bold text-slate-900">{subject.name}</h3>
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            {subject.course} - {subject.year} - {subject.section}
+                                        </p>
+                                        <div className="mt-2.5 flex flex-wrap gap-2">
+                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                {subject.year}
+                                            </span>
+                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                Section {subject.section}
+                                            </span>
+                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                SY {subject.schoolYear}
+                                            </span>
+                                            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
+                                                {subject.semester}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+
+                                    <div className="rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
+                                        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">ID {subject.id}</p>
+                                        <p className="mt-1 font-medium text-slate-600">{subject.archived ? 'Archived' : 'Active'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2.5">
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm">
+                                            {subject.studentCount ?? 0} students
+                                        </span>
+                                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm">
+                                            {subject.activeAssessments ?? 0} pending
+                                        </span>
+                                        {subject.archived && (
+                                            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-600 shadow-sm">
+                                                Archived
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 fetchEnrollments();
                                                 setSelectedSubject(subject);
                                             }}
-                                            className="rounded-full border border-blue-200 bg-blue-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                            className="rounded-full border border-blue-200 bg-white px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
                                         >
-                                            {showArchivedSubjects ? 'View Details' : 'View Enrolled'}
+                                            View enrolled
                                         </button>
-                                        {!showArchivedSubjects && (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleEditSubject(subject)}
-                                                    className="rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleArchive(subject)}
-                                                    className="rounded-full border border-amber-200 bg-amber-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-600 transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                                                >
-                                                    Archive
-                                                </button>
-                                            </>
-                                        )}
                                     </div>
                                 </div>
-                            ))
-                        ) : (
-                            <p className="text-center text-slate-400 py-8">
-                                {showArchivedSubjects
-                                    ? 'No archived subjects match your search yet.'
-                                    : 'No subjects match your search. Add the first class on the left to get started.'}
-                            </p>
-                        )}
-                        {archivedSubjects.length > 0 && (
-                            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 pt-2">
-                                {showArchivedSubjects
-                                    ? `${archivedSubjects.length} archived subject(s) available in your history.`
-                                    : `${archivedSubjects.length} archived subject(s) hidden. Archived subjects keep their history safe.`}
-                            </p>
-                        )}
-                    </div>
+                            </article>
+                        ))
+                    ) : (
+                        <p className="rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center text-sm text-slate-400">
+                            {subjectListEmptyMessage}
+                        </p>
+                    )}
+
+                    {archivedSubjects.length > 0 && !showArchivedSubjects && (
+                        <p className="pt-2 text-xs uppercase tracking-[0.3em] text-slate-500">
+                            {archivedSubjects.length} archived subject(s) hidden. Archived subjects keep their history safe.
+                        </p>
+                    )}
                 </div>
             </div>
+
+            {showAddSubjectForm && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 px-4 backdrop-blur-sm">
+                    <div className="w-full max-w-3xl rounded-[2rem] border border-slate-100 bg-white p-6 shadow-[0_25px_60px_rgba(15,23,42,0.35)] space-y-6">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-sm uppercase tracking-[0.4em] text-slate-400 mb-1">Create</p>
+                                <h3 className="text-2xl font-bold text-slate-900">Add New Subject</h3>
+                                <p className="text-sm text-slate-500">Create a new class and generate a join code for students.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowAddSubjectForm(false)}
+                                className="text-sm font-semibold text-slate-500 hover:text-slate-900"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddSubject} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">Subject Name</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={newSubject.name}
+                                    onChange={handleInputChange}
+                                    placeholder="e.g., Algebra 101"
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">Course</label>
+                                <select
+                                    name="courseId"
+                                    value={newSubject.courseId}
+                                    onChange={handleInputChange}
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+                                >
+                                    <option value="" disabled hidden>Select course</option>
+                                    {registrationOptions.courses.map((courseOption) => (
+                                        <option key={courseOption.course_id} value={courseOption.course_id}>
+                                            {courseOption.course_code || courseOption.course_name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">Year</label>
+                                    <select
+                                        name="yearId"
+                                        value={newSubject.yearId}
+                                        onChange={handleInputChange}
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+                                    >
+                                        <option value="" disabled hidden>Select year</option>
+                                        {registrationOptions.years.map((yearOption) => (
+                                            <option key={yearOption.year_id} value={yearOption.year_id}>
+                                                {yearOption.year_level}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">Section</label>
+                                    <select
+                                        name="sectionId"
+                                        value={newSubject.sectionId}
+                                        onChange={handleInputChange}
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+                                    >
+                                        <option value="" disabled hidden>Select section</option>
+                                        {registrationOptions.sections.map((sectionOption) => (
+                                            <option key={sectionOption.section_id} value={sectionOption.section_id}>
+                                                {sectionOption.section_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">School Year</label>
+                                    <select
+                                        name="schoolYear"
+                                        value={newSubject.schoolYear}
+                                        onChange={handleInputChange}
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+                                    >
+                                        <option value="" disabled hidden>Select school year</option>
+                                        {dropdownSchoolYearOptions.map((schoolYear) => (
+                                            <option key={schoolYear} value={schoolYear}>
+                                                {schoolYear}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">Semester</label>
+                                    <select
+                                        name="semester"
+                                        value={newSubject.semester}
+                                        onChange={handleInputChange}
+                                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+                                    >
+                                        <option value="" disabled hidden>Select semester</option>
+                                        {dropdownSemesterOptions.map((semester) => (
+                                            <option key={semester} value={semester}>
+                                                {semester}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddSubjectForm(false)}
+                                    className="rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isAdding}
+                                    className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+                                >
+                                    {isAdding ? 'Adding...' : 'Add Subject'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {selectedSubjectRecord && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 px-4 backdrop-blur-sm">
@@ -805,6 +807,27 @@ const ManageSubjects = () => {
                                 >
                                     Close
                                 </button>
+                                {!selectedSubjectRecord.archived && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleEditSubject(selectedSubjectRecord)}
+                                            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                handleArchive(selectedSubjectRecord);
+                                                setSelectedSubject(null);
+                                            }}
+                                            className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-600 transition hover:bg-amber-100"
+                                        >
+                                            Archive
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                         <div className="grid gap-3 md:grid-cols-3">
@@ -855,7 +878,7 @@ const ManageSubjects = () => {
                                     {enrolledList.map((student) => (
                                         <div
                                             key={student.enrollment_id ?? student.student_id}
-                                            className="rounded-[1.35rem] border border-white bg-white px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                                        className="rounded-[1.4rem] border border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
                                         >
                                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                                                 <div className="min-w-0">

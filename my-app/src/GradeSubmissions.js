@@ -381,12 +381,18 @@ const GradeSubmissions = () => {
   const hasDraftResult = draftScore !== null && draftScore !== undefined && draftScore !== '';
 
   return (
-    <div className="space-y-6 px-4 py-6 md:px-6 md:py-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <h1 className="text-3xl font-bold text-slate-900">Generate Score</h1>
+    <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col gap-6 pb-6">
+        <div className="space-y-2">
+          <p className="teacher-eyebrow">Grading</p>
+          <h1 className="teacher-heading">Generate Score</h1>
+          <p className="text-sm text-slate-500">
+            Select an assessment, review the submissions, and return a grade when you’re ready.
+          </p>
+        </div>
 
-        <div className="space-y-6">
-          <div className="rounded-[2rem] bg-white p-8 border border-slate-100 shadow-lg space-y-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
+          <div className="teacher-float-card space-y-5 p-8">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="max-w-2xl">
                 <p className="text-sm font-semibold text-slate-500 mb-2">Select Assessment</p>
@@ -422,7 +428,7 @@ const GradeSubmissions = () => {
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-8 border border-slate-100 shadow-lg space-y-6">
+          <div className="teacher-float-card flex min-h-0 flex-1 flex-col space-y-6 p-8">
             <div className="space-y-1">
               <p className="text-md font-semibold text-slate-900">Student Submissions</p>
               <p className="text-sm text-slate-500">
@@ -431,7 +437,7 @@ const GradeSubmissions = () => {
               {errorMessage && <p className="text-xs text-red-600">{errorMessage}</p>}
             </div>
 
-            <div className="teacher-scrollbar max-h-[calc(100vh-14rem)] space-y-4 overflow-y-auto pr-2">
+            <div className="teacher-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
               {visibleSubmissions.length === 0 && !loading && (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                   <p className="text-sm text-slate-500">No ungraded submissions match that assessment yet.</p>
@@ -454,7 +460,7 @@ const GradeSubmissions = () => {
                     key={submission.id}
                     type="button"
                     onClick={() => openGradingModal(submission, 'single')}
-                    className={`w-full text-left rounded-[1rem] border px-4 py-3 shadow-sm transition ${isActive
+                    className={`teacher-float-card w-full text-left px-4 py-3 transition ${isActive
                       ? 'border-blue-300 bg-blue-50'
                       : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/40'
                     }`}
