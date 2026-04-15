@@ -138,17 +138,17 @@ const Dashboard = () => {
         whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
         className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
-          isActive ? 'text-blue-700' : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
+          isActive ? 'text-white shadow-lg shadow-blue-100' : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
         }`}
       >
         {isActive && (
           <motion.span
             layoutId="teacher-account-active-pill"
-            className="absolute inset-0 rounded-2xl bg-blue-50"
+            className="absolute inset-0 rounded-2xl bg-blue-600"
             transition={navSpring}
           />
         )}
-        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white">
+        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15">
           {icon}
         </span>
         <span className="relative z-10 block flex-1 whitespace-nowrap leading-tight">{label}</span>
@@ -159,6 +159,9 @@ const Dashboard = () => {
   const isTeacherZone = location.pathname.startsWith('/teacher');
   const profilePath = isTeacherZone ? '/teacher/profile' : '/dashboard/profile';
   const settingsPath = isTeacherZone ? '/teacher/settings' : '/dashboard/settings';
+  const isReportsRoute = location.pathname === '/teacher/reports';
+  const isSettingsRoute = location.pathname === '/teacher/settings' || location.pathname === '/dashboard/settings';
+  const usesLargePanelScroll = isReportsRoute || isSettingsRoute;
 
   return (
     <>
@@ -282,7 +285,12 @@ const Dashboard = () => {
                 }}
                 className="h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
               >
-                <div className="h-full min-h-0 overflow-hidden rounded-[1.8rem] bg-[#f5f7fb]">
+                <div
+                  className={`h-full min-h-0 rounded-[1.8rem] bg-[#f5f7fb] ${
+                    usesLargePanelScroll ? 'teacher-scrollbar overflow-y-auto' : 'overflow-hidden'
+                  }`}
+                  style={usesLargePanelScroll ? { scrollbarGutter: 'stable' } : undefined}
+                >
                   <Outlet context={{ teacherName }} />
                 </div>
               </motion.div>

@@ -1,8 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-import { getSubjectCardTheme } from './subjectCardThemes';
 
 const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+const DIFFICULTY_ORDER = ['Easy', 'Medium', 'Hard'];
+
+const clampScore = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Number(value)));
+};
 
 const TeacherReports = () => {
   const currentEmail = getCurrentLocalUserEmail();
@@ -12,6 +20,8 @@ const TeacherReports = () => {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [activeChart, setActiveChart] = useState('subjects');
+  const [selectedDifficulty, setSelectedDifficulty] = useState('All');
 
   useEffect(() => {
     let isMounted = true;
@@ -69,11 +79,109 @@ const TeacherReports = () => {
     { label: 'Graded', value: summary.graded_submissions ?? 0, accent: 'bg-emerald-50 text-emerald-700' },
     { label: 'Pending', value: summary.pending_submissions ?? 0, accent: 'bg-amber-50 text-amber-700' },
     { label: 'Average Score', value: summary.average_score !== null && summary.average_score !== undefined ? `${summary.average_score}%` : 'N/A', accent: 'bg-violet-50 text-violet-700' },
+    { label: 'Highest Score', value: summary.highest_score !== null && summary.highest_score !== undefined ? `${summary.highest_score}%` : 'N/A', accent: 'bg-cyan-50 text-cyan-700' },
+    { label: 'Lowest Score', value: summary.lowest_score !== null && summary.lowest_score !== undefined ? `${summary.lowest_score}%` : 'N/A', accent: 'bg-rose-50 text-rose-700' },
   ];
 
+  const subjectChartData = useMemo(
+    () =>
+      (report?.subjects ?? []).map((subject) => ({
+        id: `subject-${subject.subject_id}`,
+        label: subject.subject_name,
+        typeLabel: 'Subject',
+        score: subject.average_score,
+        scoreText: subject.average_score !== null ? `${subject.average_score}% avg` : 'No score yet',
+        submissionsText: `${subject.submissions} submission(s)`,
+        metaPills: [
+          `${subject.graded} graded`,
+          subject.submissions > 0 ? `${Math.round((subject.graded / subject.submissions) * 100)}% completed` : 'No submissions yet',
+        ],
+      })),
+    [report?.subjects]
+  );
+
+  const assessmentChartData = useMemo(
+    () =>
+      (report?.assessments ?? []).map((assessment) => ({
+        id: `assessment-${assessment.exercise_id}`,
+        label: assessment.title,
+        subtitle: assessment.subject_name,
+        difficulty: String(assessment.difficulty || 'Medium'),
+        typeLabel: 'Assessment',
+        score: assessment.average_score,
+        scoreText: assessment.average_score !== null ? `${assessment.average_score}% avg` : 'No score yet',
+        submissionsText: `${assessment.submissions} submission(s)`,
+        metaPills: [
+          `${assessment.graded} graded`,
+          assessment.average_score !== null ? `${assessment.average_score}% average` : 'No score yet',
+        ],
+      })),
+    [report?.assessments]
+  );
+
+  const activeChartData = activeChart === 'subjects' ? subjectChartData : assessmentChartData;
+  const scoredChartData = activeChartData.filter((entry) => entry.score !== null && entry.score !== undefined);
+  const topPerformer = scoredChartData.length > 0
+    ? scoredChartData.reduce((best, entry) => (entry.score > best.score ? entry : best), scoredChartData[0])
+    : null;
+  const needsAttention = scoredChartData.length > 0
+    ? scoredChartData.reduce((lowest, entry) => (entry.score < lowest.score ? entry : lowest), scoredChartData[0])
+    : null;
+  const assessmentGroups = useMemo(() => {
+    const grouped = new Map(DIFFICULTY_ORDER.map((difficulty) => [difficulty, []]));
+
+    assessmentChartData.forEach((entry) => {
+      const key = grouped.has(entry.difficulty) ? entry.difficulty : 'Medium';
+      grouped.get(key).push(entry);
+    });
+
+    return DIFFICULTY_ORDER
+      .map((difficulty) => ({
+        difficulty,
+        entries: grouped.get(difficulty) ?? [],
+      }))
+      .filter((group) => group.entries.length > 0);
+  }, [assessmentChartData]);
+  const difficultyOptions = useMemo(
+    () => ['All', ...assessmentGroups.map((group) => group.difficulty)],
+    [assessmentGroups]
+  );
+  const visibleAssessmentGroups = useMemo(() => {
+    if (selectedDifficulty === 'All') {
+      return assessmentGroups;
+    }
+
+    return assessmentGroups.filter((group) => group.difficulty === selectedDifficulty);
+  }, [assessmentGroups, selectedDifficulty]);
+  const visibleEntries = activeChart === 'assessments'
+    ? visibleAssessmentGroups.flatMap((group) => group.entries)
+    : activeChartData;
+  const chartSummary = useMemo(() => {
+    const scoredEntries = visibleEntries.filter((entry) => entry.score !== null && entry.score !== undefined);
+
+    return {
+      visibleCount: visibleEntries.length,
+      average:
+        scoredEntries.length > 0
+          ? `${Math.round(scoredEntries.reduce((total, entry) => total + Number(entry.score || 0), 0) / scoredEntries.length)}%`
+          : 'N/A',
+    };
+  }, [visibleEntries]);
+
+  useEffect(() => {
+    if (activeChart !== 'assessments') {
+      return;
+    }
+
+    setSelectedDifficulty((current) => {
+      const stillValid = difficultyOptions.includes(current);
+      return stillValid ? current : 'All';
+    });
+  }, [activeChart, difficultyOptions]);
+
   return (
-    <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
-      <div className="mx-auto flex h-full min-h-0 max-w-[1440px] flex-col gap-10 pb-6">
+    <div className="px-4 py-4 md:px-6 md:py-5">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-10 pb-10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-2">
             <p className="teacher-eyebrow">Reports</p>
@@ -89,7 +197,7 @@ const TeacherReports = () => {
 
         {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
 
-        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
           {statCards.map((card) => (
             <div key={card.label} className="teacher-list-card p-6">
               <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${card.accent}`}>
@@ -100,96 +208,169 @@ const TeacherReports = () => {
           ))}
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-10 lg:grid-cols-2">
-          <div className="teacher-float-card flex min-h-0 flex-col p-6">
-            <div className="mb-5">
-              <p className="text-xl font-semibold text-slate-900">Subject Performance</p>
-              <p className="text-sm text-slate-500">Average score and grading volume per subject.</p>
+        <section className="space-y-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setActiveChart('subjects')}
+                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                    activeChart === 'subjects'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Subjects
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveChart('assessments')}
+                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                    activeChart === 'assessments'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Assessments
+                </button>
+              </div>
+
+              <div>
+                <p className="text-xl font-semibold text-slate-900">
+                  {activeChart === 'subjects' ? 'Subject Performance' : 'Assessment Performance'}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {activeChart === 'subjects'
+                    ? 'Average score and grading progress per subject.'
+                    : 'Average score and grading progress for each assessment.'}
+                </p>
+              </div>
             </div>
 
-            <div className="teacher-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto pr-2">
-              {!loading && (!report?.subjects || report.subjects.length === 0) ? (
-                <div className="teacher-float-card px-4 py-6 text-sm text-slate-500">
-                  No subject report data yet.
-                </div>
-              ) : (
-                (report?.subjects ?? []).map((subject) => (
-                  (() => {
-                    const theme = getSubjectCardTheme(subject);
-                    return (
-                      <div
-                        key={subject.subject_id}
-                        className={`relative overflow-hidden rounded-[1.3rem] border border-slate-900/10 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm ${theme.surfaceClass}`}
-                      >
-                        <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${theme.accentClass}`} />
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Subject</p>
-                            <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{subject.subject_name}</p>
-                            <p className="mt-1 text-xs text-slate-500">{subject.submissions} submission(s)</p>
-                          </div>
-                          <span className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-center text-xs font-semibold text-slate-600 shadow-sm">
-                            {subject.average_score !== null ? `${subject.average_score}% avg` : 'No score yet'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()
-                ))
-              )}
+            <div className="grid gap-3 sm:grid-cols-2 xl:w-[420px]">
+              <div className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible</p>
+                <p className="mt-2 text-2xl font-black text-slate-900">{chartSummary.visibleCount}</p>
+              </div>
+              <div className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible Avg</p>
+                <p className="mt-2 text-2xl font-black text-blue-700">{chartSummary.average}</p>
+              </div>
+              <div className="rounded-[1.35rem] border border-emerald-200 bg-emerald-50/80 px-4 py-3 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-700">Top</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{topPerformer?.label ?? 'No scored data yet'}</p>
+              </div>
+              <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50/80 px-4 py-3 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-amber-700">Needs Attention</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{needsAttention?.label ?? 'No scored data yet'}</p>
+              </div>
             </div>
           </div>
 
-          <div className="teacher-float-card p-6">
-            <div className="mb-5">
-              <p className="text-xl font-semibold text-slate-900">Assessment Performance</p>
-              <p className="text-sm text-slate-500">How each assessment is doing once submissions are graded.</p>
+          {activeChart === 'assessments' && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Difficulty</p>
+              <div className="flex flex-wrap gap-2">
+                {difficultyOptions.map((difficulty) => (
+                  <button
+                    key={difficulty}
+                    type="button"
+                    onClick={() => setSelectedDifficulty(difficulty)}
+                    className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                      selectedDifficulty === difficulty
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
+                    }`}
+                  >
+                    {difficulty}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+            <div className="hidden grid-cols-[180px,minmax(0,1fr)] gap-4 border-b border-slate-100 px-2 pb-3 text-[11px] font-semibold text-slate-400 md:grid">
+              <div />
+              <div className="grid grid-cols-5">
+                <span className="text-left">0</span>
+                <span className="text-center">25</span>
+                <span className="text-center">50</span>
+                <span className="text-center">75</span>
+                <span className="text-right">100</span>
+              </div>
             </div>
 
-            <div className="teacher-scrollbar max-h-[520px] space-y-5 overflow-y-auto pr-2">
-              {!loading && (!report?.assessments || report.assessments.length === 0) ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                  No assessment report data yet.
-                </div>
-              ) : (
-                (report?.assessments ?? []).map((assessment) => (
-                  (() => {
-                    const theme = getSubjectCardTheme(assessment);
-                    return (
-                      <div
-                        key={assessment.exercise_id}
-                        className={`relative overflow-hidden rounded-[1.3rem] border border-slate-900/10 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm ${theme.surfaceClass}`}
-                      >
-                        <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${theme.accentClass}`} />
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">Assessment</p>
-                            <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{assessment.title}</p>
-                            <p className="mt-1 text-xs text-slate-500">{assessment.subject_name}</p>
+            <div className="mt-4 overflow-x-auto">
+              <div className="min-w-[760px] space-y-4 pb-6">
+                {!loading && activeChartData.length === 0 ? (
+                  <div className="rounded-[1.3rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                    No {activeChart} report data yet.
+                  </div>
+                ) : (
+                  (activeChart === 'assessments' ? visibleAssessmentGroups : [{ difficulty: '', entries: activeChartData }]).map((group) => (
+                    <div key={group.difficulty || 'all'} className="space-y-4">
+                      {group.entries.map((entry) => {
+                        const score = clampScore(entry.score);
+                        return (
+                          <div key={entry.id} className="grid gap-2 rounded-[1.25rem] border border-slate-100 bg-slate-50/70 p-3 md:grid-cols-[180px,minmax(0,1fr)] md:gap-4">
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-500">
+                                {entry.typeLabel}
+                              </p>
+                              <p className="mt-1 text-[0.96rem] font-bold leading-snug text-slate-900">
+                                {entry.label}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {entry.submissionsText}
+                              </p>
+                              {entry.subtitle && (
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {entry.subtitle}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="space-y-2.5">
+                              <div className="h-10 overflow-hidden rounded-[1rem] bg-slate-100">
+                                <div
+                                  className="flex h-full min-w-[5rem] items-center rounded-[1rem] bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-3 shadow-[0_12px_22px_rgba(59,130,246,0.2)]"
+                                  style={{ width: `${score}%` }}
+                                >
+                                  <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-800 shadow-sm">
+                                    {entry.scoreText}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-1.5">
+                                {entry.metaPills.map((pill) => (
+                                  <span
+                                    key={`${entry.id}-${pill}`}
+                                    className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm"
+                                  >
+                                    {pill}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                          <span className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-center text-xs font-semibold text-slate-600 shadow-sm">
-                            {assessment.average_score !== null ? `${assessment.average_score}%` : 'No score yet'}
-                          </span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                            {assessment.submissions} submission(s)
-                          </span>
-                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                            {assessment.graded} graded
-                          </span>
-                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                            {assessment.average_score !== null ? `${assessment.average_score}% average` : 'No score yet'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()
-                ))
-              )}
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+
+                {!loading && activeChart === 'assessments' && visibleAssessmentGroups.length === 0 && (
+                  <div className="rounded-[1.3rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                    No assessments found for the selected difficulty.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

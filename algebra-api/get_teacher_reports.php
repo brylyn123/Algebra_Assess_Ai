@@ -64,6 +64,7 @@ try {
         "SELECT
             ep.exercise_id,
             ep.title,
+            ep.difficulty,
             subj.subject_name,
             COUNT(cs.solution_id) AS submissions,
             SUM(CASE WHEN sc.score_id IS NOT NULL THEN 1 ELSE 0 END) AS graded,
@@ -73,7 +74,7 @@ try {
          LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
          WHERE subj.teacher_id = ?
-         GROUP BY ep.exercise_id, ep.title, subj.subject_name
+         GROUP BY ep.exercise_id, ep.title, ep.difficulty, subj.subject_name
          ORDER BY ep.date_created DESC, ep.exercise_id DESC"
     );
     $assessmentStmt->bind_param("i", $teacher_id);
@@ -85,6 +86,7 @@ try {
         $assessments[] = [
             'exercise_id' => (int)$row['exercise_id'],
             'title' => $row['title'],
+            'difficulty' => $row['difficulty'] ?? 'Medium',
             'subject_name' => $row['subject_name'],
             'submissions' => (int)$row['submissions'],
             'graded' => (int)$row['graded'],

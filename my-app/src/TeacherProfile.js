@@ -81,18 +81,9 @@ const TeacherProfile = () => {
       return total + (Array.isArray(subject.students) ? subject.students.length : 0);
     }, 0);
 
-    const subjectWithMostStudents = enrollments
-      .slice()
-      .sort((a, b) => {
-        const aLen = Array.isArray(a.students) ? a.students.length : 0;
-        const bLen = Array.isArray(b.students) ? b.students.length : 0;
-        return bLen - aLen;
-      })[0];
-
     return {
       subjects: subjects.length,
       students: totalStudents,
-      busiest: subjectWithMostStudents?.subject_name ?? 'No enrollments yet',
     };
   }, [enrollments, subjects.length]);
 
@@ -103,18 +94,9 @@ const TeacherProfile = () => {
     role: storedTeacher?.role ?? 'Teacher',
   };
 
-  const recentEnrollments = enrollments
-    .flatMap((subject) => {
-      if (!Array.isArray(subject.students)) return [];
-      return subject.students.map((student) => ({
-        ...student,
-        subjectName: subject.subject_name,
-      }));
-    })
-    .slice(0, 5);
-
   return (
-    <div className="flex h-full min-h-0 flex-col gap-8 overflow-hidden">
+    <div className="h-full min-h-0 overflow-y-auto px-4 py-4 md:px-6 md:py-5">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-8">
       <section className="page-hero-card px-8 py-10">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -122,116 +104,80 @@ const TeacherProfile = () => {
             <h1 className="text-3xl font-bold text-slate-900">{heroDetails.name}</h1>
             <p className="text-sm text-slate-500">Lead your algebra classes with confidence and AI-powered insights.</p>
           </div>
-          <div className="rounded-2xl border border-slate-200 px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+          <div className="rounded-2xl border border-blue-200 bg-white/80 px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-blue-700 shadow-sm">
             {heroDetails.role}
           </div>
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className="teacher-float-card p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">School</p>
-            <p className="text-sm font-semibold text-slate-900">{heroDetails.employer}</p>
-            <p className="text-xs text-slate-500">{heroDetails.email}</p>
+          <div className="rounded-[1.6rem] border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5 shadow-[0_14px_30px_rgba(56,189,248,0.12)]">
+            <p className="text-xs uppercase tracking-[0.3em] text-sky-600">School</p>
+            <p className="mt-2 text-sm font-semibold text-slate-900">{heroDetails.employer}</p>
+            <p className="mt-1 text-xs text-slate-500">{heroDetails.email}</p>
           </div>
-          <div className="teacher-float-card p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subjects</p>
-            <p className="text-2xl font-bold text-slate-900">{loading ? '-' : statistics.subjects}</p>
-            <p className="text-xs text-slate-500">Active classes assigned to you.</p>
+          <div className="rounded-[1.6rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-[0_14px_30px_rgba(16,185,129,0.12)]">
+            <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">Subjects</p>
+            <p className="mt-2 text-3xl font-black text-slate-900">{loading ? '-' : statistics.subjects}</p>
+            <p className="mt-1 text-xs text-slate-500">Active classes assigned to you.</p>
           </div>
-          <div className="teacher-float-card p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Learners</p>
-            <p className="text-2xl font-bold text-slate-900">{loading ? '-' : statistics.students}</p>
-            <p className="text-xs text-slate-500">Students enrolled across all subjects.</p>
+          <div className="rounded-[1.6rem] border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 shadow-[0_14px_30px_rgba(139,92,246,0.12)]">
+            <p className="text-xs uppercase tracking-[0.3em] text-violet-600">Learners</p>
+            <p className="mt-2 text-3xl font-black text-slate-900">{loading ? '-' : statistics.students}</p>
+            <p className="mt-1 text-xs text-slate-500">Students enrolled across all subjects.</p>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <article className="teacher-float-card p-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Current Focus</p>
-            <span className="text-xs text-blue-600">Updated live</span>
-          </div>
-          <p className="mt-3 text-lg font-semibold text-slate-900">{statistics.busiest}</p>
-          <p className="text-xs text-slate-500">Most active subject based on enrollment in the last 30 days.</p>
-        </article>
-        <article className="teacher-float-card lg:col-span-2 p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Recent Enrollments</p>
-            <button className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-800 transition">
-              View all
-            </button>
-          </div>
-          <div className="space-y-3">
-            {recentEnrollments.length === 0 ? (
-              <p className="rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500">No enrollments yet. Share your join code.</p>
-            ) : (
-              recentEnrollments.map((entry) => (
-                <div key={`${entry.enrollment_id}-${entry.student_id}`} className="teacher-float-card flex items-center justify-between px-4 py-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{entry.student_name || entry.student_id}</p>
-                    <p className="text-[11px] text-slate-500">{entry.subjectName}</p>
-                  </div>
-                  <span className="text-[11px] text-slate-500">{entry.date_enrolled ?? '-'}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
-      </section>
-
       <section className="grid gap-6 lg:grid-cols-2">
-        <article className="teacher-float-card space-y-4 p-6">
+        <article className="rounded-[1.8rem] border border-slate-200 bg-white/90 p-6 shadow-[0_18px_40px_rgba(148,163,184,0.14)]">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Quick Details</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Profile Details</p>
             <h2 className="text-xl font-bold text-slate-900">Contact & Credentials</h2>
           </div>
-          <div className="grid gap-3">
-            <div className="teacher-float-card flex items-center justify-between px-4 py-3">
-              <span className="text-xs text-slate-500">Teacher ID</span>
+          <div className="mt-5 grid gap-3">
+            <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Teacher ID</span>
               <span className="font-semibold text-slate-900">{teacherId ?? '-'}</span>
             </div>
-            <div className="teacher-float-card flex items-center justify-between px-4 py-3">
-              <span className="text-xs text-slate-500">Email</span>
+            <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Email</span>
               <span className="font-semibold text-slate-900">{heroDetails.email}</span>
             </div>
-            <div className="teacher-float-card flex items-center justify-between px-4 py-3">
-              <span className="text-xs text-slate-500">School</span>
+            <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
+              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">School</span>
               <span className="font-semibold text-slate-900">{heroDetails.employer}</span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow hover:bg-blue-700 transition">
-              Edit Profile
-            </button>
-            <button className="rounded-2xl border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-600">
-              Generate Join Code
-            </button>
-          </div>
+          <button className="mt-5 rounded-2xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700">
+            Edit Profile
+          </button>
         </article>
-        <article className="teacher-float-card space-y-4 p-6">
+        <article className="rounded-[1.8rem] border border-slate-200 bg-white/90 p-6 shadow-[0_18px_40px_rgba(148,163,184,0.14)]">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Teaching Load</p>
             <h2 className="text-xl font-bold text-slate-900">Active Subjects</h2>
           </div>
-          <div className="space-y-3">
+          <div className="mt-5 space-y-3">
             {loading ? (
               <p className="text-xs text-slate-500">Loading subjects...</p>
             ) : subjects.length === 0 ? (
-              <p className="text-xs text-slate-500">No subjects found yet.</p>
+              <p className="rounded-[1.2rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-xs text-slate-500">No subjects found yet.</p>
             ) : (
               subjects.slice(0, 4).map((subject) => (
-                <div key={subject.id} className="teacher-float-card flex items-center justify-between px-4 py-3">
+                <div key={subject.id} className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3 shadow-sm">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{subject.name}</p>
                     <p className="text-[11px] text-slate-500">{[subject.course, subject.year, subject.section].filter(Boolean).join(' | ')}</p>
                   </div>
-                  <span className="text-[11px] text-slate-500">{subject.joinCode || 'No join code'}</span>
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                    {subject.joinCode || 'No join code'}
+                  </span>
                 </div>
               ))
             )}
           </div>
         </article>
       </section>
+      </div>
     </div>
   );
 };

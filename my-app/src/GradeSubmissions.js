@@ -496,10 +496,7 @@ const GradeSubmissions = () => {
                     <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                          {submission.subject_display || 'Submission'}
-                        </p>
-                        <h3 className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">
+                        <h3 className="truncate text-[1.02rem] font-bold text-slate-900">
                           {submission.student_name}
                         </h3>
                         <p className="mt-1 text-xs text-slate-500">

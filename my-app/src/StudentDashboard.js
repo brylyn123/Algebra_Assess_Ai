@@ -292,6 +292,11 @@ const StudentDashboard = () => {
       assessmentsError,
       dashboardStats,
       pendingAssessments,
+      enrollCode,
+      setEnrollCode,
+      enrollLoading,
+      enrollMessage,
+      handleEnroll,
     }),
     [
       enrolledSubjects,
@@ -303,6 +308,10 @@ const StudentDashboard = () => {
       assessmentsError,
       dashboardStats,
       pendingAssessments,
+      enrollCode,
+      enrollLoading,
+      enrollMessage,
+      handleEnroll,
     ]
   );
 
@@ -344,7 +353,7 @@ const StudentDashboard = () => {
       )}
 
       <div
-        className="min-h-screen overflow-hidden bg-slate-50"
+        className="min-h-screen bg-slate-50"
         style={{
           backgroundImage:
             'linear-gradient(#cbd7ed 1px, transparent 1px), linear-gradient(90deg, #cbd7ed 1px, transparent 1px)',
@@ -352,9 +361,7 @@ const StudentDashboard = () => {
           backgroundColor: '#e0edff',
         }}
       >
-        <div className="pointer-events-none absolute left-10 top-28 -z-0 h-56 w-56 rounded-full bg-sky-300/25 blur-3xl" />
-        <div className="pointer-events-none absolute right-20 top-40 -z-0 h-72 w-72 rounded-full bg-indigo-300/20 blur-3xl" />
-        <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 text-white shadow-md">
+        <header className="sticky top-0 z-50 border-b border-white/15 bg-blue-600 text-white shadow-md">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
             <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate('/student')}>
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20 text-2xl font-bold">A</div>
@@ -385,118 +392,143 @@ const StudentDashboard = () => {
           </div>
         </header>
 
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 lg:flex-row lg:flex-nowrap">
-          <aside className="sticky top-6 w-full flex-none self-start space-y-6 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-md lg:top-20 lg:h-[calc(100vh-160px)] lg:max-h-[calc(100vh-160px)] lg:w-72 lg:overflow-y-auto">
-            <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
-            <nav className="space-y-2">
-              {quickActions.map((action) => {
-                const isActive =
-                  action.path === '/student/subjects'
-                    ? location.pathname.startsWith('/student/subjects')
-                    : location.pathname === action.path;
-                return (
-                  <button
-                    key={action.label}
-                    type="button"
-                    onClick={() => navigate(action.path)}
-                    className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-blue-600'
-                    }`}
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs font-extrabold">
-                      {action.icon}
-                    </span>
-                    <span className="whitespace-nowrap text-base font-bold">{action.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Enroll by Code</h3>
-              <form onSubmit={handleEnroll} className="space-y-2">
-                <input
-                  value={enrollCode}
-                  onChange={(event) => setEnrollCode(event.target.value)}
-                  placeholder="Paste teacher's join code"
-                  className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={enrollLoading}
-                  className="w-full rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition duration-200 disabled:cursor-wait disabled:bg-blue-300"
-                >
-                  {enrollLoading ? 'Enrolling...' : 'Join Subject'}
-                </button>
-              </form>
-              <p className="text-xs text-slate-400">
-                Ask your teacher for the subject join code, then paste it here to be added immediately.
-              </p>
-              {enrollMessage && <p className="text-xs font-medium text-slate-600">{enrollMessage}</p>}
-            </div>
-          </aside>
-
-          <main
-            className={`flex-1 pr-0 ${
-              isSubmitPage || isDashboardPage ? 'overflow-hidden' : 'overflow-y-auto'
-            }`}
-            style={{ maxHeight: 'calc(100vh - 200px)' }}
-          >
-            <div
-              className={`rounded-[2.25rem] border border-[#d9dfeb] bg-[#eef2f7] px-5 py-6 shadow-[0_24px_70px_rgba(59,130,246,0.08)] md:px-8 md:py-8 ${
-                isDashboardPage ? 'h-[calc(100vh-200px)] overflow-hidden' : 'min-h-[680px]'
-              }`}
-            >
-              <div className={`${isDashboardPage ? 'h-full overflow-hidden' : ''} space-y-10 pb-6 md:space-y-12 md:pb-8`}>
-                <Outlet context={outletContext} />
+        <main className="mx-auto max-w-7xl px-6 py-10">
+          <div className="relative flex h-[calc(100vh-160px)] min-h-0 gap-8 overflow-hidden">
+            <aside className="hidden w-[260px] shrink-0 lg:block">
+              <div className="sticky top-28 h-full space-y-6 overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
+                <div>
+                  <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
+                  <nav className="space-y-1">
+                    {quickActions.map((action) => {
+                      const isActive =
+                        action.path === '/student/subjects'
+                          ? location.pathname.startsWith('/student/subjects')
+                          : location.pathname === action.path;
+                      return (
+                        <button
+                          key={action.label}
+                          type="button"
+                          onClick={() => navigate(action.path)}
+                          className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                            isActive
+                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                              : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
+                          }`}
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs font-extrabold">
+                            {action.icon}
+                          </span>
+                          <span className="block flex-1 whitespace-nowrap leading-tight">{action.label}</span>
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </div>
               </div>
-            </div>
-          </main>
-        </div>
+            </aside>
+
+            <section
+              className={`min-w-0 flex-1 ${
+                isSubmitPage || isDashboardPage ? 'overflow-hidden' : 'overflow-y-auto'
+              }`}
+              style={{ maxHeight: 'calc(100vh - 200px)' }}
+            >
+              <div
+                className={`h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)] ${
+                  isDashboardPage ? 'h-[calc(100vh-200px)] overflow-hidden' : 'min-h-[680px]'
+                }`}
+              >
+                <div className="h-full min-h-0 overflow-hidden rounded-[1.8rem] bg-[#f5f7fb]">
+                <div className={`${isDashboardPage ? 'h-full overflow-hidden' : 'h-full min-h-0 overflow-y-auto'} space-y-10 px-5 py-6 pb-6 md:space-y-12 md:px-8 md:py-8 md:pb-8`}>
+                    <Outlet context={outletContext} />
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
       </div>
     </>
   );
 };
 
 export const StudentOverview = () => {
+  const navigate = useNavigate();
   const {
     loadingAssessments = false,
     assessmentsError = '',
     dashboardStats = {},
     pendingAssessments = [],
   } = useOutletContext() ?? {};
+  const overviewCards = [
+    {
+      key: 'enrolledSubjects',
+      label: 'Enrolled subjects',
+      description: 'Classes currently active',
+      color: 'teacher-stat-card-blue',
+      icon: 'SB',
+    },
+    {
+      key: 'completedAssessments',
+      label: 'Completed assessments',
+      description: 'Finished submissions',
+      color: 'teacher-stat-card-emerald',
+      icon: 'OK',
+    },
+    {
+      key: 'averageScore',
+      label: 'Average score',
+      description: 'Returned results so far',
+      color: 'teacher-stat-card-amber',
+      icon: 'AV',
+    },
+  ];
 
   return (
     <>
-      <section className="page-hero-card mb-6 px-8 py-10 md:mb-8 md:px-10 md:py-11">
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Overview</p>
-          <h1 className="text-3xl font-bold text-slate-900">Student Home</h1>
-          <p className="text-sm text-slate-500">
-            See your progress, check pending work, and keep track of active assessments.
+      <section className="mb-6 flex flex-col gap-4 pb-3 lg:flex-row lg:items-end lg:justify-between md:mb-8 md:pb-4">
+        <div className="pt-2 md:pt-3">
+          <h1 className="teacher-heading">Welcome back, Student!</h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-500">
+            Here is your learning snapshot for today, plus the assessments that still need your submission.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => navigate('/student/subjects')}
+          className="teacher-primary-btn"
+        >
+          View My Subjects
+        </button>
       </section>
 
-      <section className="mb-6 grid gap-8 md:mb-8 md:grid-cols-3">
-        {dashboardWidgets.map((widget) => (
+      <section className="mb-6 grid grid-cols-1 gap-12 px-1 pt-2 sm:grid-cols-2 sm:px-2 xl:grid-cols-3 xl:gap-14 md:mb-8 md:pt-4">
+        {overviewCards.map((widget) => (
           <div
             key={widget.key}
-            className={`rounded-[1.75rem] bg-gradient-to-r px-8 py-7 text-white shadow-sm ${widget.gradient}`}
+            className={`teacher-stat-card ${widget.color} min-h-[144px] p-5 shadow-[0_24px_60px_rgba(59,130,246,0.22)]`}
           >
-            <p className="text-[10px] uppercase tracking-[0.3em]">{widget.label}</p>
-            <p className="text-3xl font-bold">{dashboardStats[widget.key] ?? '-'}</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">Overview</p>
+                <p className="mt-4 text-4xl font-black leading-none text-white lg:text-5xl">
+                  {dashboardStats[widget.key] ?? '-'}
+                </p>
+              </div>
+              <div className="teacher-stat-icon">{widget.icon}</div>
+            </div>
+            <div className="mt-6">
+              <p className="text-lg font-bold text-white lg:text-xl">{widget.label}</p>
+              <p className="mt-2 max-w-[18rem] text-sm text-white/80">{widget.description}</p>
+            </div>
           </div>
         ))}
       </section>
 
-      <section className="mb-6 rounded-[2rem] border border-slate-100 bg-white px-7 py-8 shadow-sm md:mb-8 md:px-9 md:py-9">
+      <section className="mb-6 md:mb-8">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Assessment Queue</p>
-            <h2 className="text-2xl font-semibold text-slate-900">Ongoing Assessments</h2>
+            <p className="text-xl font-bold text-slate-900">Ongoing Assessments</p>
             <p className="mt-1 text-sm text-slate-500">
               These assessments are waiting for your submission.
             </p>
@@ -506,44 +538,58 @@ export const StudentOverview = () => {
           </span>
         </div>
 
-        <div className="mt-8 max-h-[360px] overflow-y-auto pr-2">
-          <div className="space-y-6">
+        <div className="teacher-scrollbar mt-5 max-h-[calc(100vh-520px)] space-y-5 overflow-y-auto pr-4 pb-24 sm:max-h-[calc(100vh-500px)]">
           {loadingAssessments ? (
             <p className="text-sm text-slate-500">Loading assessments...</p>
           ) : assessmentsError ? (
             <p className="text-sm text-rose-600">{assessmentsError}</p>
           ) : pendingAssessments.length === 0 ? (
-            <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+            <div className="teacher-float-card px-6 py-6 text-sm text-slate-500">
               <p className="text-lg font-semibold text-slate-900">No assessments for now</p>
               <p className="mt-2 text-sm text-slate-500">All works caught up.</p>
             </div>
           ) : (
             pendingAssessments.map((assessment) => (
-              <div key={assessment.exercise_id} className="rounded-[1.75rem] border border-slate-100 bg-slate-50 p-6 shadow-sm md:p-7">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                      {assessment.subject_name} {assessment.subject_code ? `(${assessment.subject_code})` : ''}
+              <article
+                key={assessment.exercise_id}
+                className="relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)]"
+              >
+                <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                      {assessment.subject_name || 'Assessment'}
                     </p>
-                    <h3 className="text-lg font-semibold text-slate-900">{assessment.title}</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {assessment.description || 'Complete the assigned work and submit it from the assessment page.'}
+                    <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{assessment.title}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {(assessment.subject_name || 'Unassigned Subject')} - {(assessment.topic || 'No topic')}
                     </p>
                   </div>
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                    Awaiting submission
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      {assessment.item_count ?? 0} item(s)
+                    </p>
+                    <span className="mt-1 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                      Pending
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                    Difficulty: {assessment.difficulty || 'Medium'}
                   </span>
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                    Items: {assessment.item_count ?? 0}
+                  </span>
+                  {assessment.subject_code && (
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                      {assessment.subject_code}
+                    </span>
+                  )}
                 </div>
-                <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
-                  <span>Topic: {assessment.topic || '-'}</span>
-                  <span>Difficulty: {assessment.difficulty || 'Medium'}</span>
-                  <span>Items: {assessment.item_count ?? 0}</span>
-                  {assessment.subject_meta && <span>{assessment.subject_meta}</span>}
-                </div>
-              </div>
+              </article>
             ))
           )}
-          </div>
         </div>
       </section>
 
@@ -562,6 +608,11 @@ export const StudentSubjects = () => {
     availableAssessments = [],
     loadingAssessments = false,
     assessmentsError = '',
+    enrollCode = '',
+    setEnrollCode = () => {},
+    enrollLoading = false,
+    enrollMessage = '',
+    handleEnroll = () => {},
   } = useOutletContext() ?? {};
   const currentEmail = getCurrentLocalUserEmail();
   const currentUser = currentEmail ? findLocalUser(currentEmail) : null;
@@ -733,42 +784,84 @@ export const StudentSubjects = () => {
   return (
     <>
       <section className="page-hero-card mb-6 px-8 py-10 md:mb-8 md:px-10 md:py-11">
-        <div className="flex flex-col gap-2">
-          <p className={sectionHeaderEyebrowClass}>
-            {isSubjectAssessmentPage ? 'Assessments' : 'Subjects'}
-          </p>
-          <h1 className={sectionHeaderTitleClass}>
-            {isSubjectAssessmentPage ? selectedSubject?.subject_name || 'Assessments' : 'My Subjects'}
-          </h1>
-          <p className={sectionHeaderSubtextClass}>
-            {isSubjectAssessmentPage
-              ? 'Review the assessments for this subject below, then open one to view the items and submit your captured solution.'
-              : 'Click a subject to see its assessments, view the item list, and submit your captured solution if you are enrolled.'}
-          </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-2">
+            <p className={sectionHeaderEyebrowClass}>
+              {isSubjectAssessmentPage ? 'Assessments' : 'Subjects'}
+            </p>
+            <h1 className={sectionHeaderTitleClass}>
+              {isSubjectAssessmentPage ? selectedSubject?.subject_name || 'Assessments' : 'My Subjects'}
+            </h1>
+            <p className={sectionHeaderSubtextClass}>
+              {isSubjectAssessmentPage
+                ? 'Review the assessments for this subject below, then open one to view the items and submit your captured solution.'
+                : 'Browse your classes, switch between active and archived subjects, and enroll using a teacher join code.'}
+            </p>
+          </div>
+
+          {!isSubjectAssessmentPage && (
+            <div className="w-full max-w-md rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Join Subject</p>
+                  <p className="mt-1 text-sm text-slate-500">Paste the teacher's join code to enroll instantly.</p>
+                </div>
+              </div>
+              <form onSubmit={handleEnroll} className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={enrollCode}
+                  onChange={(event) => setEnrollCode(event.target.value)}
+                  placeholder="Paste teacher's join code"
+                  className="teacher-input flex-1 bg-white"
+                />
+                <button
+                  type="submit"
+                  disabled={enrollLoading}
+                  className="teacher-primary-btn whitespace-nowrap disabled:cursor-wait disabled:bg-blue-300"
+                >
+                  {enrollLoading ? 'Enrolling...' : 'Join Subject'}
+                </button>
+              </form>
+              {enrollMessage && <p className="mt-3 text-xs font-medium text-slate-600">{enrollMessage}</p>}
+            </div>
+          )}
         </div>
       </section>
 
       <section className="space-y-6">
         {!isSubjectAssessmentPage && (
           <>
-            <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-slate-100 bg-white px-5 py-4 shadow-sm">
+            <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subject Library</p>
+                <p className="text-xl font-bold text-slate-900">Subject Library</p>
                 <p className="mt-1 text-sm text-slate-500">
                   Switch between your current classes and your archived subject history.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowArchivedSubjects((current) => !current)}
-                className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition ${
-                  showArchivedSubjects
-                    ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
-                }`}
-              >
-                {showArchivedSubjects ? 'Show Active Subjects' : `Archived Subjects (${archivedSubjects.length})`}
-              </button>
+              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setShowArchivedSubjects(false)}
+                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                    !showArchivedSubjects
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowArchivedSubjects(true)}
+                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                    showArchivedSubjects
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Archived ({archivedSubjects.length})
+                </button>
+              </div>
             </div>
 
             <div className="teacher-scrollbar mx-auto grid max-h-[calc(100vh-340px)] w-full max-w-5xl gap-4 overflow-y-auto pr-2">
@@ -784,12 +877,13 @@ export const StudentSubjects = () => {
                 <p className="mt-2 text-sm text-slate-500">
                   {showArchivedSubjects
                     ? 'Archived subjects will appear here once one of your enrolled classes is archived by your teacher.'
-                    : 'Paste a teacher-provided join code from the sidebar to unlock your classes.'}
+                    : 'Use the join subject form above to unlock your classes.'}
                 </p>
               </div>
             ) : (
               visibleSubjects.map((subject) => {
                 const assessmentCount = assessmentCountBySubject.get(String(subject.subject_id)) ?? 0;
+                const subjectTheme = getSubjectCardTheme(subject);
                 return (
                   <button
                     key={subject.subject_id}
@@ -799,35 +893,71 @@ export const StudentSubjects = () => {
                         navigate(`/student/subjects/${subject.subject_id}`);
                       }
                     }}
-                    className={`${compactListCardClass} border-slate-100`}
+                    className={`relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 p-3.5 text-left shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${subjectTheme.surfaceClass}`}
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${subjectTheme.accentClass}`} />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
-                        <h3 className={compactListTitleClass}>{subject.subject_name}</h3>
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{subject.subject_code}</p>
-                        <p className="mt-1 text-sm text-slate-500">Teacher: {subject.teacher_name}</p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {subject.course} - {subject.section_name || subject.section} - {subject.semester} {subject.school_year}
+                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                          {subject.subject_code || 'Subject'}
                         </p>
+                        <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{subject.subject_name}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {subject.course || 'Course'} - {subject.year || 'Year'} - {subject.section_name || subject.section || 'Section'}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {subject.year && (
+                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                              {subject.year}
+                            </span>
+                          )}
+                          {(subject.section_name || subject.section) && (
+                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                              {subject.section_name || subject.section}
+                            </span>
+                          )}
+                          {subject.school_year && (
+                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                              {subject.school_year}
+                            </span>
+                          )}
+                          {subject.semester && (
+                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                              {subject.semester}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm ${
+                            showArchivedSubjects
+                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                              : 'border-blue-200 bg-white text-blue-700'
+                          }`}>
+                            {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'}
+                          </span>
+                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm ${
+                            showArchivedSubjects
+                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                              : 'border-cyan-200 bg-white text-cyan-700'
+                          }`}>
+                            {showArchivedSubjects ? 'Archived' : 'Active'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
-                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                          showArchivedSubjects
-                            ? 'border-amber-200 text-amber-700 bg-amber-50'
-                            : 'border-blue-200 text-blue-600'
-                        }`}>
-                          {showArchivedSubjects ? 'Archived' : 'Enrolled'}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">
-                          {showArchivedSubjects
-                            ? 'Saved in your history'
-                            : `${assessmentCount} assessment${assessmentCount === 1 ? '' : 's'} assigned`}
-                        </span>
-                        <span className={`rounded-full px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                          showArchivedSubjects ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
-                        }`}>
-                          {showArchivedSubjects ? 'Archived Subject' : 'View Assessments'}
+                      <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
+                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-xs text-slate-500 shadow-sm">
+                          <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                            ID {subject.subject_id}
+                          </p>
+                          <span className={`mt-1 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${
+                            showArchivedSubjects ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {showArchivedSubjects ? 'Archived' : 'Active'}
+                          </span>
+                        </div>
+                        <span className="rounded-full border border-blue-200 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-700 shadow-sm">
+                          {showArchivedSubjects ? 'View Details' : 'View Assessments'}
                         </span>
                       </div>
                     </div>

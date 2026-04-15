@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-import { getSubjectCardTheme } from './subjectCardThemes';
 
 const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 
@@ -14,6 +14,7 @@ const TeacherFeedback = () => {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
 
   const assessmentOptions = useMemo(() => {
     const grouped = new Map();
@@ -123,6 +124,7 @@ const TeacherFeedback = () => {
   useEffect(() => {
     if (filteredRecords.length === 0) {
       setSelectedRecord(null);
+      setDetailsModalOpen(false);
       return;
     }
 
@@ -131,6 +133,15 @@ const TeacherFeedback = () => {
       return stillVisible || filteredRecords[0];
     });
   }, [filteredRecords]);
+
+  const openDetailsModal = (record) => {
+    setSelectedRecord(record);
+    setDetailsModalOpen(true);
+  };
+
+  const closeDetailsModal = () => {
+    setDetailsModalOpen(false);
+  };
 
   return (
     <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
@@ -164,7 +175,7 @@ const TeacherFeedback = () => {
             </select>
           </div>
 
-          <div className="teacher-float-card flex min-h-0 flex-1 flex-col p-4 md:p-5">
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <p className="text-md font-semibold text-slate-900">Students</p>
@@ -180,27 +191,26 @@ const TeacherFeedback = () => {
             </div>
             {errorMessage && <p className="mb-3 text-xs text-red-600">{errorMessage}</p>}
 
-            <div className="teacher-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="teacher-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-3 pb-2 max-h-[calc(100vh-330px)] md:max-h-[calc(100vh-300px)]">
               {!loading && filteredRecords.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                <div className="rounded-[1.3rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
                   No graded submissions yet. Save a result from Grade Submissions first.
                 </div>
               ) : (
                 filteredRecords.map((record) => {
                   const isActive = selectedRecord?.score_id === record.score_id;
-                  const recordTheme = getSubjectCardTheme(record);
                   return (
                       <button
                         key={record.score_id}
                         type="button"
-                        onClick={() => setSelectedRecord(record)}
-                        className={`relative w-full overflow-hidden rounded-[1.45rem] border border-slate-900/10 p-3.5 text-left shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
+                        onClick={() => openDetailsModal(record)}
+                        className={`relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 text-left shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
                           isActive
-                            ? `${recordTheme.surfaceClass} border-blue-300`
-                            : `${recordTheme.surfaceClass}`
+                            ? 'border-blue-300 bg-blue-50'
+                            : ''
                         }`}
                       >
-                        <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${recordTheme.accentClass}`} />
+                        <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-[1.05rem] font-bold text-slate-900">{record.student_name}</p>
@@ -223,6 +233,82 @@ const TeacherFeedback = () => {
           </div>
         </div>
       </div>
+
+      {detailsModalOpen && selectedRecord && typeof document !== 'undefined' && createPortal((
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md">
+          <div className="mx-auto flex max-h-[88vh] w-[min(920px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.35)] ring-1 ring-white/70">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Student Review</p>
+                <h2 className="text-lg font-semibold text-slate-900">{selectedRecord.student_name}</h2>
+                <p className="text-xs text-slate-500">{selectedRecord.assessment_title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetailsModal}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="teacher-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+              <div className="rounded-2xl bg-blue-50 p-4">
+                <div className="grid grid-cols-2 gap-4 text-sm text-slate-700">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student</p>
+                    <p className="font-semibold text-slate-900">{selectedRecord.student_name}</p>
+                    <p className="text-xs text-slate-500">Assessment: {selectedRecord.assessment_title}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student ID</p>
+                    <p className="font-semibold text-slate-900">{selectedRecord.student_id || 'Unavailable'}</p>
+                    <p className="text-xs text-slate-500">Submitted: {selectedRecord.submission_date || 'Unavailable'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Saved Grade</p>
+                  <p className="mt-1 text-3xl font-black text-blue-700">
+                    {selectedRecord.score !== null && selectedRecord.score !== undefined ? `${selectedRecord.score}%` : 'N/A'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subject</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {selectedRecord.subject_name || 'No subject'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Scored At</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {selectedRecord.date_scored ? new Date(selectedRecord.date_scored).toLocaleString() : 'Recently saved'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs uppercase tracking-[0.35em] text-blue-400">Generated Result</p>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">
+                    Saved result
+                  </span>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Feedback</p>
+                  <div className="teacher-scrollbar mt-3 max-h-64 overflow-y-auto pr-2">
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {selectedRecord.ai_feedback || 'No saved feedback for this submission.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
     </div>
   );
 };
