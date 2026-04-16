@@ -324,7 +324,10 @@ const SubmitAssessment = () => {
           <section className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow">
             <h2 className="text-xl font-semibold text-slate-900">Upload Handwritten Solutions</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Take photos or scan your handwritten solutions and upload them here. Each file can be up to 10MB.
+              Upload clear photos of your handwritten solutions for the best OCR and AI grading results. Each file can be up to 10MB.
+            </p>
+            <p className="mt-2 text-xs text-amber-600">
+              Best results: JPG or PNG photos. PDF uploads are allowed, but automatic text extraction may be less reliable.
             </p>
 
             <label
@@ -337,7 +340,7 @@ const SubmitAssessment = () => {
               <input onChange={handleFiles} type="file" multiple accept=".jpg,.jpeg,.png,.pdf" className="hidden" />
               <span className="text-3xl">Upload</span>
               <p className="text-sm font-semibold text-slate-700">{fileLabel}</p>
-              <p className="text-xs text-slate-500">Supported formats: JPG, PNG, PDF</p>
+              <p className="text-xs text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
               <span className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow">
                 Choose Files
               </span>

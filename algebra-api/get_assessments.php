@@ -29,7 +29,6 @@ try {
             ep.description,
             ep.topic,
             ep.difficulty,
-            ep.ideal_solution,
             ep.date_created,
             rs.rubric_name,
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
@@ -82,7 +81,6 @@ try {
             "description" => $row["description"],
             "topic" => $row["topic"],
             "difficulty" => $row["difficulty"] ?? 'Medium',
-            "ideal_solution" => $row["ideal_solution"],
             "subject" => $row["subject_name"],
             "subject_meta" => implode(" - ", $subjectMeta),
             "date_created" => $row["date_created"],
@@ -102,8 +100,6 @@ try {
                 ei.item_no,
                 ei.question_type,
                 ei.question_content,
-                ei.options,
-                ei.correct_answer,
                 ei.model_solution,
                 ei.max_score
              FROM exercise_items ei
@@ -122,19 +118,11 @@ try {
                 continue;
             }
 
-            $decodedOptions = null;
-            if (!empty($itemRow['options'])) {
-                $decoded = json_decode($itemRow['options'], true);
-                $decodedOptions = json_last_error() === JSON_ERROR_NONE ? $decoded : $itemRow['options'];
-            }
-
             $assessmentsById[$exerciseId]['items'][] = [
                 "item_id" => (int)$itemRow['item_id'],
                 "item_no" => (int)$itemRow['item_no'],
                 "question_type" => $itemRow['question_type'] ?? 'handwritten_algebra',
                 "question_content" => $itemRow['question_content'],
-                "options" => $decodedOptions,
-                "correct_answer" => $itemRow['correct_answer'],
                 "model_solution" => $itemRow['model_solution'],
                 "max_score" => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 1.0,
             ];

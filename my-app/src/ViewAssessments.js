@@ -132,11 +132,6 @@ const ViewAssessments = ({ compact = false }) => {
                                             <span>Items: {assessment.item_count ?? assessment.items?.length ?? 0}</span>
                                             <span>Created: {formatDate(assessment.date_created)}</span>
                                         </div>
-                                        {assessment.ideal_solution && (
-                                            <p className="text-xs text-slate-500">
-                                                Ideal solution: {assessment.ideal_solution}
-                                            </p>
-                                        )}
                                     </article>
                                 ))
                             )}

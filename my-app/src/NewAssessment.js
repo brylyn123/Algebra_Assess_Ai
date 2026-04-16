@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useNavigate } from 'react-router-dom';
@@ -12,15 +12,9 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 
 
 
-const QUESTION_TYPE_OPTIONS = [
-
-  { value: 'handwritten_algebra', label: 'Equation / Symbol' },
-
-  { value: 'multiple_choice', label: 'Multiple choice' },
-
-];
-
 const DIFFICULTY_LEVELS = ['Easy', 'Medium', 'Hard'];
+const NEW_RUBRIC_STORAGE_KEY = 'teacher:new-rubric-created';
+const ASSESSMENT_DRAFT_STORAGE_KEY = 'teacher:new-assessment-draft';
 
 const initialState = {
   teacherId: null,
@@ -35,15 +29,8 @@ const initialState = {
     topic: '',
     description: '',
     difficulty: 'Medium',
-    idealSolution: '',
   },
   testItems: [],
-  itemEntry: '',
-  questionType: 'handwritten_algebra',
-  mcOptions: [],
-  mcOptionEntry: '',
-  mcCorrectAnswer: '',
-  equationCorrectAnswer: '',
   mathLiveReady: typeof window !== 'undefined' && !!window.MathfieldElement,
   previewValue: '',
 };
@@ -72,47 +59,10 @@ function reducer(state, action) {
         ...state,
         newAssessment: initialState.newAssessment,
         testItems: [], 
-        itemEntry: '',
         previewValue: '',
-        mcOptions: [],
-        mcCorrectAnswer: '',
-        equationCorrectAnswer: '',
         selectedRubric: '',
         rubricError: '',
       };
-    case 'SET_ITEM_ENTRY':
-      return { ...state, itemEntry: action.payload };
-    case 'SET_QUESTION_TYPE':
-      return {
-        ...state,
-        questionType: action.payload,
-        mcOptions: [],
-        mcCorrectAnswer: '',
-        equationCorrectAnswer: '',
-        previewValue: '',
-      };
-    case 'ADD_MC_OPTION':
-      return {
-        ...state,
-        mcOptions: [...state.mcOptions, action.payload],
-        mcOptionEntry: '',
-        mcCorrectAnswer: action.payload,
-      };
-    case 'REMOVE_MC_OPTION':
-      const optionToRemove = state.mcOptions[action.payload];
-      return {
-        ...state,
-        mcOptions: state.mcOptions.filter((_, i) => i !== action.payload),
-        mcCorrectAnswer: state.mcCorrectAnswer === optionToRemove ? '' : state.mcCorrectAnswer,
-      };
-    case 'SET_MC_OPTION_ENTRY':
-      return { ...state, mcOptionEntry: action.payload };
-    case 'SET_MC_CORRECT_ANSWER':
-      return { ...state, mcCorrectAnswer: action.payload };
-    case 'RESET_MC_OPTIONS':
-      return { ...state, mcOptions: [], mcCorrectAnswer: '' };
-    case 'SET_EQUATION_CORRECT_ANSWER':
-      return { ...state, equationCorrectAnswer: action.payload };
     case 'SET_MATHLIVE_READY':
       return { ...state, mathLiveReady: action.payload };
     case 'SET_PREVIEW_VALUE':
@@ -121,11 +71,6 @@ function reducer(state, action) {
       return {
         ...state,
         testItems: [...state.testItems, action.payload],
-        itemEntry: '',
-        mcOptionEntry: '',
-        mcCorrectAnswer: '',
-        mcOptions: [],
-        equationCorrectAnswer: '',
         previewValue: '',
       };
     case 'REMOVE_TEST_ITEM':
@@ -150,12 +95,6 @@ const NewAssessment = () => {
     subjects,
     newAssessment,
     testItems,
-    itemEntry,
-    questionType,
-    mcOptions,
-    mcOptionEntry,
-    mcCorrectAnswer,
-    equationCorrectAnswer,
     mathLiveReady,
     previewValue,
     rubrics,
@@ -163,9 +102,6 @@ const NewAssessment = () => {
     rubricError,
     selectedRubric,
   } = state;
-
-  const itemInputRef = useRef(null);
-
   const mathfieldRef = useRef(null);
 
   const showMathKeyboard = () => {
@@ -245,39 +181,25 @@ const NewAssessment = () => {
 
   };
 
-
-
-  const handleQuestionTypeChange = (value) => {
-
-    dispatch({ type: 'SET_QUESTION_TYPE', payload: value });
-    if (value !== 'handwritten_algebra') {
-      setMathExpression('');
-      hideMathKeyboard();
+  const handleOpenRubricBuilder = () => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(
+        ASSESSMENT_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          newAssessment,
+          testItems,
+          selectedRubric,
+          mathExpression,
+          previewValue,
+          savedAt: new Date().toISOString(),
+        })
+      );
     }
 
+    navigate('/teacher/assessments/new-rubric', {
+      state: { returnToAssessment: true },
+    });
   };
-
-
-
-  const handleAddOption = () => {
-
-    const optionValue = mcOptionEntry.trim();
-
-    if (!optionValue) return;
-
-    dispatch({ type: 'ADD_MC_OPTION', payload: optionValue });
-
-  };
-
-
-
-  const handleRemoveOption = (index) => {
-
-    dispatch({ type: 'REMOVE_MC_OPTION', payload: index });
-
-  };
-
-
 
 
   const syncMathExpression = () => {
@@ -290,21 +212,12 @@ const NewAssessment = () => {
   };
 
   const handlePreview = () => {
-    let previewText = '';
-    if (questionType === 'handwritten_algebra') {
-      const mathValue = mathExpression.trim();
-      if (!mathValue) {
-        alert('Enter an equation before previewing.');
-        return;
-      }
-      previewText = mathValue;
-    } else {
-      if (!itemEntry.trim()) {
-        alert('Add a question description before previewing.');
-        return;
-      }
-      previewText = itemEntry.trim();
+    const mathValue = mathExpression.trim();
+    if (!mathValue) {
+      alert('Enter an equation before previewing.');
+      return;
     }
+    const previewText = mathValue;
     dispatch({ type: 'SET_PREVIEW_VALUE', payload: previewText });
   };
 
@@ -322,6 +235,49 @@ const NewAssessment = () => {
 
     dispatch({ type: 'SET_TEACHER_ID', payload: id });
 
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const savedDraft = window.sessionStorage.getItem(ASSESSMENT_DRAFT_STORAGE_KEY);
+    if (!savedDraft) {
+      return;
+    }
+
+    try {
+      const parsedDraft = JSON.parse(savedDraft);
+
+      if (parsedDraft?.newAssessment && typeof parsedDraft.newAssessment === 'object') {
+        Object.entries(parsedDraft.newAssessment).forEach(([field, value]) => {
+          dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field, value: value ?? '' });
+        });
+      }
+
+      if (Array.isArray(parsedDraft?.testItems)) {
+        parsedDraft.testItems.forEach((item) => {
+          dispatch({ type: 'ADD_TEST_ITEM', payload: item });
+        });
+      }
+
+      if (parsedDraft?.selectedRubric) {
+        dispatch({ type: 'SET_SELECTED_RUBRIC', payload: String(parsedDraft.selectedRubric) });
+      }
+
+      if (parsedDraft?.previewValue) {
+        dispatch({ type: 'SET_PREVIEW_VALUE', payload: String(parsedDraft.previewValue) });
+      }
+
+      if (parsedDraft?.mathExpression) {
+        setMathExpression(String(parsedDraft.mathExpression));
+      }
+    } catch (error) {
+      console.error('Unable to restore saved assessment draft', error);
+    } finally {
+      window.sessionStorage.removeItem(ASSESSMENT_DRAFT_STORAGE_KEY);
+    }
   }, []);
 
 
@@ -447,13 +403,13 @@ const NewAssessment = () => {
 
   }, [teacherId]);
 
-  useEffect(() => {
+  const loadRubrics = useCallback((options = {}) => {
     if (!teacherId) {
       dispatch({ type: 'SET_RUBRICS', payload: [] });
       dispatch({ type: 'SET_SELECTED_RUBRIC', payload: '' });
       dispatch({ type: 'SET_RUBRIC_ERROR', payload: '' });
       dispatch({ type: 'SET_RUBRIC_LOADING', payload: false });
-      return;
+      return () => {};
     }
 
     let isMounted = true;
@@ -473,6 +429,27 @@ const NewAssessment = () => {
         if (!isMounted) return;
 
         dispatch({ type: 'SET_RUBRICS', payload: rubricList });
+
+        const preservedSelection = options.preferredRubricId ?? selectedRubric;
+        const matchingRubric = rubricList.find(
+          (rubric) => String(rubric.rubric_set_id) === String(preservedSelection ?? '')
+        );
+
+        if (matchingRubric) {
+          dispatch({ type: 'SET_SELECTED_RUBRIC', payload: String(matchingRubric.rubric_set_id) });
+          return;
+        }
+
+        if (options.preferredRubricId) {
+          const createdRubric = rubricList.find(
+            (rubric) => String(rubric.rubric_set_id) === String(options.preferredRubricId)
+          );
+          if (createdRubric) {
+            dispatch({ type: 'SET_SELECTED_RUBRIC', payload: String(createdRubric.rubric_set_id) });
+            return;
+          }
+        }
+
         if (rubricList.length === 0) {
           dispatch({ type: 'SET_SELECTED_RUBRIC', payload: '' });
         }
@@ -500,66 +477,44 @@ const NewAssessment = () => {
       isMounted = false;
       controller.abort();
     };
-  }, [teacherId]);
+  }, [selectedRubric, teacherId]);
 
+  useEffect(() => loadRubrics(), [loadRubrics]);
 
+  useEffect(() => {
+    const syncNewRubricSelection = () => {
+      if (!teacherId || typeof window === 'undefined') {
+        return;
+      }
 
-  const handleItemEntryChange = (e) => {
+      const raw = window.localStorage.getItem(NEW_RUBRIC_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
 
-    dispatch({ type: 'SET_ITEM_ENTRY', payload: e.target.value });
+      try {
+        const parsed = JSON.parse(raw);
+        if (Number(parsed?.teacherId) !== Number(teacherId) || !parsed?.rubricSetId) {
+          return;
+        }
 
-  };
+        loadRubrics({ preferredRubricId: parsed.rubricSetId });
+        dispatch({ type: 'SET_SELECTED_RUBRIC', payload: String(parsed.rubricSetId) });
+        window.localStorage.removeItem(NEW_RUBRIC_STORAGE_KEY);
+      } catch (error) {
+        console.error('Unable to restore newly created rubric selection', error);
+      }
+    };
 
+    syncNewRubricSelection();
+    window.addEventListener('focus', syncNewRubricSelection);
 
+    return () => {
+      window.removeEventListener('focus', syncNewRubricSelection);
+    };
+  }, [loadRubrics, teacherId]);
 
   const handleAddItem = () => {
-
-    if (questionType === 'multiple_choice') {
-
-      if (!itemEntry.trim()) {
-
-        alert('Please enter a question for this multiple-choice item.');
-
-        return;
-
-      }
-
-      if (mcOptions.length < 2) {
-
-        alert('Please add at least two options.');
-
-        return;
-
-      }
-
-      if (!mcCorrectAnswer) {
-
-        alert('Select the correct answer.');
-
-        return;
-
-      }
-
-      dispatch({
-        type: 'ADD_TEST_ITEM', payload: {
-          item_no: testItems.length + 1,
-
-          question_type: 'multiple_choice',
-
-          question_content: itemEntry.trim(),
-
-          options: JSON.stringify(mcOptions),
-
-          correct_answer: mcCorrectAnswer,
-        }
-      });
-
-      return;
-
-    }
-
-
-
     const mathfield = mathfieldRef.current;
 
     const mathValue = mathExpression.trim();
@@ -572,14 +527,6 @@ const NewAssessment = () => {
 
     }
 
-    if (!equationCorrectAnswer.trim()) {
-
-      alert('Please provide the correct answer for this equation.');
-
-      return;
-
-    }
-
     dispatch({
       type: 'ADD_TEST_ITEM', payload: {
         item_no: testItems.length + 1,
@@ -587,10 +534,6 @@ const NewAssessment = () => {
         question_type: 'handwritten_algebra',
 
         question_content: mathValue,
-
-        options: '',
-
-        correct_answer: equationCorrectAnswer.trim(),
       }
     });
 
@@ -654,10 +597,7 @@ const NewAssessment = () => {
         topic: newAssessment.topic,
 
         description: newAssessment.description,
-
         difficulty: newAssessment.difficulty,
-
-        ideal_solution: newAssessment.idealSolution,
 
         items: testItems.map((item, index) => ({
 
@@ -671,10 +611,6 @@ const NewAssessment = () => {
 
           max_score_per_item: 0,
 
-          options: item.options,
-
-          correct_answer: item.correct_answer,
-
           rubrics: [],
 
         })),
@@ -686,6 +622,9 @@ const NewAssessment = () => {
       alert('Assessment created successfully!');
 
       dispatch({ type: 'RESET_ASSESSMENT_FORM' });
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(ASSESSMENT_DRAFT_STORAGE_KEY);
+      }
 
       if (mathfieldRef.current?.setValue) {
 
@@ -743,7 +682,12 @@ const NewAssessment = () => {
           </div>
           <button
             type="button"
-            onClick={() => navigate('/teacher/assessments')}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.sessionStorage.removeItem(ASSESSMENT_DRAFT_STORAGE_KEY);
+              }
+              navigate('/teacher/assessments');
+            }}
             className="text-sm font-semibold text-slate-500 transition hover:text-slate-900"
           >
             Cancel
@@ -814,30 +758,51 @@ const NewAssessment = () => {
 
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Rubric</label>
-            <select
-              value={selectedRubric}
-              onChange={(e) => dispatch({ type: 'SET_SELECTED_RUBRIC', payload: e.target.value })}
-              disabled={rubricLoading || rubrics.length === 0}
-              className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              <option value="" disabled hidden>Select a rubric</option>
-              {rubrics.map((rubric) => (
-                <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
-                  {rubric.rubric_name}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <select
+                value={selectedRubric}
+                onChange={(e) => dispatch({ type: 'SET_SELECTED_RUBRIC', payload: e.target.value })}
+                disabled={rubricLoading || rubrics.length === 0}
+                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <option value="" disabled hidden>Select a rubric</option>
+                {rubrics.map((rubric) => (
+                  <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
+                    {rubric.rubric_name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2 sm:shrink-0">
+                <button
+                  type="button"
+                  onClick={handleOpenRubricBuilder}
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                >
+                  Add Rubric
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loadRubrics()}
+                  disabled={rubricLoading}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
             {rubricLoading ? (
               <p className="text-xs text-slate-400 mt-1">Loading rubrics...</p>
             ) : rubricError ? (
               <p className="text-xs text-red-600 mt-1">{rubricError}</p>
             ) : rubrics.length === 0 ? (
-              <p className="text-xs text-slate-400 mt-1">Create a rubric first, then attach it to this assessment.</p>
+              <p className="text-xs text-slate-400 mt-1">No rubric yet. Click Add Rubric, save one in the new tab, then press Refresh here.</p>
             ) : selectedRubric ? (
               <p className="text-xs text-slate-400 mt-1">
                 {rubrics.find((rubric) => String(rubric.rubric_set_id) === selectedRubric)?.ai_instructions || 'This rubric will be saved with the assessment.'}
               </p>
-            ) : null}
+            ) : (
+              <p className="text-xs text-slate-400 mt-1">Rubrics stay reusable. Add one in a new tab and keep this assessment draft open.</p>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -932,37 +897,7 @@ const NewAssessment = () => {
 
               <span className="h-0.5 w-8 bg-slate-200 inline-block"></span>
 
-              <span>{questionType === 'multiple_choice' ? 'Multiple choice' : 'Equation / Symbol'}</span>
-
-            </div>
-
-            <div className="flex items-center gap-2">
-
-              {QUESTION_TYPE_OPTIONS.map((option) => (
-
-                <button
-
-                  key={option.value}
-
-                  type="button"
-
-                  onClick={() => handleQuestionTypeChange(option.value)}
-
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold tracking-[0.2em] transition ${questionType === option.value
-
-                      ? 'border-blue-600 bg-blue-600 text-white'
-
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
-
-                    }`}
-
-                >
-
-                  {option.label}
-
-                </button>
-
-              ))}
+              <span>Equation / Symbol</span>
 
             </div>
 
@@ -970,201 +905,56 @@ const NewAssessment = () => {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-            {questionType === 'handwritten_algebra' ? (
+            <div>
 
-              <div>
+              {mathLiveReady ? (
 
-                {mathLiveReady ? (
-
-                  <>
-                    <div
-                      className="rounded-2xl border border-slate-200 bg-white p-3 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100"
-                      onClick={handleMathfieldFocus}
-                    >
-                    <math-field
-                      ref={mathfieldRef}
-                      onInput={syncMathExpression}
-                      onFocus={handleMathfieldFocus}
-                      onClick={handleMathfieldFocus}
-                      virtual-keyboard-mode="manual"
-                      smart-mode="auto"
-                      placeholder="Type your equation here..."
-                      className="block w-full max-w-full cursor-text rounded-xl bg-transparent px-4 py-4 text-lg font-medium transition"
-                      style={{ minHeight: '4.5rem' }}
-                    ></math-field>
-                    </div>
-
-                    <div className="mt-2 flex flex-col gap-3 px-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                      <p>Click the equation field to open MathLive and use the virtual keyboard for symbols.</p>
-                      <button
-                        type="button"
-                        onClick={toggleMathKeyboard}
-                        className="inline-flex items-center justify-center self-start rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
-                      >
-                        Toggle Keyboard
-                      </button>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between text-xs text-slate-400 px-1">
-                      <p>Describe the equation or symbol if needed before hitting â€œAdd Item.â€</p>
-                    </div>
-
-                    <div className="mt-4 space-y-1">
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-[0.3em]">
-                        Correct Answer
-                      </label>
-                      <input
-                        type="text"
-                        value={equationCorrectAnswer}
-                        onChange={(e) => dispatch({ type: 'SET_EQUATION_CORRECT_ANSWER', payload: e.target.value })}
-                        placeholder="Enter the exact answer or expression"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none transition"
-                      />
-                    </div>
-                  </>
-
-                ) : (
-
-                  <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-
-                    Loading math editorâ€¦ please wait before entering equations.
-
-                  </p>
-
-                )}
-
-              </div>
-
-            ) : (
-
-              <div className="space-y-3">
-
-                <input
-
-                  ref={itemInputRef}
-
-                  type="text"
-
-                  value={itemEntry}
-
-                  onChange={handleItemEntryChange}
-
-                  placeholder="Describe a multiple-choice question"
-
-                  className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-
-                />
-
-                <div className="flex gap-2 flex-wrap">
-
-                  <input
-
-                    type="text"
-
-                    value={mcOptionEntry}
-
-                    onChange={(e) => dispatch({ type: 'SET_MC_OPTION_ENTRY', payload: e.target.value })}
-
-                    placeholder="Option text"
-
-                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700"
-
-                  />
-
-                  <button
-
-                    type="button"
-
-                    onClick={handleAddOption}
-
-                    className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold hover:bg-slate-200 transition"
-
+                <>
+                  <div
+                    className="rounded-2xl border border-slate-200 bg-white p-3 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100"
+                    onClick={handleMathfieldFocus}
                   >
-
-                    + Add option
-
-                  </button>
-
-                </div>
-
-                {mcOptions.length > 0 && (
-
-                  <div className="flex flex-wrap gap-2">
-
-                    {mcOptions.map((option, index) => (
-
-                      <span
-
-                        key={`${option}-${index}`}
-
-                        className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600"
-
-                      >
-
-                        {option}
-
-                        <button
-
-                          type="button"
-
-                          onClick={() => handleRemoveOption(index)}
-
-                          className="text-red-500 hover:text-red-700"
-
-                        >
-
-                          Ã—
-
-                        </button>
-
-                      </span>
-
-                    ))}
-
+                  <math-field
+                    ref={mathfieldRef}
+                    onInput={syncMathExpression}
+                    onFocus={handleMathfieldFocus}
+                    onClick={handleMathfieldFocus}
+                    virtual-keyboard-mode="manual"
+                    smart-mode="auto"
+                    placeholder="Type your equation here..."
+                    className="block w-full max-w-full cursor-text rounded-xl bg-transparent px-4 py-4 text-lg font-medium transition"
+                    style={{ minHeight: '4.5rem' }}
+                  ></math-field>
                   </div>
 
-                )}
-
-                {mcOptions.length > 0 && (
-
-                  <button
-
-                    type="button"
-
-                    onClick={() => dispatch({ type: 'RESET_MC_OPTIONS' })}
-
-                    className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-900 self-start"
-
-                  >
-
-                    Reset options
-
-                  </button>
-
-                )}
-                {mcOptions.length > 0 && (
-                  <div className="mt-3 space-y-1">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-[0.3em]">
-                      Correct Answer
-                    </label>
-                    <select
-                      value={mcCorrectAnswer}
-                      onChange={(e) => dispatch({ type: 'SET_MC_CORRECT_ANSWER', payload: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none transition"
+                  <div className="mt-2 flex flex-col gap-3 px-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                    <p>Click the equation field to open MathLive and use the virtual keyboard for symbols.</p>
+                    <button
+                      type="button"
+                      onClick={toggleMathKeyboard}
+                      className="inline-flex items-center justify-center self-start rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
                     >
-                      <option value="" disabled hidden>Select the correct answer</option>
-                      {mcOptions.map((option, index) => (
-                        <option key={`${option}-${index}`} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
+                      Toggle Keyboard
+                    </button>
                   </div>
-                )}
 
-              </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-400 px-1">
+                    <p>Describe the equation or symbol if needed before hitting Add Item.</p>
+                  </div>
 
-            )}
+                </>
+
+              ) : (
+
+                <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+
+                  Loading math editor... please wait before entering equations.
+
+                </p>
+
+              )}
+
+            </div>
 
           </div>
 
@@ -1194,33 +984,25 @@ const NewAssessment = () => {
 
               {previewValue ? (
 
-                questionType === 'handwritten_algebra' ? (
+                mathLiveReady ? (
 
-                  mathLiveReady ? (
+                  <math-field
 
-                    <math-field
+                    value={previewValue}
 
-                      value={previewValue}
+                    read-only
+                    className="block w-full max-w-full text-lg bg-slate-50 rounded-xl px-4 py-3 border-none overflow-x-auto"
+                    virtual-keyboard-mode="manual"
 
-                      read-only
-                      className="block w-full max-w-full text-lg bg-slate-50 rounded-xl px-4 py-3 border-none overflow-x-auto"
-                      virtual-keyboard-mode="manual"
+                    smart-mode="auto"
 
-                      smart-mode="auto"
+                    style={{ minHeight: '3rem' }}
 
-                      style={{ minHeight: '3rem' }}
-
-                    />
-
-                  ) : (
-
-                    <p className="text-xs text-slate-500">Math editor is still loading. Preview will appear once ready.</p>
-
-                  )
+                  />
 
                 ) : (
 
-                  <p className="text-slate-900">{previewValue}</p>
+                  <p className="text-xs text-slate-500">Math editor is still loading. Preview will appear once ready.</p>
 
                 )
 
@@ -1304,17 +1086,11 @@ const NewAssessment = () => {
 
                       <span className="text-[10px] tracking-[0.4em] text-slate-500">
 
-                        {item.question_type === 'multiple_choice' ? 'Multiple choice' : 'Equation'}
+                        Equation
 
                       </span>
 
                     </div>
-
-                    {item.correct_answer && (
-
-                      <p className="text-[11px] text-slate-500">Correct Answer: {item.correct_answer}</p>
-
-                    )}
 
                     <p className="text-sm font-semibold text-slate-900">{item.question_content}</p>
 

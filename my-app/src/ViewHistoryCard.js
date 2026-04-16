@@ -82,9 +82,6 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                                             <span>Items: {item.item_count ?? item.items?.length ?? 0}</span>
                                             <span>{formatDate(item.date_created)}</span>
                                         </div>
-                                        {item.ideal_solution && (
-                                            <p className="text-xs text-slate-500">{item.ideal_solution}</p>
-                                        )}
                                         <div className="flex justify-end">
                                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
                                                 Saved

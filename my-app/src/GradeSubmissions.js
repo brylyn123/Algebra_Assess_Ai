@@ -36,6 +36,79 @@ const normalizeSubmissionFiles = (submission) => {
 
 const getDraftStorageKey = (submissionId) => `grade-draft:${submissionId}`;
 
+const readStoredDraft = (submissionId) => {
+  if (!submissionId || typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const storedDraft = window.localStorage.getItem(getDraftStorageKey(submissionId));
+    if (!storedDraft) {
+      return null;
+    }
+
+    const parsedDraft = JSON.parse(storedDraft);
+    return parsedDraft && typeof parsedDraft === 'object' ? parsedDraft : null;
+  } catch (error) {
+    console.error('Unable to restore saved review draft', error);
+    return null;
+  }
+};
+
+const writeStoredDraft = (submissionId, draftPayload) => {
+  if (!submissionId || typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(getDraftStorageKey(submissionId), JSON.stringify(draftPayload));
+};
+
+const clearStoredDraft = (submissionId) => {
+  if (!submissionId || typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(getDraftStorageKey(submissionId));
+};
+
+const normalizeItemDrafts = (items) => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items.map((item, index) => ({
+    item_id: item?.item_id ?? null,
+    item_no: item?.item_no ?? index + 1,
+    question_content: item?.question_content ?? '',
+    max_score: Number(item?.max_score ?? 0),
+    score_earned:
+      item?.score_earned === null || item?.score_earned === undefined || item?.score_earned === ''
+        ? ''
+        : Number(item.score_earned),
+    ai_feedback: item?.ai_feedback ?? '',
+    is_manual_override: Boolean(item?.is_manual_override),
+  }));
+};
+
+const normalizeAiGeneration = (generation, submission) => {
+  const payload = generation && typeof generation === 'object' ? generation : {};
+  const itemSource = Array.isArray(payload.item_scores)
+    ? payload.item_scores
+    : Array.isArray(payload.items)
+      ? payload.items
+      : submission?.items;
+
+  return {
+    model: payload.model ?? '',
+    overall_score:
+      payload.overall_score ?? payload.total_score_earned ?? payload.score ?? null,
+    overall_feedback:
+      payload.overall_feedback ?? payload.ai_feedback ?? payload.feedback ?? '',
+    item_scores: normalizeItemDrafts(itemSource),
+    raw_response: payload.raw_response ?? payload,
+  };
+};
+
 const GradeSubmissions = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const teacherUser = currentEmail ? findLocalUser(currentEmail) : null;
@@ -45,19 +118,23 @@ const GradeSubmissions = () => {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [aiScore, setAiScore] = useState(null);
+  const [, setAiScore] = useState(null);
   const [draftScore, setDraftScore] = useState(null);
   const [draftFeedback, setDraftFeedback] = useState('');
+  const [draftItemScores, setDraftItemScores] = useState([]);
+  const [draftAiGeneration, setDraftAiGeneration] = useState(null);
   const [reviewMode, setReviewMode] = useState(false);
-  const [reviewSaved, setReviewSaved] = useState(false);
+  const [, setReviewSaved] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [returning, setReturning] = useState(false);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [gradingModalOpen, setGradingModalOpen] = useState(false);
   const [gradingMode, setGradingMode] = useState('single');
+  const [batchSubmissionIds, setBatchSubmissionIds] = useState([]);
   const [saveMessage, setSaveMessage] = useState('');
-  const [bulkGenerating] = useState(false);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [pageMessage, setPageMessage] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -75,6 +152,7 @@ const GradeSubmissions = () => {
 
       setLoading(true);
       setErrorMessage('');
+      setPageMessage('');
 
       try {
         const response = await fetch(`${API_BASE_URL}/grade_submissions.php?teacher_id=${teacherId}`, {
@@ -135,10 +213,64 @@ const GradeSubmissions = () => {
     setSelectedAssessment('all');
   }, [teacherId]);
 
+  const applyDraftToState = (submission, generation, saved = false) => {
+    const normalizedGeneration = normalizeAiGeneration(generation, submission);
+    setAiScore(normalizedGeneration.overall_score);
+    setDraftScore(normalizedGeneration.overall_score);
+    setDraftFeedback(normalizedGeneration.overall_feedback);
+    setDraftItemScores(normalizedGeneration.item_scores);
+    setDraftAiGeneration(normalizedGeneration);
+    setReviewMode(true);
+    setReviewSaved(saved);
+    return normalizedGeneration;
+  };
+
+  const saveDraftSnapshot = (submission, generation, saved = false) => {
+    const normalizedGeneration = normalizeAiGeneration(generation, submission);
+    const draftPayload = {
+      aiScore: normalizedGeneration.overall_score,
+      draftScore: normalizedGeneration.overall_score,
+      draftFeedback: normalizedGeneration.overall_feedback,
+      draftItemScores: normalizedGeneration.item_scores,
+      draftAiGeneration: normalizedGeneration,
+      reviewSaved: saved,
+      updatedAt: new Date().toISOString(),
+    };
+
+    writeStoredDraft(submission.id, draftPayload);
+    return draftPayload;
+  };
+
+  const markSubmissionWithDraft = (submissionId, generation) => {
+    setSubmissions((current) =>
+      current.map((submission) =>
+        submission.id === submissionId
+          ? {
+              ...submission,
+              status: 'Needs Review',
+              score: generation.overall_score ?? submission.score,
+              ai_feedback: generation.overall_feedback ?? submission.ai_feedback,
+              items: normalizeItemDrafts(generation.item_scores ?? submission.items),
+            }
+          : submission
+      )
+    );
+  };
+
   useEffect(() => {
+    const normalizedExistingGeneration = normalizeAiGeneration(
+      {
+        overall_score: selectedSubmission?.score ?? null,
+        overall_feedback: selectedSubmission?.ai_feedback ?? '',
+        item_scores: selectedSubmission?.items ?? [],
+      },
+      selectedSubmission
+    );
     setAiScore(selectedSubmission?.score ?? null);
     setDraftScore(selectedSubmission?.score ?? null);
     setDraftFeedback(selectedSubmission?.ai_feedback ?? '');
+    setDraftItemScores(normalizedExistingGeneration.item_scores);
+    setDraftAiGeneration(normalizedExistingGeneration);
     setReviewSaved(false);
     setReviewMode(false);
     setGenerating(false);
@@ -151,44 +283,32 @@ const GradeSubmissions = () => {
       return;
     }
 
-    try {
-      const storedDraft = localStorage.getItem(getDraftStorageKey(selectedSubmission.id));
-      if (!storedDraft) {
-        return;
+    const parsedDraft = readStoredDraft(selectedSubmission.id);
+    if (parsedDraft && typeof parsedDraft === 'object') {
+      if (parsedDraft.aiScore !== undefined && parsedDraft.aiScore !== null) {
+        setAiScore(parsedDraft.aiScore);
       }
-
-      const parsedDraft = JSON.parse(storedDraft);
-      if (parsedDraft && typeof parsedDraft === 'object') {
-        if (parsedDraft.aiScore !== undefined && parsedDraft.aiScore !== null) {
-          setAiScore(parsedDraft.aiScore);
-        }
-        if (parsedDraft.draftScore !== undefined && parsedDraft.draftScore !== null) {
-          setDraftScore(parsedDraft.draftScore);
-        }
-        if (parsedDraft.draftFeedback !== undefined && parsedDraft.draftFeedback !== null) {
-          setDraftFeedback(parsedDraft.draftFeedback);
-        }
-        setReviewSaved(Boolean(parsedDraft.reviewSaved));
+      if (parsedDraft.draftScore !== undefined && parsedDraft.draftScore !== null) {
+        setDraftScore(parsedDraft.draftScore);
       }
-    } catch (error) {
-      console.error('Unable to restore saved review draft', error);
+      if (parsedDraft.draftFeedback !== undefined && parsedDraft.draftFeedback !== null) {
+        setDraftFeedback(parsedDraft.draftFeedback);
+      }
+      if (Array.isArray(parsedDraft.draftItemScores)) {
+        setDraftItemScores(normalizeItemDrafts(parsedDraft.draftItemScores));
+      }
+      if (parsedDraft.draftAiGeneration && typeof parsedDraft.draftAiGeneration === 'object') {
+        setDraftAiGeneration(normalizeAiGeneration(parsedDraft.draftAiGeneration, selectedSubmission));
+      }
+      setReviewMode(true);
+      setReviewSaved(Boolean(parsedDraft.reviewSaved));
     }
-  }, [selectedSubmission?.id, selectedSubmission?.score, selectedSubmission?.ai_feedback]);
+  }, [selectedSubmission?.id, selectedSubmission?.score, selectedSubmission?.ai_feedback, selectedSubmission?.items]);
 
-  const buildGeneratedGrade = (submission, offset = 0) => {
-    const base = 84 + ((submission?.exercise_id ?? submission?.id ?? 0) % 11);
-    const score = Math.max(0, Math.min(100, base + offset));
-    const rubricLabel = submission?.rubric_name || 'the saved rubric';
-
-    return {
-      score,
-      feedback: `Auto-generated feedback for ${submission?.student_name || 'this student'} using ${rubricLabel}.`,
-    };
-  };
-
-  const persistSubmissionGrade = async (submission, scoreValue, feedbackValue) => {
+  const persistSubmissionGrade = async (submission, scoreValue, feedbackValue, itemScores, aiGeneration) => {
     if (!submission || !teacherId) return null;
 
+    const normalizedGeneration = normalizeAiGeneration(aiGeneration, submission);
     const response = await fetch(`${API_BASE_URL}/save_submission_grade.php`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -197,6 +317,15 @@ const GradeSubmissions = () => {
         solution_id: submission.id,
         total_score_earned: scoreValue,
         ai_feedback: feedbackValue,
+        item_scores: itemScores,
+        ai_generation: {
+          ...normalizedGeneration,
+          overall_score: scoreValue,
+          overall_feedback: feedbackValue,
+          item_scores: itemScores,
+        },
+        ai_model: normalizedGeneration.model,
+        ai_raw_response: normalizedGeneration.raw_response,
       }),
     });
 
@@ -207,10 +336,18 @@ const GradeSubmissions = () => {
 
     const nextSubmission = {
       ...submission,
-      status: 'Graded',
+      status: 'Ready to Return',
       score_id: payload.score_id,
       score: payload.score,
       ai_feedback: payload.ai_feedback,
+      returned_at: null,
+      items: normalizeItemDrafts(itemScores).map((item) => ({
+        ...item,
+        score_earned:
+          item.score_earned === '' || item.score_earned === null || item.score_earned === undefined
+            ? null
+            : Number(item.score_earned),
+      })),
     };
 
     setSubmissions((current) =>
@@ -224,20 +361,83 @@ const GradeSubmissions = () => {
     return payload;
   };
 
+  const returnAssessmentResults = async () => {
+    if (!teacherId || !selectedAssessment || visibleSubmissions.length === 0) {
+      return;
+    }
+
+    setLoading(true);
+    setPageMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/return_assessment_results.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacher_id: teacherId,
+          exercise_id: Number(selectedAssessment),
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || payload.status !== 'success') {
+        throw new Error(payload.message || 'Unable to return assessment results.');
+      }
+
+      setSubmissions((current) =>
+        current.map((submission) => (
+          String(submission.exercise_id ?? '') === selectedAssessment
+            ? { ...submission, status: 'Graded', returned_at: new Date().toISOString() }
+            : submission
+        ))
+      );
+      setPageMessage('All saved student results for this assessment were returned.');
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(error.message || 'Unable to return assessment results.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateDraftForSubmission = async (submission, options = {}) => {
+    if (!submission) {
+      return null;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/generate_submission_grade.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        teacher_id: teacherId,
+        solution_id: submission.id,
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.status !== 'success') {
+      throw new Error(payload.message || 'Unable to generate AI draft.');
+    }
+
+    const generated = normalizeAiGeneration(payload.ai_generation, submission);
+    saveDraftSnapshot(submission, generated, false);
+    markSubmissionWithDraft(submission.id, generated);
+
+    if (!options.skipUiUpdate && selectedSubmission?.id === submission.id) {
+      applyDraftToState(submission, generated, false);
+    }
+
+    return generated;
+  };
+
   const handleGenerateAIGrade = async () => {
     if (!selectedSubmission) return;
     setGenerating(true);
-    setSaveMessage('');
+    setSaveMessage('Running OCR and AI grading on the selected submission...');
+    setPageMessage('');
 
     try {
-      const generated = buildGeneratedGrade(selectedSubmission);
-      await new Promise((resolve) => setTimeout(resolve, 900));
-      setAiScore(generated.score);
-      setDraftScore(generated.score);
-      setDraftFeedback(generated.feedback);
-      setReviewMode(true);
-      setReviewSaved(false);
-      setSaveMessage('Draft generated. Review the score and feedback before saving it.');
+      await generateDraftForSubmission(selectedSubmission);
+      setSaveMessage('OCR and AI grading finished. Review and edit the draft before saving it.');
     } catch (error) {
       console.error(error);
       setSaveMessage(error.message || 'Unable to generate draft score.');
@@ -248,6 +448,11 @@ const GradeSubmissions = () => {
 
   const openGradingModal = (submission, mode = 'single') => {
     if (!submission) return;
+    setBatchSubmissionIds(
+      mode === 'batch'
+        ? pendingSubmissions.map((item) => item.id)
+        : []
+    );
     setSelectedSubmission(submission);
     setGradingMode(mode);
     setGradingModalOpen(true);
@@ -255,32 +460,78 @@ const GradeSubmissions = () => {
 
   const closeGradingModal = () => {
     setGradingModalOpen(false);
+    setBatchSubmissionIds([]);
+    setGradingMode('single');
   };
 
-  const handleSaveReview = () => {
-    if (!selectedSubmission || draftScore === null || draftScore === undefined || draftScore === '') return;
+  const updateDraftItemScore = (itemId, field, value) => {
+    setDraftItemScores((current) => {
+      const nextItems = current.map((item) =>
+        item.item_id === itemId
+          ? {
+              ...item,
+              [field]: value,
+              is_manual_override: true,
+            }
+          : item
+      );
+
+      setDraftAiGeneration((currentGeneration) => ({
+        ...normalizeAiGeneration(currentGeneration, selectedSubmission),
+        overall_score: draftScore,
+        overall_feedback: draftFeedback,
+        item_scores: nextItems,
+      }));
+
+      return nextItems;
+    });
+    setReviewSaved(false);
+  };
+
+  const handleGenerateAll = async () => {
+    if (gradingMode !== 'batch') {
+      return;
+    }
+
+    const remainingBatchSubmissions = submissions.filter(
+      (submission) =>
+        batchSubmissionIds.includes(submission.id)
+        && submission.status !== 'Graded'
+        && !submission.score_id
+        && !readStoredDraft(submission.id)
+    );
+
+    if (remainingBatchSubmissions.length === 0) {
+      setSaveMessage('All ungraded students in this assessment already have generated drafts.');
+      return;
+    }
+
+    setBulkGenerating(true);
+    setSaveMessage(`Running OCR and AI grading for ${remainingBatchSubmissions.length} student submission(s)...`);
 
     try {
-      localStorage.setItem(
-        getDraftStorageKey(selectedSubmission.id),
-        JSON.stringify({
-          aiScore,
-          draftScore,
-          draftFeedback,
-          reviewSaved: true,
-          updatedAt: new Date().toISOString(),
-        })
-      );
-      setReviewSaved(true);
-      setSaveMessage('Review saved. You can return the result to the student now.');
-      setGradingModalOpen(false);
+      for (const submission of remainingBatchSubmissions) {
+        const shouldUpdateCurrent = selectedSubmission?.id === submission.id;
+        await generateDraftForSubmission(submission, { skipUiUpdate: !shouldUpdateCurrent });
+      }
+
+      if (selectedSubmission && readStoredDraft(selectedSubmission.id)) {
+        const currentDraft = readStoredDraft(selectedSubmission.id);
+        if (currentDraft?.draftAiGeneration) {
+          applyDraftToState(selectedSubmission, currentDraft.draftAiGeneration, Boolean(currentDraft.reviewSaved));
+        }
+      }
+
+      setSaveMessage('AI drafts are ready for the students in this assessment. Review and save each student result.');
     } catch (error) {
       console.error(error);
-      setSaveMessage('Unable to save review draft.');
+      setSaveMessage(error.message || 'Unable to generate drafts for all students.');
+    } finally {
+      setBulkGenerating(false);
     }
   };
 
-  const handleReturnResult = async () => {
+  const handleSaveResult = async () => {
     const numericDraftScore = draftScore === '' || draftScore === null || draftScore === undefined
       ? null
       : Number(draftScore);
@@ -289,18 +540,122 @@ const GradeSubmissions = () => {
 
     setReturning(true);
     setSaveMessage('');
+    setPageMessage('');
 
     try {
-      await persistSubmissionGrade(selectedSubmission, numericDraftScore, draftFeedback);
-      localStorage.removeItem(getDraftStorageKey(selectedSubmission.id));
+      await persistSubmissionGrade(
+        selectedSubmission,
+        numericDraftScore,
+        draftFeedback,
+        draftItemScores,
+        {
+          ...normalizeAiGeneration(draftAiGeneration, selectedSubmission),
+          overall_score: numericDraftScore,
+          overall_feedback: draftFeedback,
+          item_scores: draftItemScores,
+        }
+      );
+      clearStoredDraft(selectedSubmission.id);
       setAiScore(numericDraftScore);
-      setSaveMessage('Result returned to the student and saved in Results & Feedback.');
+      setReviewSaved(true);
       setReviewMode(false);
-      setReviewSaved(false);
-      setGradingModalOpen(false);
+
+      if (gradingMode === 'batch') {
+        const remainingBatchSubmissions = submissions.filter(
+          (submission) =>
+            batchSubmissionIds.includes(submission.id)
+            && submission.id !== selectedSubmission.id
+            && !submission.score_id
+        );
+
+        if (remainingBatchSubmissions.length > 0) {
+          setSelectedSubmission(remainingBatchSubmissions[0]);
+          setSaveMessage('Student result saved. Continue reviewing the remaining students in this assessment.');
+        } else {
+          setSaveMessage('All student results in this assessment have been saved. Close this card and use Return Results on the main page.');
+          closeGradingModal();
+          setPageMessage('All visible students in this assessment are saved and ready to return.');
+        }
+      } else {
+        setSaveMessage('Student result saved. You can return this student now or close the card.');
+      }
     } catch (error) {
       console.error(error);
-      setSaveMessage(error.message || 'Unable to return result.');
+      setSaveMessage(error.message || 'Unable to save result.');
+    } finally {
+      setReturning(false);
+    }
+  };
+
+  const handleSaveAllResults = async () => {
+    if (gradingMode !== 'batch') {
+      return;
+    }
+
+    const submissionsToSave = batchPendingSubmissions.filter((submission) => !submission.score_id);
+    if (submissionsToSave.length === 0) {
+      setSaveMessage('All student results in this assessment are already saved.');
+      setPageMessage('All visible students in this assessment are saved and ready to return.');
+      return;
+    }
+
+    setReturning(true);
+    setSaveMessage('');
+    setPageMessage('');
+
+    try {
+      for (const submission of submissionsToSave) {
+        let generation;
+
+        if (selectedSubmission?.id === submission.id && hasDraftResult) {
+          generation = {
+            ...normalizeAiGeneration(draftAiGeneration, submission),
+            overall_score: Number(draftScore),
+            overall_feedback: draftFeedback,
+            item_scores: draftItemScores,
+          };
+        } else {
+          const storedDraft = readStoredDraft(submission.id);
+          if (!storedDraft?.draftAiGeneration) {
+            throw new Error(`Missing generated draft for ${submission.student_name}. Generate all drafts before saving.`);
+          }
+
+          generation = {
+            ...normalizeAiGeneration(storedDraft.draftAiGeneration, submission),
+            overall_score: storedDraft.draftScore ?? storedDraft.aiScore ?? storedDraft.draftAiGeneration.overall_score,
+            overall_feedback: storedDraft.draftFeedback ?? storedDraft.draftAiGeneration.overall_feedback ?? '',
+            item_scores: normalizeItemDrafts(
+              storedDraft.draftItemScores ?? storedDraft.draftAiGeneration.item_scores ?? submission.items
+            ),
+          };
+        }
+
+        const numericScore = generation.overall_score === '' || generation.overall_score === null || generation.overall_score === undefined
+          ? null
+          : Number(generation.overall_score);
+
+        if (numericScore === null || Number.isNaN(numericScore)) {
+          throw new Error(`Missing score for ${submission.student_name}.`);
+        }
+
+        await persistSubmissionGrade(
+          submission,
+          numericScore,
+          generation.overall_feedback ?? '',
+          generation.item_scores ?? [],
+          generation
+        );
+
+        clearStoredDraft(submission.id);
+      }
+
+      setReviewMode(false);
+      setSaveMessage('All generated student results in this assessment have been saved.');
+      setPageMessage('All visible students in this assessment are saved and ready to return.');
+      closeGradingModal();
+    } catch (error) {
+      console.error(error);
+      setSaveMessage(error.message || 'Unable to save all student results.');
     } finally {
       setReturning(false);
     }
@@ -353,6 +708,24 @@ const GradeSubmissions = () => {
 
     return ungraded.filter((submission) => String(submission.exercise_id ?? '') === selectedAssessment);
   }, [selectedAssessment, submissions]);
+  const pendingSubmissions = useMemo(
+    () => visibleSubmissions.filter((submission) => String(submission.status || '').toLowerCase() === 'pending'),
+    [visibleSubmissions]
+  );
+
+  const batchPendingSubmissions = useMemo(() => {
+    if (batchSubmissionIds.length === 0) {
+      return [];
+    }
+
+    return batchSubmissionIds
+      .map((submissionId) => submissions.find((submission) => submission.id === submissionId))
+      .filter((submission) => submission && String(submission.status || '').toLowerCase() === 'pending');
+  }, [batchSubmissionIds, submissions]);
+  const batchRemainingToSave = useMemo(
+    () => batchPendingSubmissions.filter((submission) => !submission.score_id),
+    [batchPendingSubmissions]
+  );
 
   const submissionSummary = useMemo(() => {
     return submissions.reduce(
@@ -385,8 +758,22 @@ const GradeSubmissions = () => {
     () => normalizeSubmissionFiles(selectedSubmission),
     [selectedSubmission]
   );
+  const draftMaxScore = useMemo(
+    () => draftItemScores.reduce((sum, item) => sum + (Number(item.max_score) || 0), 0),
+    [draftItemScores]
+  );
   const activeFile = submissionFiles[selectedFileIndex] ?? submissionFiles[0] ?? null;
   const hasDraftResult = draftScore !== null && draftScore !== undefined && draftScore !== '';
+  const selectedSubmissionDraft = selectedSubmission ? readStoredDraft(selectedSubmission.id) : null;
+  const shouldShowGeneratePanel = gradingMode === 'batch'
+    ? !(selectedSubmissionDraft || selectedSubmission?.score_id || hasDraftResult)
+    : !hasDraftResult;
+  const batchCompleted = gradingMode === 'batch' && gradingModalOpen && batchSubmissionIds.length > 0 && batchRemainingToSave.length === 0;
+  const canReturnAssessment = visibleSubmissions.length > 0 && visibleSubmissions.every((submission) => submission.status === 'Ready to Return');
+  const batchAssessmentTitle = useMemo(() => {
+    const batchSource = submissions.find((submission) => batchSubmissionIds.includes(submission.id));
+    return batchSource?.assessment_title ?? '';
+  }, [batchSubmissionIds, submissions]);
 
   return (
     <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
@@ -395,7 +782,7 @@ const GradeSubmissions = () => {
           <p className="teacher-eyebrow">Grading</p>
           <h1 className="teacher-heading">Generate Score</h1>
           <p className="text-sm text-slate-500">
-            Select an assessment, review the submissions, and return a grade when you’re ready.
+            Review the original submission first, then run OCR and AI grading when you are ready.
           </p>
         </div>
 
@@ -433,15 +820,26 @@ const GradeSubmissions = () => {
                 ))}
               </select>
             </div>
-            <button
-              type="button"
-              onClick={() => openGradingModal(visibleSubmissions[0], 'batch')}
-              disabled={visibleSubmissions.length === 0 || loading}
-              className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-            >
-              Select All Ungraded
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={returnAssessmentResults}
+                disabled={!canReturnAssessment || loading}
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                Return Results
+              </button>
+              <button
+                type="button"
+                onClick={() => openGradingModal(pendingSubmissions[0], 'batch')}
+                disabled={pendingSubmissions.length === 0 || loading}
+                className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+              >
+                Select All Ungraded
+              </button>
+            </div>
           </div>
+          {pageMessage && <p className="text-sm text-emerald-600">{pageMessage}</p>}
 
           <div className="flex min-h-0 flex-1 flex-col space-y-4">
             <div className="space-y-1">
@@ -522,7 +920,7 @@ const GradeSubmissions = () => {
         </div>
       </div>
 
-      {gradingModalOpen && selectedSubmission && typeof document !== 'undefined' && createPortal((
+      {gradingModalOpen && (selectedSubmission || batchCompleted) && typeof document !== 'undefined' && createPortal((
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 p-0 backdrop-blur-md">
           <div
             className={`mx-auto flex flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.35)] ring-1 ring-white/70 ${
@@ -537,10 +935,10 @@ const GradeSubmissions = () => {
                   {gradingMode === 'batch' ? 'Select All Ungraded' : 'Student Review'}
                 </p>
                 <h2 className={`${gradingMode === 'batch' ? 'text-xl' : 'text-lg'} font-semibold text-slate-900`}>
-                  {selectedSubmission.student_name}
+                  {batchCompleted ? 'Assessment Ready to Return' : selectedSubmission.student_name}
                 </h2>
                 <p className={`${gradingMode === 'batch' ? 'text-sm' : 'text-xs'} text-slate-500`}>
-                  {selectedSubmission.assessment_title}
+                  {batchCompleted ? batchAssessmentTitle : selectedSubmission.assessment_title}
                 </p>
               </div>
               <button
@@ -555,7 +953,7 @@ const GradeSubmissions = () => {
               <div className="border-b border-slate-100 px-6 py-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Selected Students</p>
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  {visibleSubmissions.map((submission) => (
+                  {batchPendingSubmissions.map((submission) => (
                     <button
                       key={submission.id}
                       type="button"
@@ -573,6 +971,26 @@ const GradeSubmissions = () => {
               </div>
             )}
             <div className={`min-h-0 flex-1 overflow-y-auto ${gradingMode === 'batch' ? 'p-5' : 'p-4'}`}>
+              {batchCompleted ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+                    <p className="text-xs uppercase tracking-[0.35em] text-emerald-500">Batch Complete</p>
+                    <p className="mt-2 text-lg font-semibold text-emerald-900">All students in this assessment have been generated, reviewed, and saved.</p>
+                    <p className="mt-2 text-sm text-emerald-800">
+                      Returning now will close this batch and the assessment will disappear from the ungraded queue because there are no ungraded students left.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={closeGradingModal}
+                      className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow hover:bg-emerald-700 transition"
+                    >
+                      Return Assessment
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div className={`${gradingMode === 'batch' ? 'space-y-4' : 'space-y-3'}`}>
                 <div className={`rounded-2xl bg-blue-50 ${gradingMode === 'batch' ? 'p-4' : 'p-3.5'}`}>
                   <div className="grid grid-cols-2 gap-4 text-sm text-slate-700">
@@ -662,24 +1080,24 @@ const GradeSubmissions = () => {
                   )}
                 </div>
 
-                {!hasDraftResult ? (
+                {shouldShowGeneratePanel ? (
                   <div className={`space-y-4 rounded-2xl border border-slate-100 bg-slate-50 ${gradingMode === 'batch' ? 'p-5' : 'p-4'}`}>
                     <div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Ready for generation</p>
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Ready for OCR and grading</p>
                       <p className="mt-2 text-sm text-slate-600">
                         {gradingMode === 'batch'
-                          ? 'Click Generate All to create AI drafts for the selected batch.'
-                          : 'Click Generate Score &amp; Feedback to create the AI draft for the selected student.'}
+                          ? 'Click Generate All to run OCR and create AI drafts for the selected batch.'
+                          : 'Click Generate Score &amp; Feedback to scan the submitted work, then create the AI draft for the selected student.'}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={handleGenerateAIGrade}
+                      onClick={gradingMode === 'batch' ? handleGenerateAll : handleGenerateAIGrade}
                       disabled={!selectedSubmission || generating || bulkGenerating || returning}
                       className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow hover:bg-blue-700 transition disabled:cursor-not-allowed disabled:bg-blue-400"
                     >
                       {generating && !bulkGenerating
-                        ? 'Generating...'
+                        ? 'Running OCR + AI...'
                         : gradingMode === 'batch'
                           ? 'Generate All'
                           : 'Generate Score & Feedback'}
@@ -690,7 +1108,9 @@ const GradeSubmissions = () => {
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs uppercase tracking-[0.35em] text-blue-400">Generated Result</p>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">
-                        {reviewMode ? 'Ready to save' : 'Draft loaded'}
+                        {selectedSubmission?.status === 'Ready to Return'
+                          ? 'Saved'
+                          : reviewMode ? 'Ready to save' : 'Draft loaded'}
                       </span>
                     </div>
                     <div className={`rounded-2xl border border-slate-200 bg-white ${gradingMode === 'batch' ? 'p-4' : 'p-3.5'}`}>
@@ -703,29 +1123,85 @@ const GradeSubmissions = () => {
                       Feedback
                       <textarea
                         value={draftFeedback}
-                        onChange={(event) => setDraftFeedback(event.target.value)}
+                        onChange={(event) => {
+                          const nextFeedback = event.target.value;
+                          setDraftFeedback(nextFeedback);
+                          setDraftAiGeneration((currentGeneration) => ({
+                            ...normalizeAiGeneration(currentGeneration, selectedSubmission),
+                            overall_score: draftScore,
+                            overall_feedback: nextFeedback,
+                            item_scores: draftItemScores,
+                          }));
+                          setReviewSaved(false);
+                        }}
                         rows={5}
                         className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                         placeholder="Generated feedback will appear here"
                         disabled={!selectedSubmission}
                       />
                     </label>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Item Feedback</p>
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          Max score {draftMaxScore > 0 ? draftMaxScore.toFixed(2) : '0.00'}
+                        </span>
+                      </div>
+                      {draftItemScores.length === 0 ? (
+                        <p className="mt-3 text-sm text-slate-500">No item records are attached to this submission yet.</p>
+                      ) : (
+                        <div className="mt-3 space-y-3">
+                          {draftItemScores.map((item) => (
+                            <div
+                              key={item.item_id ?? item.item_no}
+                              className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                                    Item {item.item_no}
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-slate-900">{item.question_content}</p>
+                                </div>
+                                <div className="w-24">
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                    Score
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    max={item.max_score || undefined}
+                                    value={item.score_earned}
+                                    onChange={(event) => updateDraftItemScore(item.item_id, 'score_earned', event.target.value)}
+                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                  />
+                                  <p className="mt-1 text-[11px] text-slate-500">of {Number(item.max_score || 0).toFixed(2)}</p>
+                                </div>
+                              </div>
+                              <label className="mt-3 block text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                Step-by-step Feedback
+                                <textarea
+                                  value={item.ai_feedback}
+                                  onChange={(event) => updateDraftItemScore(item.item_id, 'ai_feedback', event.target.value)}
+                                  rows={3}
+                                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                  placeholder="Explain the student's work for this item."
+                                />
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-3">
                       <button
                         type="button"
-                        onClick={handleSaveReview}
-                        disabled={!selectedSubmission || generating || bulkGenerating || returning || !hasDraftResult}
-                        className="rounded-2xl border border-blue-200 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {reviewSaved ? 'Review Saved' : 'Save Review'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleReturnResult}
-                        disabled={!selectedSubmission || returning || generating || bulkGenerating || !hasDraftResult || !reviewSaved}
+                        onClick={gradingMode === 'batch' ? handleSaveAllResults : handleSaveResult}
+                        disabled={!selectedSubmission || returning || generating || bulkGenerating || !hasDraftResult}
                         className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow hover:bg-emerald-700 transition disabled:cursor-not-allowed disabled:bg-emerald-300"
                       >
-                        {returning ? 'Returning...' : 'Return Result'}
+                        {returning ? 'Saving...' : gradingMode === 'batch' ? 'Save All Results' : 'Save Result'}
                       </button>
                     </div>
                     {saveMessage && (
@@ -736,6 +1212,7 @@ const GradeSubmissions = () => {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
         </div>

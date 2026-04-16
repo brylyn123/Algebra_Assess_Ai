@@ -108,7 +108,6 @@ CREATE TABLE Exercises_Problem (
     description TEXT,
     topic VARCHAR(100),
     difficulty ENUM('Easy', 'Medium', 'Hard') DEFAULT 'Medium',
-    ideal_solution TEXT,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_exercises_problem_subject FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
 ) ENGINE=InnoDB;
@@ -117,10 +116,8 @@ CREATE TABLE Exercise_Items (
     item_id INT PRIMARY KEY AUTO_INCREMENT,
     exercise_id INT NOT NULL,
     item_no INT DEFAULT 1,
-    question_type ENUM('handwritten_algebra', 'multiple_choice') DEFAULT 'handwritten_algebra',
+    question_type ENUM('handwritten_algebra') DEFAULT 'handwritten_algebra',
     question_content TEXT NOT NULL,
-    options JSON,
-    correct_answer TEXT,
     model_solution TEXT,
     max_score DECIMAL(5,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -15,12 +15,12 @@ ALTER TABLE subject
 
 ALTER TABLE exercises_problem
     MODIFY difficulty ENUM('Easy', 'Medium', 'Hard') DEFAULT 'Medium',
-    MODIFY ideal_solution TEXT NULL;
+    DROP COLUMN IF EXISTS ideal_solution;
 
 ALTER TABLE exercise_items
     MODIFY item_no INT DEFAULT 1,
-    MODIFY question_type ENUM('handwritten_algebra', 'multiple_choice') DEFAULT 'handwritten_algebra',
-    MODIFY options JSON NULL,
+    MODIFY question_type ENUM('handwritten_algebra') DEFAULT 'handwritten_algebra',
+    DROP COLUMN IF EXISTS options,
     MODIFY max_score DECIMAL(5,2) DEFAULT 0.00,
     CHANGE COLUMN date_created created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 

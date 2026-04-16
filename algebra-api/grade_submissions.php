@@ -16,6 +16,7 @@ if (!$teacher_id) {
 
 ensureAssessmentRubricColumn($conn);
 ensureSubjectLookupColumns($conn);
+ensureScoreReturnColumn($conn);
 $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
 $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
 $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
@@ -52,9 +53,11 @@ SELECT
     sc.score_id,
     sc.total_score_earned,
     sc.ai_feedback,
+    sc.returned_at,
     DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date,
     CASE
-        WHEN sc.score_id IS NOT NULL THEN 'Graded'
+        WHEN sc.score_id IS NOT NULL AND sc.returned_at IS NOT NULL THEN 'Graded'
+        WHEN sc.score_id IS NOT NULL THEN 'Ready to Return'
         WHEN cs.ai_status = 'completed' THEN 'Needs Review'
         ELSE 'Pending'
     END AS status
@@ -188,10 +191,67 @@ while ($row = $result->fetch_assoc()) {
         'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
         'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
         'ai_feedback' => $row['ai_feedback'] ?? '',
+        'returned_at' => $row['returned_at'] ?? null,
+        'items' => [],
     ];
 }
 $result->free();
 $stmt->close();
+
+if (count($submissions) > 0) {
+    $submissionIds = array_map(static fn($submission) => (int)$submission['id'], $submissions);
+    $placeholders = implode(',', array_fill(0, count($submissionIds), '?'));
+    $types = str_repeat('i', count($submissionIds));
+
+    $itemStmt = $conn->prepare(
+        "SELECT
+            cs.solution_id,
+            ei.item_id,
+            ei.item_no,
+            ei.question_content,
+            ei.max_score,
+            iscore.item_score_id,
+            iscore.score_earned,
+            iscore.ai_feedback,
+            iscore.is_manual_override
+         FROM Captured_Solution cs
+         INNER JOIN exercise_items ei ON ei.exercise_id = cs.exercise_id
+         LEFT JOIN Item_Scores iscore
+            ON iscore.solution_id = cs.solution_id
+           AND iscore.item_id = ei.item_id
+         WHERE cs.solution_id IN ($placeholders)
+         ORDER BY cs.solution_id ASC, ei.item_no ASC"
+    );
+
+    $itemStmt->bind_param($types, ...$submissionIds);
+    $itemStmt->execute();
+    $itemResult = $itemStmt->get_result();
+
+    $submissionsById = [];
+    foreach ($submissions as $index => $submission) {
+        $submissionsById[(int)$submission['id']] = $index;
+    }
+
+    while ($itemRow = $itemResult->fetch_assoc()) {
+        $solutionId = (int)$itemRow['solution_id'];
+        if (!isset($submissionsById[$solutionId])) {
+            continue;
+        }
+
+        $submissions[$submissionsById[$solutionId]]['items'][] = [
+            'item_score_id' => $itemRow['item_score_id'] !== null ? (int)$itemRow['item_score_id'] : null,
+            'item_id' => (int)$itemRow['item_id'],
+            'item_no' => isset($itemRow['item_no']) ? (int)$itemRow['item_no'] : 1,
+            'question_content' => $itemRow['question_content'],
+            'max_score' => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 0.0,
+            'score_earned' => $itemRow['score_earned'] !== null ? (float)$itemRow['score_earned'] : null,
+            'ai_feedback' => $itemRow['ai_feedback'] ?? '',
+            'is_manual_override' => !empty($itemRow['is_manual_override']),
+        ];
+    }
+
+    $itemStmt->close();
+}
 
 header('Content-Type: application/json');
 echo json_encode([

@@ -15,6 +15,7 @@ if (!$teacher_id) {
 try {
     ensureScoreAiFeedbackColumn($conn);
     ensureScoreMetricsColumns($conn);
+    ensureScoreReturnColumn($conn);
 
     $query = "
         SELECT
@@ -32,6 +33,7 @@ try {
             COALESCE(sc.max_score_possible, ex.max_score_possible) AS max_score_possible,
             sc.ai_feedback,
             sc.date_scored,
+            sc.returned_at,
             ep.exercise_id,
             ep.title AS assessment_title,
             subj.subject_id,
@@ -51,6 +53,7 @@ try {
             GROUP BY exercise_id
         ) ex ON ex.exercise_id = ep.exercise_id
         WHERE subj.teacher_id = ?
+          AND sc.returned_at IS NOT NULL
     ";
 
     $types = 'i';
@@ -93,9 +96,60 @@ try {
             'max_score_possible' => $row['max_score_possible'] !== null ? round((float)$row['max_score_possible'], 2) : null,
             'ai_feedback' => $row['ai_feedback'] ?? '',
             'date_scored' => $row['date_scored'],
+            'returned_at' => $row['returned_at'],
+            'item_scores' => [],
         ];
     }
     $stmt->close();
+
+    if (count($records) > 0) {
+        $solutionIds = array_map(static fn($record) => (int)$record['solution_id'], $records);
+        $placeholders = implode(',', array_fill(0, count($solutionIds), '?'));
+        $itemStmt = $conn->prepare(
+            "SELECT
+                iscore.solution_id,
+                iscore.item_score_id,
+                iscore.item_id,
+                ei.item_no,
+                ei.question_content,
+                ei.max_score,
+                iscore.score_earned,
+                iscore.ai_feedback,
+                iscore.is_manual_override
+             FROM Item_Scores iscore
+             INNER JOIN exercise_items ei ON ei.item_id = iscore.item_id
+             WHERE iscore.solution_id IN ($placeholders)
+             ORDER BY iscore.solution_id ASC, ei.item_no ASC"
+        );
+        $itemStmt->bind_param(str_repeat('i', count($solutionIds)), ...$solutionIds);
+        $itemStmt->execute();
+        $itemResult = $itemStmt->get_result();
+
+        $recordsBySolutionId = [];
+        foreach ($records as $index => $record) {
+            $recordsBySolutionId[(int)$record['solution_id']] = $index;
+        }
+
+        while ($itemRow = $itemResult->fetch_assoc()) {
+            $solutionId = (int)$itemRow['solution_id'];
+            if (!isset($recordsBySolutionId[$solutionId])) {
+                continue;
+            }
+
+            $records[$recordsBySolutionId[$solutionId]]['item_scores'][] = [
+                'item_score_id' => (int)$itemRow['item_score_id'],
+                'item_id' => (int)$itemRow['item_id'],
+                'item_no' => isset($itemRow['item_no']) ? (int)$itemRow['item_no'] : 1,
+                'question_content' => $itemRow['question_content'],
+                'max_score' => isset($itemRow['max_score']) ? round((float)$itemRow['max_score'], 2) : null,
+                'score_earned' => $itemRow['score_earned'] !== null ? round((float)$itemRow['score_earned'], 2) : null,
+                'ai_feedback' => $itemRow['ai_feedback'] ?? '',
+                'is_manual_override' => !empty($itemRow['is_manual_override']),
+            ];
+        }
+
+        $itemStmt->close();
+    }
 
     echo json_encode([
         'status' => 'success',

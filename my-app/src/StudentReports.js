@@ -49,7 +49,7 @@ const StudentReports = () => {
   const [records, setRecords] = useState([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
@@ -142,23 +142,13 @@ const StudentReports = () => {
       });
   }, [records, selectedSubjectId]);
 
-  const assessmentOptions = useMemo(() => {
-    return filteredRecords.map((record) => ({
-      value: String(record.score_id),
-      label: record.assessment_title || 'Untitled Assessment',
-      subjectLabel: record.subject_name || 'Unassigned Subject',
-      score: record.score,
-      record,
-    }));
-  }, [filteredRecords]);
-
   const selectedRecord = useMemo(() => {
     if (!selectedAssessmentId) {
-      return assessmentOptions[0]?.record ?? null;
+      return filteredRecords[0] ?? null;
     }
 
-    return assessmentOptions.find((option) => option.value === selectedAssessmentId)?.record ?? assessmentOptions[0]?.record ?? null;
-  }, [assessmentOptions, selectedAssessmentId]);
+    return filteredRecords.find((record) => String(record.score_id) === selectedAssessmentId) ?? filteredRecords[0] ?? null;
+  }, [filteredRecords, selectedAssessmentId]);
 
   useEffect(() => {
     if (subjectOptions.length === 0) {
@@ -173,16 +163,16 @@ const StudentReports = () => {
   }, [subjectOptions]);
 
   useEffect(() => {
-    if (assessmentOptions.length === 0) {
+    if (filteredRecords.length === 0) {
       setSelectedAssessmentId('');
       return;
     }
 
     setSelectedAssessmentId((current) => {
-      const stillValid = assessmentOptions.some((option) => option.value === current);
-      return stillValid ? current : assessmentOptions[0].value;
+      const stillValid = filteredRecords.some((record) => String(record.score_id) === current);
+      return stillValid ? current : String(filteredRecords[0].score_id);
     });
-  }, [assessmentOptions]);
+  }, [filteredRecords]);
 
   const stats = useMemo(() => {
     const scoredRecords = records.filter((record) => record.score !== null && record.score !== undefined);
@@ -201,19 +191,25 @@ const StudentReports = () => {
     };
   }, [records, subjectOptions.length]);
 
-  useEffect(() => {
-    setShowFilters(false);
-  }, [selectedSubjectId, selectedAssessmentId]);
+  const openDetailsModal = (record) => {
+    if (!record?.score_id) return;
+    setSelectedAssessmentId(String(record.score_id));
+    setDetailsModalOpen(true);
+  };
+
+  const closeDetailsModal = () => {
+    setDetailsModalOpen(false);
+  };
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[2rem] border border-slate-100 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+      <section className="space-y-2">
         <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Returned Results</p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">Scores & Feedback</h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <h1 className="text-3xl font-bold text-slate-900">Scores & Feedback</h1>
+        <p className="text-sm text-slate-500">
           View the scores and feedback that your teacher has returned for your own account only.
         </p>
-        <p className="mt-1 text-xs text-slate-400">Signed in as {studentName}</p>
+        <p className="text-xs text-slate-400">Signed in as {studentName}</p>
       </section>
 
       {lastUpdated && !loading && !errorMessage && (
@@ -252,252 +248,150 @@ const StudentReports = () => {
         </div>
       ) : (
         <>
-          <div className="lg:hidden">
-            <button
-              type="button"
-              onClick={() => setShowFilters((current) => !current)}
-              className="flex w-full items-center justify-between rounded-[1.5rem] border border-slate-100 bg-white px-5 py-4 text-left shadow-sm"
+          <section className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Filter by Subject</p>
+            <select
+              value={selectedSubjectId}
+              onChange={(event) => setSelectedSubjectId(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             >
+              {subjectOptions.map((subject) => (
+                <option key={subject.value} value={subject.value}>
+                  {subject.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400">
+              {subjectOptions.length} subject{subjectOptions.length === 1 ? '' : 's'} available
+            </p>
+          </section>
+
+          <section className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Filters</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">Subject and assessment</p>
+                <p className="text-md font-semibold text-slate-900">Assessments</p>
+                <p className="text-sm text-slate-500">
+                  {filteredRecords.length} returned assessment{filteredRecords.length === 1 ? '' : 's'} found
+                </p>
               </div>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                {showFilters ? 'Hide' : 'Show'}
-              </span>
-            </button>
-          </div>
-
-          {showFilters && typeof document !== 'undefined' && createPortal(
-            <div className="fixed inset-0 z-[80] lg:hidden">
-              <button
-                type="button"
-                aria-label="Close filters"
-                onClick={() => setShowFilters(false)}
-                className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm"
-              />
-              <div className="absolute inset-x-0 bottom-0 max-h-[80vh] overflow-hidden rounded-t-[2rem] border border-slate-100 bg-white shadow-[0_-18px_60px_rgba(15,23,42,0.22)]">
-                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Filters</p>
-                    <h3 className="mt-1 text-base font-semibold text-slate-900">Pick subject and assessment</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowFilters(false)}
-                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="teacher-scrollbar max-h-[calc(80vh-4.5rem)] space-y-4 overflow-y-auto px-5 py-5 pb-8">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Filter by Subject</p>
-                    <label className="mt-3 block text-sm font-semibold text-slate-500">Subject</label>
-                    <select
-                      value={selectedSubjectId}
-                      onChange={(event) => setSelectedSubjectId(event.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    >
-                      {subjectOptions.map((subject) => (
-                        <option key={subject.value} value={subject.value}>
-                          {subject.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-500">Assessment</label>
-                    <select
-                      value={selectedAssessmentId}
-                      onChange={(event) => setSelectedAssessmentId(event.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                      disabled={assessmentOptions.length === 0}
-                    >
-                      {assessmentOptions.length === 0 ? (
-                        <option value="">No assessments available</option>
-                      ) : (
-                        assessmentOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-
-                  {assessmentOptions.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Quick Switch</p>
-                      <div className="space-y-2">
-                        {assessmentOptions.map((option) => {
-                          const isActive = option.value === selectedAssessmentId;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setSelectedAssessmentId(option.value)}
-                              className={`w-full rounded-[1.25rem] border px-4 py-3 text-left transition ${
-                                isActive
-                                  ? 'border-blue-300 bg-blue-50 shadow-sm'
-                                  : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/50'
-                              }`}
-                            >
-                              <p className="text-sm font-semibold text-slate-900">{option.label}</p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {option.score !== null && option.score !== undefined ? `${option.score}%` : 'No score'}
-                              </p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
-
-          <div className="grid gap-6 lg:grid-cols-[360px,1fr]">
-          <aside className="sticky top-6 hidden self-start space-y-4 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm lg:block">
-            <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Filter by Subject</p>
-              <label className="mt-3 block text-sm font-semibold text-slate-500">Subject</label>
-              <select
-                value={selectedSubjectId}
-                onChange={(event) => setSelectedSubjectId(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              >
-                {subjectOptions.map((subject) => (
-                  <option key={subject.value} value={subject.value}>
-                    {subject.label}
-                  </option>
-                ))}
-              </select>
-              {subjectOptions.length > 0 && (
-                <p className="mt-2 text-xs text-slate-400">{subjectOptions.length} subject{subjectOptions.length === 1 ? '' : 's'} available</p>
+              {selectedRecord && (
+                <span className="teacher-status-pill bg-blue-50 text-blue-700">
+                  Selected
+                </span>
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-500">Assessment</label>
-              <select
-                value={selectedAssessmentId}
-                onChange={(event) => setSelectedAssessmentId(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                disabled={assessmentOptions.length === 0}
-              >
-                {assessmentOptions.length === 0 ? (
-                  <option value="">No assessments available</option>
-                ) : (
-                  assessmentOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))
-                )}
-              </select>
-              {assessmentOptions.length > 0 && (
-                <p className="mt-2 text-xs text-slate-400">{assessmentOptions.length} assessment{assessmentOptions.length === 1 ? '' : 's'} in this subject</p>
-              )}
-            </div>
-
-            {assessmentOptions.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Quick Switch</p>
-                <div className="teacher-scrollbar max-h-64 space-y-2 overflow-y-auto pr-3 pl-1">
-                  {assessmentOptions.map((option) => {
-                    const isActive = option.value === selectedAssessmentId;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setSelectedAssessmentId(option.value)}
-                        className={`w-full rounded-[1.25rem] border px-4 py-3 text-left transition ${
-                          isActive
-                            ? 'border-blue-300 bg-blue-50 shadow-sm'
-                            : 'border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/50'
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-slate-900">{option.label}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {option.score !== null && option.score !== undefined ? `${option.score}%` : 'No score'}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </aside>
-
-          <motion.section
-            className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm"
-            variants={resultVariants}
-            initial="hidden"
-            animate="visible"
-            transition={{ duration: 0.35 }}
-          >
-            {!selectedRecord ? (
-              <div className="flex min-h-[420px] items-center justify-center rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
-                Select a subject and assessment to view the returned score.
+            {filteredRecords.length === 0 ? (
+              <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                No returned assessments were found for this subject yet.
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="rounded-[1.75rem] bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Submission</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">{selectedRecord.student_name}</h2>
-                  <p className="mt-1 text-sm text-slate-500">{selectedRecord.assessment_title}</p>
-                  <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
-                    <span>{selectedRecord.subject_name}</span>
-                    <span>Student ID {selectedRecord.student_id}</span>
-                    <span>Submitted {selectedRecord.submission_date}</span>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5 shadow-sm">
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Saved Grade</p>
-                    <p className="mt-3 text-4xl font-black text-slate-900">
-                      {selectedRecord.score !== null && selectedRecord.score !== undefined ? `${selectedRecord.score}%` : 'N/A'}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5 shadow-sm">
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Exact Score</p>
-                    <p className="mt-3 text-2xl font-bold text-blue-700">{formatExactScore(selectedRecord)}</p>
-                  </div>
-                  <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5 shadow-sm">
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Scored At</p>
-                    <p className="mt-3 text-sm font-semibold text-slate-900">
-                      {selectedRecord.date_scored ? new Date(selectedRecord.date_scored).toLocaleString() : 'Recently saved'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50/70 p-5 shadow-sm">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">AI Feedback</p>
-                      <p className="mt-2 text-sm text-slate-500">
-                        This combines the explanation, score review, and edit notes for the submission.
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-600 shadow-sm">
-                      Returned
-                    </span>
-                  </div>
-                  <p className="mt-4 whitespace-pre-wrap text-sm leading-8 text-slate-700">
-                    {selectedRecord.ai_feedback || 'No AI feedback was saved for this submission.'}
-                  </p>
-                </div>
-
+              <div className="teacher-scrollbar max-h-[calc(100vh-420px)] space-y-4 overflow-y-auto pr-2 pb-6">
+                {filteredRecords.map((record) => {
+                  const isActive = String(record.score_id) === selectedAssessmentId && detailsModalOpen;
+                  return (
+                    <motion.button
+                      key={record.score_id}
+                      type="button"
+                      onClick={() => openDetailsModal(record)}
+                      className={`relative w-full overflow-hidden rounded-[1.6rem] border border-slate-900/10 bg-slate-100/70 p-4 text-left shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
+                        isActive ? 'border-blue-300 bg-blue-50' : ''
+                      }`}
+                      variants={resultVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[1.05rem] font-bold text-slate-900">{record.assessment_title}</p>
+                          <p className="mt-2 text-sm text-slate-500">{record.subject_name}</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                            <span>{record.submission_date}</span>
+                            <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+                            <span>{formatExactScore(record)}</span>
+                          </div>
+                        </div>
+                        <span className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700 shadow-sm">
+                          {record.score !== null && record.score !== undefined ? `${record.score}%` : 'N/A'}
+                        </span>
+                      </div>
+                    </motion.button>
+                  );
+                })}
               </div>
             )}
-          </motion.section>
-        </div>
+          </section>
         </>
+      )}
+
+      {detailsModalOpen && selectedRecord && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md">
+          <div className="mx-auto flex max-h-[88vh] w-[min(920px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.35)] ring-1 ring-white/70">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Assessment</p>
+                <h2 className="text-lg font-semibold text-slate-900">{selectedRecord.assessment_title}</h2>
+                <p className="text-xs text-slate-500">{selectedRecord.subject_name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetailsModal}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="teacher-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+              <div className="rounded-[1.75rem] bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Assessment</p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900">{selectedRecord.assessment_title}</h2>
+                <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
+                  <span>{selectedRecord.subject_name}</span>
+                  <span>Submitted {selectedRecord.submission_date}</span>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Returned Grade</p>
+                  <p className="mt-3 text-4xl font-black text-slate-900">
+                    {selectedRecord.score !== null && selectedRecord.score !== undefined ? `${selectedRecord.score}%` : 'N/A'}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Exact Score</p>
+                  <p className="mt-3 text-2xl font-bold text-blue-700">{formatExactScore(selectedRecord)}</p>
+                </div>
+                <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Returned At</p>
+                  <p className="mt-3 text-sm font-semibold text-slate-900">
+                    {selectedRecord.returned_at ? new Date(selectedRecord.returned_at).toLocaleString() : 'Recently returned'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50/70 p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Feedback</p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Review the teacher-approved score details and AI feedback for this assessment.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-600 shadow-sm">
+                    Returned
+                  </span>
+                </div>
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-8 text-slate-700">
+                  {selectedRecord.ai_feedback || 'No AI feedback was saved for this submission.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

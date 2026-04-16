@@ -109,11 +109,15 @@ try {
     }
 
     $primaryFilePath = $savedFiles[0]['file_path'];
+    $ocrText = null;
+
     $rawJson = json_encode([
         'files' => $savedFiles,
         'submitted_via' => 'student_submit_portal',
+        'ocr' => [
+            'status' => 'not_started',
+        ],
     ]);
-    $ocrText = null;
     $aiStatus = 'pending';
 
     $insertStmt = $conn->prepare(

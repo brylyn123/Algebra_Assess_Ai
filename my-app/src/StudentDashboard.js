@@ -316,15 +316,16 @@ const StudentDashboard = () => {
   );
 
   const isDashboardPage = location.pathname === '/student';
-  const isSubmitPage = location.pathname === '/student/submit';
   const isSubjectsPage = location.pathname.startsWith('/student/subjects');
 
   useEffect(() => {
-    document.body.style.overflowY = isSubmitPage || isSubjectsPage ? 'hidden' : 'auto';
+    document.body.style.overflowY = 'hidden';
+    document.documentElement.style.overflowY = 'hidden';
     return () => {
       document.body.style.overflowY = 'auto';
+      document.documentElement.style.overflowY = 'auto';
     };
-  }, [isSubmitPage, isSubjectsPage]);
+  }, []);
 
   return (
     <>
@@ -354,7 +355,7 @@ const StudentDashboard = () => {
       )}
 
       <div
-        className="min-h-screen bg-slate-50"
+        className="h-screen overflow-hidden bg-slate-50"
         style={{
           backgroundImage:
             'linear-gradient(#cbd7ed 1px, transparent 1px), linear-gradient(90deg, #cbd7ed 1px, transparent 1px)',
@@ -393,7 +394,7 @@ const StudentDashboard = () => {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-6 py-10">
+        <main className="mx-auto h-[calc(100vh-74px)] max-w-7xl overflow-hidden px-6 py-6">
           <div className="relative flex h-[calc(100vh-160px)] min-h-0 gap-8 overflow-hidden">
             <aside className="hidden h-[calc(100vh-200px)] w-[260px] shrink-0 lg:block">
               <div className="sticky top-28 h-full space-y-6 overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
@@ -861,7 +862,7 @@ export const StudentSubjects = () => {
               </div>
             </div>
 
-            <div className="teacher-scrollbar mx-auto grid min-h-0 flex-1 w-full max-w-5xl gap-4 overflow-y-auto pr-2">
+            <div className="teacher-scrollbar mx-auto grid h-full max-h-[calc(100vh-340px)] min-h-0 flex-1 w-full max-w-5xl gap-4 overflow-y-scroll pr-3 pb-56 md:max-h-[calc(100vh-320px)] md:pb-64">
             {loadingSubjects ? (
               <p className="text-sm text-slate-500">Loading subjects...</p>
             ) : subjectsError ? (
@@ -1155,7 +1156,10 @@ export const StudentSubjects = () => {
                           <div>
                             <p className="text-base font-semibold text-slate-900">Upload Scanned Answer Photos</p>
                             <p className="mt-1 text-sm text-slate-500">
-                              You can select multiple images. Once submitted, uploads are locked.
+                              Upload clear JPG or PNG photos for the best OCR and AI grading results. Once submitted, uploads are locked.
+                            </p>
+                            <p className="mt-2 text-xs text-amber-600">
+                              PDF files are allowed, but automatic text extraction may be less reliable than image uploads.
                             </p>
                           </div>
 
@@ -1171,6 +1175,7 @@ export const StudentSubjects = () => {
                                 className="w-full rounded-xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700"
                               />
                               <p className="text-xs italic text-slate-500">{fileLabel}</p>
+                              <p className="text-[11px] text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
                             </div>
                             <button
                               type="button"

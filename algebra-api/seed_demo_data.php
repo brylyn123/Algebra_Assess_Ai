@@ -347,14 +347,12 @@ function buildAssessmentItems(string $subjectName, string $assessmentTitle): arr
             'item_no' => 1,
             'question_type' => 'handwritten_algebra',
             'question_content' => "Solve the core problem set for {$assessmentTitle} under {$subjectName}.",
-            'options' => null,
             'max_score' => 5.0,
         ],
         [
             'item_no' => 2,
             'question_type' => 'handwritten_algebra',
             'question_content' => "Explain your steps and justify the answer for {$assessmentTitle} under {$subjectName}.",
-            'options' => null,
             'max_score' => 5.0,
         ],
     ];
@@ -661,7 +659,7 @@ try {
             foreach (buildAssessmentItems($subject['subject_name'], $assessmentTitle) as $itemIndex => $item) {
                 $itemId = insertAndGetId(
                     $conn,
-                    'INSERT INTO Exercise_Items (exercise_id, item_no, question_type, question_content, options, max_score) VALUES (?, ?, ?, ?, NULL, ?)',
+                    'INSERT INTO Exercise_Items (exercise_id, item_no, question_type, question_content, max_score) VALUES (?, ?, ?, ?, ?)',
                     'iissd',
                     [
                         $exerciseId,

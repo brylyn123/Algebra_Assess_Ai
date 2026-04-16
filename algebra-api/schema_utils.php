@@ -158,6 +158,38 @@ function ensureScoreMetricsColumns(mysqli $conn): void {
     }
 }
 
+function ensureScoreReturnColumn(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    $returnedAtResult = $conn->query("SHOW COLUMNS FROM Scores LIKE 'returned_at'");
+    $hasReturnedAt = $returnedAtResult && $returnedAtResult->num_rows > 0;
+    if ($returnedAtResult) {
+        $returnedAtResult->free();
+    }
+
+    if (!$hasReturnedAt) {
+        if (!$conn->query("ALTER TABLE Scores ADD COLUMN returned_at DATETIME NULL AFTER date_scored")) {
+            throw new Exception('Unable to add returned result support to Scores: ' . $conn->error);
+        }
+
+        if (
+            !$conn->query(
+                "UPDATE Scores
+                 SET returned_at = COALESCE(date_scored, CURRENT_TIMESTAMP)
+                 WHERE returned_at IS NULL"
+            )
+        ) {
+            throw new Exception('Unable to backfill returned_at in Scores: ' . $conn->error);
+        }
+    }
+}
+
 function ensureStudentProfileColumns(mysqli $conn): void {
     static $checked = false;
 

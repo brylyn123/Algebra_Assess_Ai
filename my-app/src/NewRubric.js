@@ -5,6 +5,7 @@ import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 
 const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+const NEW_RUBRIC_STORAGE_KEY = 'teacher:new-rubric-created';
 
 const buildDefaultLevelDefinitions = () => [
     { label: 'Exceeds Expectations', points: 5 },
@@ -297,9 +298,25 @@ const NewRubric = () => {
                 throw new Error(response.data?.message || 'Unable to save the rubric.');
             }
 
+            if (!isEditing && typeof window !== 'undefined') {
+                window.localStorage.setItem(
+                    NEW_RUBRIC_STORAGE_KEY,
+                    JSON.stringify({
+                        teacherId,
+                        rubricSetId: response.data?.rubric_set_id ?? null,
+                        savedAt: new Date().toISOString(),
+                    })
+                );
+            }
+
             alert(successText);
             if (isEditing) {
                 navigate('/teacher/assessments');
+                return;
+            }
+
+            if (location.state?.returnToAssessment) {
+                navigate('/teacher/assessments/new');
                 return;
             }
 
@@ -330,7 +347,7 @@ const NewRubric = () => {
                     </div>
                     <button
                         type="button"
-                        onClick={() => navigate('/teacher/assessments')}
+                        onClick={() => navigate(location.state?.returnToAssessment ? '/teacher/assessments/new' : '/teacher/assessments')}
                         className="text-sm font-semibold text-slate-500 transition hover:text-slate-900"
                     >
                         Cancel
