@@ -317,13 +317,14 @@ const StudentDashboard = () => {
 
   const isDashboardPage = location.pathname === '/student';
   const isSubmitPage = location.pathname === '/student/submit';
+  const isSubjectsPage = location.pathname.startsWith('/student/subjects');
 
   useEffect(() => {
-    document.body.style.overflowY = isSubmitPage ? 'hidden' : 'auto';
+    document.body.style.overflowY = isSubmitPage || isSubjectsPage ? 'hidden' : 'auto';
     return () => {
       document.body.style.overflowY = 'auto';
     };
-  }, [isSubmitPage]);
+  }, [isSubmitPage, isSubjectsPage]);
 
   return (
     <>
@@ -394,7 +395,7 @@ const StudentDashboard = () => {
 
         <main className="mx-auto max-w-7xl px-6 py-10">
           <div className="relative flex h-[calc(100vh-160px)] min-h-0 gap-8 overflow-hidden">
-            <aside className="hidden w-[260px] shrink-0 lg:block">
+            <aside className="hidden h-[calc(100vh-200px)] w-[260px] shrink-0 lg:block">
               <div className="sticky top-28 h-full space-y-6 overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
                 <div>
                   <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
@@ -409,7 +410,7 @@ const StudentDashboard = () => {
                           key={action.label}
                           type="button"
                           onClick={() => navigate(action.path)}
-                          className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                          className={`relative flex h-16 w-full items-center gap-3 overflow-hidden rounded-2xl px-4 text-left text-sm font-bold transition ${
                             isActive
                               ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
                               : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
@@ -428,10 +429,8 @@ const StudentDashboard = () => {
             </aside>
 
             <section
-              className={`min-w-0 flex-1 ${
-                isSubmitPage || isDashboardPage ? 'overflow-hidden' : 'overflow-y-auto'
-              }`}
-              style={{ maxHeight: 'calc(100vh - 200px)' }}
+              className="min-w-0 flex-1 overflow-hidden"
+              style={{ height: 'calc(100vh - 200px)' }}
             >
               <div
                 className={`h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)] ${
@@ -439,7 +438,7 @@ const StudentDashboard = () => {
                 }`}
               >
                 <div className="h-full min-h-0 overflow-hidden rounded-[1.8rem] bg-[#f5f7fb]">
-                <div className={`${isDashboardPage ? 'h-full overflow-hidden' : 'h-full min-h-0 overflow-y-auto'} space-y-10 px-5 py-6 pb-6 md:space-y-12 md:px-8 md:py-8 md:pb-8`}>
+                <div className={`${isDashboardPage || isSubjectsPage ? 'h-full overflow-hidden' : 'h-full min-h-0 overflow-y-auto'} space-y-10 px-5 py-6 pb-6 md:space-y-12 md:px-8 md:py-8 md:pb-8`}>
                     <Outlet context={outletContext} />
                   </div>
                 </div>
@@ -782,42 +781,40 @@ export const StudentSubjects = () => {
   const visibleSubjects = showArchivedSubjects ? archivedSubjects : enrolledSubjects;
 
   return (
-    <>
-      <section className="page-hero-card mb-6 px-8 py-10 md:mb-8 md:px-10 md:py-11">
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
+      <section className="mb-6 space-y-4 md:mb-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex flex-col gap-2">
             <p className={sectionHeaderEyebrowClass}>
               {isSubjectAssessmentPage ? 'Assessments' : 'Subjects'}
             </p>
-            <h1 className={sectionHeaderTitleClass}>
+            <h1 className="text-[1.95rem] font-black tracking-tight text-slate-950 md:text-[2.35rem]">
               {isSubjectAssessmentPage ? selectedSubject?.subject_name || 'Assessments' : 'My Subjects'}
             </h1>
-            <p className={sectionHeaderSubtextClass}>
+            <p className="max-w-2xl text-base leading-8 text-slate-500">
               {isSubjectAssessmentPage
-                ? 'Review the assessments for this subject below, then open one to view the items and submit your captured solution.'
-                : 'Browse your classes, switch between active and archived subjects, and enroll using a teacher join code.'}
+                ? 'Browse every assessment in this subject, open any activity to review the questions, and upload your work when you are ready.'
+                : 'Keep track of your enrolled classes, revisit archived subjects, and join a new subject with your teacher’s code.'}
             </p>
           </div>
 
           {!isSubjectAssessmentPage && (
-            <div className="w-full max-w-md rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Join Subject</p>
-                  <p className="mt-1 text-sm text-slate-500">Paste the teacher's join code to enroll instantly.</p>
-                </div>
+            <div className="w-full max-w-md">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Join Subject</p>
+                <p className="mt-1 text-sm text-slate-500">Enter the class code from your teacher to add a subject to your dashboard.</p>
               </div>
               <form onSubmit={handleEnroll} className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <input
                   value={enrollCode}
                   onChange={(event) => setEnrollCode(event.target.value)}
                   placeholder="Paste teacher's join code"
-                  className="teacher-input flex-1 bg-white"
+                  className="teacher-input h-12 flex-1 bg-white"
                 />
                 <button
                   type="submit"
                   disabled={enrollLoading}
-                  className="teacher-primary-btn whitespace-nowrap disabled:cursor-wait disabled:bg-blue-300"
+                  className="teacher-primary-btn h-12 whitespace-nowrap disabled:cursor-wait disabled:bg-blue-300"
                 >
                   {enrollLoading ? 'Enrolling...' : 'Join Subject'}
                 </button>
@@ -828,14 +825,14 @@ export const StudentSubjects = () => {
         </div>
       </section>
 
-      <section className="space-y-6">
+      <section className="flex min-h-0 flex-1 flex-col space-y-6 overflow-hidden">
         {!isSubjectAssessmentPage && (
           <>
             <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xl font-bold text-slate-900">Subject Library</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Switch between your current classes and your archived subject history.
+                  Move between active classes and archived records from one place.
                 </p>
               </div>
               <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-1 shadow-sm">
@@ -864,7 +861,7 @@ export const StudentSubjects = () => {
               </div>
             </div>
 
-            <div className="teacher-scrollbar mx-auto grid max-h-[calc(100vh-340px)] w-full max-w-5xl gap-4 overflow-y-auto pr-2">
+            <div className="teacher-scrollbar mx-auto grid min-h-0 flex-1 w-full max-w-5xl gap-4 overflow-y-auto pr-2">
             {loadingSubjects ? (
               <p className="text-sm text-slate-500">Loading subjects...</p>
             ) : subjectsError ? (
@@ -893,17 +890,17 @@ export const StudentSubjects = () => {
                         navigate(`/student/subjects/${subject.subject_id}`);
                       }
                     }}
-                    className={`relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 p-3.5 text-left shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${subjectTheme.surfaceClass}`}
+                    className={`relative flex min-h-[176px] w-full overflow-hidden rounded-[1.5rem] border border-slate-900/10 p-4 text-left shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] md:p-5 ${subjectTheme.surfaceClass}`}
                   >
                     <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${subjectTheme.accentClass}`} />
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex w-full gap-4">
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
                           {subject.subject_code || 'Subject'}
                         </p>
-                        <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{subject.subject_name}</p>
+                        <p className="mt-2 truncate text-[1.1rem] font-black text-slate-900">{subject.subject_name}</p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {subject.course || 'Course'} - {subject.year || 'Year'} - {subject.section_name || subject.section || 'Section'}
+                          {subject.course || 'Course'} • {subject.year || 'Year'} • {subject.section_name || subject.section || 'Section'}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {subject.year && (
@@ -945,19 +942,20 @@ export const StudentSubjects = () => {
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
-                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-xs text-slate-500 shadow-sm">
-                          <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      <div className="flex w-[132px] shrink-0 flex-col justify-between gap-4">
+                        <div className="ml-auto w-full max-w-[108px] rounded-[1.35rem] border border-white/80 bg-white/90 px-3 py-3 text-center shadow-sm">
+                          <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
                             ID {subject.subject_id}
                           </p>
-                          <span className={`mt-1 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${
+                          <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                             showArchivedSubjects ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                           }`}>
                             {showArchivedSubjects ? 'Archived' : 'Active'}
                           </span>
                         </div>
-                        <span className="rounded-full border border-blue-200 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-700 shadow-sm">
-                          {showArchivedSubjects ? 'View Details' : 'View Assessments'}
+
+                        <span className="inline-flex items-center justify-center rounded-full border border-blue-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-700 shadow-sm">
+                          {showArchivedSubjects ? 'View Subject' : 'Open Assessments'}
                         </span>
                       </div>
                     </div>
@@ -970,7 +968,7 @@ export const StudentSubjects = () => {
         )}
 
         {isSubjectAssessmentPage && (
-          <div className="space-y-5">
+          <div className="flex min-h-0 flex-1 flex-col space-y-5 overflow-hidden">
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
@@ -999,7 +997,7 @@ export const StudentSubjects = () => {
                   <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-6 py-10 text-center">
                     <p className="text-lg font-semibold text-slate-900">This subject is archived</p>
                     <p className="mt-2 text-sm text-slate-600">
-                      You can still see it in your archived subject list, but new assessment submissions are closed here.
+                      You can still review it from your archived list, but new assessment submissions are no longer available.
                     </p>
                   </div>
                 ) : assessmentsError ? (
@@ -1008,11 +1006,11 @@ export const StudentSubjects = () => {
                   <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
                     <p className="text-lg font-semibold text-slate-900">No assessments for this subject yet</p>
                     <p className="mt-2 text-sm text-slate-500">
-                      Your teacher has not posted an assessment here yet.
+                      Your teacher has not published any activities in this subject yet.
                     </p>
                   </div>
                 ) : (
-                  <div className="max-h-[calc(100vh-420px)] space-y-3 overflow-y-auto pr-2 teacher-scrollbar">
+                  <div className="teacher-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
                     {subjectAssessments.map((assessment) => {
                       const isSelected = String(assessment.exercise_id) === String(selectedAssessmentId);
                       const isSubmitted = Boolean(assessment.already_submitted || assessment.submission_status);
@@ -1252,7 +1250,7 @@ export const StudentSubjects = () => {
           </div>
         )}
       </section>
-    </>
+    </div>
   );
 };
 

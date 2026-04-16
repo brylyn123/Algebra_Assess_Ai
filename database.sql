@@ -12,15 +12,15 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE Colleges (
     college_id INT PRIMARY KEY AUTO_INCREMENT,
     college_name VARCHAR(255) NOT NULL
-);
+) ENGINE=InnoDB;
 
 CREATE TABLE Course (
     course_id INT PRIMARY KEY AUTO_INCREMENT,
     course_name VARCHAR(255) NOT NULL,
     course_code VARCHAR(50) UNIQUE NOT NULL,
     college_id INT,
-    FOREIGN KEY (college_id) REFERENCES Colleges(college_id)
-);
+    CONSTRAINT fk_course_college FOREIGN KEY (college_id) REFERENCES Colleges(college_id)
+) ENGINE=InnoDB;
 
 -- 2. User Management
 CREATE TABLE Users (
@@ -28,7 +28,7 @@ CREATE TABLE Users (
     email VARCHAR(150) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role ENUM('admin', 'teacher', 'student') NOT NULL
-);
+) ENGINE=InnoDB;
 
 CREATE TABLE Teacher (
     teacher_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -38,9 +38,19 @@ CREATE TABLE Teacher (
     email VARCHAR(150) UNIQUE NOT NULL,
     college_id INT,
     user_id INT,
-    FOREIGN KEY (college_id) REFERENCES Colleges(college_id),
-    FOREIGN KEY (user_id) REFERENCES Users(user_id)
-);
+    CONSTRAINT fk_teacher_college FOREIGN KEY (college_id) REFERENCES Colleges(college_id),
+    CONSTRAINT fk_teacher_user FOREIGN KEY (user_id) REFERENCES Users(user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE Year_Level (
+    year_id INT PRIMARY KEY AUTO_INCREMENT,
+    year_level VARCHAR(50) NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE Section (
+    section_id INT PRIMARY KEY AUTO_INCREMENT,
+    section_name VARCHAR(50) NOT NULL
+) ENGINE=InnoDB;
 
 CREATE TABLE Student (
     student_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -52,23 +62,13 @@ CREATE TABLE Student (
     section_id INT,
     year_id INT,
     user_id INT,
-    FOREIGN KEY (course_id) REFERENCES Course(course_id),
-    FOREIGN KEY (section_id) REFERENCES Section(section_id),
-    FOREIGN KEY (year_id) REFERENCES Year_Level(year_id),
-    FOREIGN KEY (user_id) REFERENCES Users(user_id)
-);
+    CONSTRAINT fk_student_course FOREIGN KEY (course_id) REFERENCES Course(course_id),
+    CONSTRAINT fk_student_section FOREIGN KEY (section_id) REFERENCES Section(section_id),
+    CONSTRAINT fk_student_year FOREIGN KEY (year_id) REFERENCES Year_Level(year_id),
+    CONSTRAINT fk_student_user FOREIGN KEY (user_id) REFERENCES Users(user_id)
+) ENGINE=InnoDB;
 
 -- 3. Academic Calendar & Organization
-CREATE TABLE Year_Level (
-    year_id INT PRIMARY KEY AUTO_INCREMENT,
-    year_level VARCHAR(50) NOT NULL
-);
-
-CREATE TABLE Section (
-    section_id INT PRIMARY KEY AUTO_INCREMENT,
-    section_name VARCHAR(50) NOT NULL
-);
-
 CREATE TABLE Subject (
     subject_id INT PRIMARY KEY AUTO_INCREMENT,
     teacher_id INT NOT NULL,
@@ -82,11 +82,11 @@ CREATE TABLE Subject (
     join_code VARCHAR(20) UNIQUE,
     archived TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id),
-    FOREIGN KEY (course_id) REFERENCES Course(course_id),
-    FOREIGN KEY (section_id) REFERENCES Section(section_id),
-    FOREIGN KEY (year_id) REFERENCES Year_Level(year_id)
-);
+    CONSTRAINT fk_subject_teacher FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id),
+    CONSTRAINT fk_subject_course FOREIGN KEY (course_id) REFERENCES Course(course_id),
+    CONSTRAINT fk_subject_section FOREIGN KEY (section_id) REFERENCES Section(section_id),
+    CONSTRAINT fk_subject_year FOREIGN KEY (year_id) REFERENCES Year_Level(year_id)
+) ENGINE=InnoDB;
 
 -- 4. Class Instances
 CREATE TABLE Enrollment (
@@ -95,9 +95,9 @@ CREATE TABLE Enrollment (
     subject_id INT NOT NULL,
     date_enrolled DATE DEFAULT (CURRENT_DATE),
     enrollment_status ENUM('enrolled', 'dropped') DEFAULT 'enrolled',
-    FOREIGN KEY (student_id) REFERENCES Student(student_id),
-    FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
-);
+    CONSTRAINT fk_enrollment_student FOREIGN KEY (student_id) REFERENCES Student(student_id),
+    CONSTRAINT fk_enrollment_subject FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
+) ENGINE=InnoDB;
 
 -- 5. Assessments & Items
 CREATE TABLE Exercises_Problem (
@@ -110,8 +110,8 @@ CREATE TABLE Exercises_Problem (
     difficulty ENUM('Easy', 'Medium', 'Hard') DEFAULT 'Medium',
     ideal_solution TEXT,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
-);
+    CONSTRAINT fk_exercises_problem_subject FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
+) ENGINE=InnoDB;
 
 CREATE TABLE Exercise_Items (
     item_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -139,6 +139,11 @@ CREATE TABLE rubric_sets (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_rubric_sets_teacher FOREIGN KEY (teacher_id) REFERENCES Teacher(teacher_id)
 ) ENGINE=InnoDB;
+
+ALTER TABLE Exercises_Problem
+ADD CONSTRAINT fk_exercises_problem_rubric_set
+FOREIGN KEY (rubric_set_id) REFERENCES rubric_sets(rubric_set_id)
+ON DELETE SET NULL;
 
 CREATE TABLE rubric_set_items (
     rubric_item_id INT AUTO_INCREMENT PRIMARY KEY,
