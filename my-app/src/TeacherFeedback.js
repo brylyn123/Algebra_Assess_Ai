@@ -7,7 +7,7 @@ const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 const TeacherFeedback = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
-  const teacherId = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
+  const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
 
   const [records, setRecords] = useState([]);
   const [selectedAssessment, setSelectedAssessment] = useState('');

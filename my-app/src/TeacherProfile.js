@@ -7,7 +7,7 @@ const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 const TeacherProfile = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
-  const teacherId = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
+  const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
 
   const [subjects, setSubjects] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
@@ -136,7 +136,7 @@ const TeacherProfile = () => {
           <div className="mt-5 grid gap-3">
             <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Teacher ID</span>
-              <span className="font-semibold text-slate-900">{teacherId ?? '-'}</span>
+              <span className="font-semibold text-slate-900">{storedTeacher?.institutional_id ?? storedTeacher?.idNumber ?? teacherId ?? '-'}</span>
             </div>
             <div className="flex items-center justify-between rounded-[1.2rem] border border-slate-200 bg-slate-50 px-4 py-3">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Email</span>

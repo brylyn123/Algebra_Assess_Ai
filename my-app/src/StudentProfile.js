@@ -21,6 +21,7 @@ const getNormalizedStudentProfile = (stored) => {
   return {
     fullName,
     email: stored?.email || 'student@example.com',
+    studentId: stored?.institutional_id || stored?.idNumber || stored?.student_id || 'Not set',
     school: stored?.collegeName || 'Algebra High School',
     course: stored?.courseName || 'Not set',
     section: stored?.sectionName || 'Section A',
@@ -222,6 +223,7 @@ const StudentProfile = () => {
 
         <div className="grid gap-4 md:grid-cols-2">
           {[
+            { label: 'Student ID', value: profileSummary.studentId },
             { label: 'School', value: profileSummary.school },
             { label: 'Course', value: profileSummary.course },
             { label: 'Email', value: profileSummary.email },

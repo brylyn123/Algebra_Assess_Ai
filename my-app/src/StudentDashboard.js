@@ -109,7 +109,7 @@ const StudentDashboard = () => {
   });
   const displayName = getDisplayName(currentUser);
 
-  const studentId = currentUser?.student_id ?? currentUser?.user_id ?? null;
+  const studentId = currentUser?.user_id ?? currentUser?.student_id ?? null;
   const [enrolledSubjects, setEnrolledSubjects] = useState([]);
   const [archivedSubjects, setArchivedSubjects] = useState([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
@@ -616,7 +616,7 @@ export const StudentSubjects = () => {
   } = useOutletContext() ?? {};
   const currentEmail = getCurrentLocalUserEmail();
   const currentUser = currentEmail ? findLocalUser(currentEmail) : null;
-  const studentId = currentUser?.student_id ?? currentUser?.user_id ?? null;
+  const studentId = currentUser?.user_id ?? currentUser?.student_id ?? null;
 
   const [assessmentList, setAssessmentList] = useState(availableAssessments);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');

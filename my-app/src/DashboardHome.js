@@ -13,7 +13,7 @@ const DashboardHome = () => {
     const navigate = useNavigate();
     const currentEmail = getCurrentLocalUserEmail();
     const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
-    const teacherId = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
+    const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
 
     const [analytics, setAnalytics] = useState(null);
     const [recentAssessments, setRecentAssessments] = useState([]);

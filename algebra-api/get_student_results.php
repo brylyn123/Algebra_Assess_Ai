@@ -47,7 +47,7 @@ try {
             FROM exercise_items
             GROUP BY exercise_id
         ) ex ON ex.exercise_id = ep.exercise_id
-        WHERE cs.student_id = ?
+        WHERE cs.student_user_id = ?
           AND sc.returned_at IS NOT NULL
         ORDER BY subj.subject_name ASC, ep.title ASC, sc.date_scored DESC, sc.score_id DESC
     ");

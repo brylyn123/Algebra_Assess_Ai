@@ -31,7 +31,7 @@ const ManageSubjects = () => {
     const [toastVisible, setToastVisible] = useState(false);
     const currentTeacherEmail = getCurrentLocalUserEmail();
     const storedTeacher = currentTeacherEmail ? findLocalUser(currentTeacherEmail) : null;
-    const teacherId = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id;
+    const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id;
     const [subjectFilters, setSubjectFilters] = useState({
         years: [],
         sections: [],

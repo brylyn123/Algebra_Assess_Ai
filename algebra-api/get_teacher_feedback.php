@@ -40,19 +40,19 @@ try {
             subj.subject_name,
             subj.join_code AS subject_code,
             CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name) AS student_name,
-            st.student_id,
+            st.institutional_id AS student_id,
             DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date
         FROM Scores sc
         INNER JOIN Captured_Solution cs ON cs.solution_id = sc.solution_id
         INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
         INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
-        LEFT JOIN Student st ON st.student_id = cs.student_id
+        LEFT JOIN Users st ON st.user_id = cs.student_user_id AND st.role = 'student'
         LEFT JOIN (
             SELECT exercise_id, COALESCE(SUM(max_score), 0) AS max_score_possible
             FROM exercise_items
             GROUP BY exercise_id
         ) ex ON ex.exercise_id = ep.exercise_id
-        WHERE subj.teacher_id = ?
+        WHERE subj.teacher_user_id = ?
           AND sc.returned_at IS NOT NULL
     ";
 

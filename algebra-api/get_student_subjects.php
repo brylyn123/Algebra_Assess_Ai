@@ -43,11 +43,11 @@ try {
                 ELSE 0
             END AS enrolled
          FROM Subject s
-         LEFT JOIN Teacher t ON t.teacher_id = s.teacher_id
+         LEFT JOIN Users t ON t.user_id = s.teacher_user_id AND t.role = 'teacher'
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
-         LEFT JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_id = ?
+         LEFT JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_user_id = ?
          ORDER BY s.subject_name ASC"
     );
     $stmt->bind_param("i", $student_id);

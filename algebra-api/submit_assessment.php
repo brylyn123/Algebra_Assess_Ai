@@ -31,11 +31,11 @@ try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
 
     $checkStmt = $conn->prepare(
-        "SELECT
+         "SELECT
             ep.exercise_id,
             ep.subject_id
          FROM exercises_problem ep
-         INNER JOIN Enrollment e ON e.$enrollmentCol = ep.subject_id AND e.student_id = ?
+         INNER JOIN Enrollment e ON e.$enrollmentCol = ep.subject_id AND e.student_user_id = ?
          WHERE ep.exercise_id = ?
          LIMIT 1"
     );
@@ -121,7 +121,7 @@ try {
     $aiStatus = 'pending';
 
     $insertStmt = $conn->prepare(
-        "INSERT INTO Captured_Solution (exercise_id, student_id, file_path, ocr_text, ai_status, ai_raw_json)
+        "INSERT INTO Captured_Solution (exercise_id, student_user_id, file_path, ocr_text, ai_status, ai_raw_json)
          VALUES (?, ?, ?, ?, ?, ?)"
     );
     $insertStmt->bind_param(

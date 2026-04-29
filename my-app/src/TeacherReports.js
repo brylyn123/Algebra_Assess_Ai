@@ -15,7 +15,7 @@ const clampScore = (value) => {
 const TeacherReports = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
-  const teacherId = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
+  const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
 
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);

@@ -76,8 +76,8 @@ try {
          INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
-         LEFT JOIN Student st ON st.student_id = cs.student_id
-         WHERE cs.solution_id = ? AND subj.teacher_id = ?
+         LEFT JOIN Users st ON st.user_id = cs.student_user_id AND st.role = 'student'
+         WHERE cs.solution_id = ? AND subj.teacher_user_id = ?
          LIMIT 1"
     );
     $submissionStmt->bind_param('ii', $solution_id, $teacher_id);

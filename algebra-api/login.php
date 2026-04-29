@@ -16,36 +16,47 @@ $email = $data['email'] ?? '';
 $password = $data['password'] ?? '';
 
 try {
-    // 1. SEARCH THE USERS TABLE ONLY (Security)
-    // We do NOT select 'firstname' here because it doesn't exist in 'users'
-    $stmt = $conn->prepare("SELECT user_id, email, password, role FROM users WHERE email = ?");
+    $stmt = $conn->prepare(
+        "SELECT
+            u.user_id,
+            u.institutional_id,
+            u.first_name AS first_Name,
+            u.middle_name AS middle_Name,
+            u.last_name AS last_Name,
+            u.email,
+            u.password,
+            u.role,
+            u.college_id,
+            u.course_id,
+            u.section_id,
+            u.year_id,
+            c.college_name AS collegeName,
+            crs.course_name AS courseName,
+            sec.section_name AS sectionName,
+            yl.year_level AS yearLevel
+         FROM users u
+         LEFT JOIN Colleges c ON c.college_id = u.college_id
+         LEFT JOIN Course crs ON crs.course_id = u.course_id
+         LEFT JOIN Section sec ON sec.section_id = u.section_id
+         LEFT JOIN Year_Level yl ON yl.year_id = u.year_id
+         WHERE u.email = ?
+         LIMIT 1"
+    );
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
 
     if ($user = $result->fetch_assoc()) {
-        // 2. VERIFY HASHED PASSWORD
         if (password_verify($password, $user['password'])) {
-            
-            $userId = $user['user_id'];
             $role = $user['role'];
-            $profileData = [];
-
-            // 3. SEARCH THE PROFILE TABLE (Identity)
-            // We use 'AS' to map your lowercase DB columns to the camelCase React needs
-            if ($role === 'teacher') {
-                $profile = $conn->prepare("SELECT teacher_id, first_name AS first_Name, middle_name AS middle_Name, last_name AS last_Name, college_id FROM teacher WHERE user_id = ?");
-            } else {
-                $profile = $conn->prepare("SELECT student_id, first_name AS first_Name, middle_name AS middle_Name, last_name AS last_Name FROM student WHERE user_id = ?");
-            }
-            
-            $profile->bind_param("i", $userId);
-            $profile->execute();
-            $profileData = $profile->get_result()->fetch_assoc();
-
-            // 4. MERGE DATA AND SEND TO REACT
-            $finalUser = array_merge($user, $profileData ? $profileData : []);
-            unset($finalUser['password']); // Safety first!
+            $finalUser = $user;
+            $finalUser['teacher_id'] = $role === 'teacher' ? (int)$user['user_id'] : null;
+            $finalUser['student_id'] = $role === 'student' ? (int)$user['user_id'] : null;
+            $finalUser['idNumber'] = $user['institutional_id'];
+            $finalUser['firstName'] = $user['first_Name'];
+            $finalUser['middleName'] = $user['middle_Name'];
+            $finalUser['lastName'] = $user['last_Name'];
+            unset($finalUser['password']);
 
             echo json_encode(["status" => "success", "user" => $finalUser]);
         } else {

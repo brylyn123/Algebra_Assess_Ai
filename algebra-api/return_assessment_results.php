@@ -27,7 +27,7 @@ try {
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
          WHERE ep.exercise_id = ?
-           AND subj.teacher_id = ?"
+           AND subj.teacher_user_id = ?"
     );
     $readyStmt->bind_param('ii', $exercise_id, $teacher_id);
     $readyStmt->execute();
@@ -53,7 +53,7 @@ try {
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          SET sc.returned_at = COALESCE(sc.returned_at, CURRENT_TIMESTAMP)
          WHERE ep.exercise_id = ?
-           AND subj.teacher_id = ?"
+           AND subj.teacher_user_id = ?"
     );
     $returnStmt->bind_param('ii', $exercise_id, $teacher_id);
     $returnStmt->execute();

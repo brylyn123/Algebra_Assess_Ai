@@ -3,13 +3,14 @@ require_once 'cors.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 
+ensureRegistrationLookupData($conn);
+
 $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
 $sql = "
-    SELECT MIN(college_id) AS college_id, college_name
+    SELECT college_id, college_name, is_active, created_at, updated_at
     FROM {$collegeTable}
-    WHERE college_name IN ('College of Teacher Education', 'College of Sciences')
-    GROUP BY college_name
-    ORDER BY FIELD(college_name, 'College of Teacher Education', 'College of Sciences')
+    WHERE is_active = 1
+    ORDER BY college_name ASC
 ";
 $result = $conn->query($sql);
 

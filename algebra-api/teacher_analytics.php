@@ -25,7 +25,7 @@ try {
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
          LEFT JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
          LEFT JOIN Subject subj ON subj.subject_id = ep.subject_id
-         WHERE subj.teacher_id = ?"
+         WHERE subj.teacher_user_id = ?"
     );
     $totalsStmt->bind_param("i", $teacher_id);
     $totalsStmt->execute();
@@ -43,7 +43,7 @@ try {
          LEFT JOIN Exercises_Problem ep ON ep.subject_id = subj.subject_id
          LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
-         WHERE subj.teacher_id = ?
+         WHERE subj.teacher_user_id = ?
          GROUP BY subj.subject_id
          ORDER BY submissions DESC
          LIMIT 6"

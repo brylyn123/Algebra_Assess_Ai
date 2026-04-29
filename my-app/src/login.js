@@ -79,7 +79,7 @@ const Login = () => {
 
             if (result.status === 'success') {
                 const userData = result.user;
-                const idToStore = userData.teacher_id || userData.user_id;
+                const idToStore = userData.user_id || userData.teacher_id;
                 if (idToStore) {
                     localStorage.setItem('teacher_id', idToStore);
                 }

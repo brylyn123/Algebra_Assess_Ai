@@ -11,7 +11,6 @@ function ensureArchivedColumn($conn) {
     }
 }
 
-// Get the teacher_id from the URL (e.g., get_subjects.php?teacher_id=809218)
 $teacher_id = $_GET['teacher_id'] ?? null;
 
 if (!$teacher_id) {
@@ -37,10 +36,10 @@ try {
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
-         WHERE s.teacher_id = ? AND s.archived = 0
+         WHERE s.teacher_user_id = ? AND s.archived = 0
          ORDER BY s.subject_id DESC"
     );
-    $stmt->bind_param("s", $teacher_id);
+    $stmt->bind_param("i", $teacher_id);
     $stmt->execute();
     $result = $stmt->get_result();
     

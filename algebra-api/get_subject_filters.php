@@ -26,25 +26,25 @@ try {
     ];
 
     $queries = [
-        'school_years' => "SELECT DISTINCT school_year FROM subject WHERE teacher_id = ? AND school_year <> '' ORDER BY school_year DESC",
+        'school_years' => "SELECT DISTINCT school_year FROM subject WHERE teacher_user_id = ? AND school_year <> '' ORDER BY school_year DESC",
         'years' => "SELECT DISTINCT yl.year_level AS value
                     FROM subject s
                     LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
-                    WHERE s.teacher_id = ?
+                    WHERE s.teacher_user_id = ?
                     HAVING value IS NOT NULL AND value <> ''
                     ORDER BY value",
         'sections' => "SELECT DISTINCT sec.section_name AS value
                        FROM subject s
                        LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
-                       WHERE s.teacher_id = ?
+                       WHERE s.teacher_user_id = ?
                        HAVING value IS NOT NULL AND value <> ''
                        ORDER BY value",
-        'semesters' => "SELECT DISTINCT semester FROM subject WHERE teacher_id = ? AND semester <> '' ORDER BY semester"
+        'semesters' => "SELECT DISTINCT semester FROM subject WHERE teacher_user_id = ? AND semester <> '' ORDER BY semester"
     ];
 
     foreach ($queries as $key => $query) {
         $stmt = $conn->prepare($query);
-        $stmt->bind_param("s", $teacher_id);
+        $stmt->bind_param("i", $teacher_id);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result) {

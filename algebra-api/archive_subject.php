@@ -26,9 +26,9 @@ if (!$subject_id || !$teacher_id) {
 try {
     ensureArchivedColumn($conn);
     $updateStmt = $conn->prepare(
-        "UPDATE subject
+         "UPDATE subject
          SET archived = 1
-         WHERE subject_id = ? AND teacher_id = ? AND archived = 0"
+         WHERE subject_id = ? AND teacher_user_id = ? AND archived = 0"
     );
     $updateStmt->bind_param("ii", $subject_id, $teacher_id);
     $updateStmt->execute();

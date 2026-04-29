@@ -112,7 +112,7 @@ const normalizeAiGeneration = (generation, submission) => {
 const GradeSubmissions = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const teacherUser = currentEmail ? findLocalUser(currentEmail) : null;
-  const teacherId = teacherUser?.teacher_id ?? teacherUser?.user_id ?? teacherUser?.id ?? null;
+  const teacherId = teacherUser?.user_id ?? teacherUser?.teacher_id ?? teacherUser?.id ?? null;
   const [submissions, setSubmissions] = useState([]);
   const [selectedAssessment, setSelectedAssessment] = useState('all');
   const [selectedSubmission, setSelectedSubmission] = useState(null);

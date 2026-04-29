@@ -23,7 +23,7 @@ try {
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          SET sc.returned_at = COALESCE(sc.returned_at, CURRENT_TIMESTAMP)
          WHERE sc.solution_id = ?
-           AND subj.teacher_id = ?"
+           AND subj.teacher_user_id = ?"
     );
     $stmt->bind_param('ii', $solution_id, $teacher_id);
     $stmt->execute();
@@ -38,7 +38,7 @@ try {
              INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
              INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
              WHERE sc.solution_id = ?
-               AND subj.teacher_id = ?
+               AND subj.teacher_user_id = ?
              LIMIT 1"
         );
         $checkStmt->bind_param('ii', $solution_id, $teacher_id);

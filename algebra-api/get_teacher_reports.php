@@ -22,7 +22,7 @@ try {
          INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
-         WHERE subj.teacher_id = ?"
+         WHERE subj.teacher_user_id = ?"
     );
     $summaryStmt->bind_param("i", $teacher_id);
     $summaryStmt->execute();
@@ -40,7 +40,7 @@ try {
          LEFT JOIN Exercises_Problem ep ON ep.subject_id = subj.subject_id
          LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
-         WHERE subj.teacher_id = ?
+         WHERE subj.teacher_user_id = ?
          GROUP BY subj.subject_id, subj.subject_name
          ORDER BY submissions DESC, subj.subject_name ASC"
     );
@@ -73,7 +73,7 @@ try {
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
-         WHERE subj.teacher_id = ?
+         WHERE subj.teacher_user_id = ?
          GROUP BY ep.exercise_id, ep.title, ep.difficulty, subj.subject_name
          ORDER BY ep.date_created DESC, ep.exercise_id DESC"
     );

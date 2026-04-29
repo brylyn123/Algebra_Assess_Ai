@@ -30,7 +30,7 @@ if (count($items) === 0) {
 }
 
 try {
-    $teacherStmt = $conn->prepare("SELECT teacher_id FROM Teacher WHERE teacher_id = ? LIMIT 1");
+    $teacherStmt = $conn->prepare("SELECT user_id FROM Users WHERE user_id = ? AND role = 'teacher' LIMIT 1");
     $teacherStmt->bind_param("i", $teacher_id);
     $teacherStmt->execute();
     $result = $teacherStmt->get_result();
@@ -43,7 +43,7 @@ try {
     $conn->begin_transaction();
 
     $setStmt = $conn->prepare(
-        "INSERT INTO rubric_sets (teacher_id, rubric_name, criteria, ai_instructions, level_definitions)
+        "INSERT INTO rubric_sets (teacher_user_id, rubric_name, criteria, ai_instructions, level_definitions)
          VALUES (?, ?, ?, ?, ?)"
     );
     $setStmt->bind_param(

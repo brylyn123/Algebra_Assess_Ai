@@ -20,7 +20,7 @@ try {
         "SELECT ep.exercise_id
          FROM exercises_problem ep
          INNER JOIN subject s ON ep.subject_id = s.subject_id
-         WHERE ep.exercise_id = ? AND s.teacher_id = ?"
+         WHERE ep.exercise_id = ? AND s.teacher_user_id = ?"
     );
     $checkStmt->bind_param("ii", $exercise_id, $teacher_id);
     $checkStmt->execute();
@@ -33,28 +33,30 @@ try {
 
     $conn->begin_transaction();
 
+    $itemScoreStmt = $conn->prepare(
+        "DELETE iscore
+         FROM Item_Scores iscore
+         INNER JOIN Captured_Solution cs ON cs.solution_id = iscore.solution_id
+         WHERE cs.exercise_id = ?"
+    );
+    $itemScoreStmt->bind_param("i", $exercise_id);
+    $itemScoreStmt->execute();
+    $itemScoreStmt->close();
+
     $scoreStmt = $conn->prepare(
-        "DELETE sc FROM Score sc
-         INNER JOIN captured_solution cs ON sc.solution_id = cs.solution_id
+        "DELETE sc
+         FROM Scores sc
+         INNER JOIN Captured_Solution cs ON sc.solution_id = cs.solution_id
          WHERE cs.exercise_id = ?"
     );
     $scoreStmt->bind_param("i", $exercise_id);
     $scoreStmt->execute();
     $scoreStmt->close();
 
-    $solutionStmt = $conn->prepare("DELETE FROM captured_solution WHERE exercise_id = ?");
+    $solutionStmt = $conn->prepare("DELETE FROM Captured_Solution WHERE exercise_id = ?");
     $solutionStmt->bind_param("i", $exercise_id);
     $solutionStmt->execute();
     $solutionStmt->close();
-
-    $rubricStmt = $conn->prepare(
-        "DELETE r FROM rubrics r
-         INNER JOIN exercise_items ei ON r.item_id = ei.item_id
-         WHERE ei.exercise_id = ?"
-    );
-    $rubricStmt->bind_param("i", $exercise_id);
-    $rubricStmt->execute();
-    $rubricStmt->close();
 
     $itemStmt = $conn->prepare("DELETE FROM exercise_items WHERE exercise_id = ?");
     $itemStmt->bind_param("i", $exercise_id);

@@ -199,100 +199,8 @@ function ensureStudentProfileColumns(mysqli $conn): void {
 
     $checked = true;
 
-    $studentTable = resolveExistingTableName($conn, ['Student', 'student']);
-    $teacherTable = resolveExistingTableName($conn, ['Teacher', 'teacher']);
-    ensureCollegeForeignKeyForTable($conn, $teacherTable);
-
-    $studentCollegeConstraints = [];
-    $studentCollegeConstraintResult = $conn->query(
-        "SELECT CONSTRAINT_NAME
-         FROM information_schema.KEY_COLUMN_USAGE
-         WHERE TABLE_SCHEMA = DATABASE()
-           AND TABLE_NAME = 'Student'
-           AND COLUMN_NAME = 'college_id'
-           AND REFERENCED_TABLE_NAME IS NOT NULL"
-    );
-    if ($studentCollegeConstraintResult) {
-        while ($row = $studentCollegeConstraintResult->fetch_assoc()) {
-            $constraintName = preg_replace('/[^A-Za-z0-9_]/', '', (string)($row['CONSTRAINT_NAME'] ?? ''));
-            if ($constraintName !== '') {
-                $studentCollegeConstraints[] = $constraintName;
-            }
-        }
-        $studentCollegeConstraintResult->free();
-    }
-
-    foreach (array_unique($studentCollegeConstraints) as $constraintName) {
-        if (!$conn->query("ALTER TABLE Student DROP FOREIGN KEY {$constraintName}")) {
-            throw new Exception("Unable to drop Student college foreign key {$constraintName}: " . $conn->error);
-        }
-    }
-
-    $studentCollegeColumnResult = $conn->query("SHOW COLUMNS FROM Student LIKE 'college_id'");
-    $hasStudentCollegeColumn = $studentCollegeColumnResult && $studentCollegeColumnResult->num_rows > 0;
-    if ($studentCollegeColumnResult) {
-        $studentCollegeColumnResult->free();
-    }
-
-    if ($hasStudentCollegeColumn && !$conn->query("ALTER TABLE Student DROP COLUMN college_id")) {
-        throw new Exception('Unable to drop Student.college_id: ' . $conn->error);
-    }
-
-    $columns = [
-        'course_id' => "ALTER TABLE Student ADD COLUMN course_id INT NULL AFTER email",
-        'section_id' => "ALTER TABLE Student ADD COLUMN section_id INT NULL AFTER course_id",
-        'year_id' => "ALTER TABLE Student ADD COLUMN year_id INT NULL AFTER section_id",
-    ];
-
-    foreach ($columns as $column => $statement) {
-        $result = $conn->query("SHOW COLUMNS FROM Student LIKE '$column'");
-        if ($result && $result->num_rows > 0) {
-            $result->free();
-            continue;
-        }
-
-        if ($result) {
-            $result->free();
-        }
-
-        if (!$conn->query($statement)) {
-            throw new Exception("Unable to add $column to Student: " . $conn->error);
-        }
-    }
-
-    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
-    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
-    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
-
-    $fkChecks = [
-        "student_course_fk" => "ALTER TABLE Student ADD CONSTRAINT student_course_fk FOREIGN KEY (course_id) REFERENCES {$courseTable}(course_id)",
-        "student_section_fk" => "ALTER TABLE Student ADD CONSTRAINT student_section_fk FOREIGN KEY (section_id) REFERENCES {$sectionTable}(section_id)",
-        "student_year_fk" => "ALTER TABLE Student ADD CONSTRAINT student_year_fk FOREIGN KEY (year_id) REFERENCES {$yearTable}(year_id)",
-    ];
-
-    foreach ($fkChecks as $constraint => $statement) {
-        $check = $conn->prepare(
-            "SELECT CONSTRAINT_NAME
-             FROM information_schema.TABLE_CONSTRAINTS
-             WHERE TABLE_SCHEMA = DATABASE()
-               AND TABLE_NAME = 'Student'
-               AND CONSTRAINT_NAME = ?
-             LIMIT 1"
-        );
-        $check->bind_param('s', $constraint);
-        $check->execute();
-        $result = $check->get_result();
-        $exists = $result && $result->num_rows > 0;
-        $check->close();
-
-        if ($exists) {
-            continue;
-        }
-
-        if (!$conn->query($statement)) {
-            throw new Exception("Unable to add $constraint: " . $conn->error);
-        }
-    }
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    ensureCollegeForeignKeyForTable($conn, $userTable);
 }
 
 function ensureCollegeForeignKeyForTable(mysqli $conn, string $tableName): void {
@@ -359,85 +267,48 @@ function ensureCourseCollegeForeignKey(mysqli $conn): void {
     ensureCollegeForeignKeyForTable($conn, $courseTable);
 }
 
-function synchronizeBuiltInColleges(mysqli $conn): array {
+function ensureFlexibleOrganizationColumns(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
     $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
-    $teacherTable = resolveExistingTableName($conn, ['Teacher', 'teacher']);
-    $studentTable = resolveExistingTableName($conn, ['Student', 'student']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
 
-    $canonicalCollegeNames = [
-        'College of Teacher Education',
-        'College of Sciences',
+    $tableDefinitions = [
+        $collegeTable => [
+            'is_active' => "ALTER TABLE {$collegeTable} ADD COLUMN is_active TINYINT(1) DEFAULT 1 AFTER college_name",
+            'created_at' => "ALTER TABLE {$collegeTable} ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER is_active",
+            'updated_at' => "ALTER TABLE {$collegeTable} ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
+        ],
+        $courseTable => [
+            'is_active' => "ALTER TABLE {$courseTable} ADD COLUMN is_active TINYINT(1) DEFAULT 1 AFTER college_id",
+            'created_at' => "ALTER TABLE {$courseTable} ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER is_active",
+            'updated_at' => "ALTER TABLE {$courseTable} ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
+        ],
     ];
-    $collegeRenames = [
-        'College of Computer Studies' => 'College of Teacher Education',
-        'College of Science' => 'College of Sciences',
-        'CTE' => 'College of Teacher Education',
-        'COS' => 'College of Sciences',
-    ];
 
-    foreach ($collegeRenames as $oldName => $newName) {
-        $renameStmt = $conn->prepare(
-            "UPDATE {$collegeTable}
-             SET college_name = ?
-             WHERE college_name = ?"
-        );
-        $renameStmt->bind_param('ss', $newName, $oldName);
-        $renameStmt->execute();
-        $renameStmt->close();
-    }
+    foreach ($tableDefinitions as $tableName => $columns) {
+        foreach ($columns as $columnName => $statement) {
+            $result = $conn->query("SHOW COLUMNS FROM {$tableName} LIKE '{$columnName}'");
+            $exists = $result && $result->num_rows > 0;
+            if ($result) {
+                $result->free();
+            }
 
-    $canonicalCollegeIds = [];
-    foreach ($canonicalCollegeNames as $collegeName) {
-        $canonicalCollegeIds[$collegeName] = getOrCreateCollegeId($conn, $collegeName);
-    }
-
-    foreach ($canonicalCollegeNames as $collegeName) {
-        $canonicalId = $canonicalCollegeIds[$collegeName];
-        $duplicateStmt = $conn->prepare(
-            "SELECT college_id
-             FROM {$collegeTable}
-             WHERE college_name = ?
-             ORDER BY college_id ASC"
-        );
-        $duplicateStmt->bind_param('s', $collegeName);
-        $duplicateStmt->execute();
-        $duplicateResult = $duplicateStmt->get_result();
-
-        $duplicateIds = [];
-        while ($duplicateRow = $duplicateResult ? $duplicateResult->fetch_assoc() : null) {
-            $duplicateIds[] = (int)$duplicateRow['college_id'];
-        }
-        $duplicateStmt->close();
-
-        foreach ($duplicateIds as $duplicateId) {
-            if ($duplicateId === $canonicalId) {
+            if ($exists) {
                 continue;
             }
 
-            $updateTeacherStmt = $conn->prepare("UPDATE {$teacherTable} SET college_id = ? WHERE college_id = ?");
-            $updateTeacherStmt->bind_param('ii', $canonicalId, $duplicateId);
-            $updateTeacherStmt->execute();
-            $updateTeacherStmt->close();
-
-            $updateStudentStmt = $conn->prepare("UPDATE {$studentTable} SET college_id = ? WHERE college_id = ?");
-            $updateStudentStmt->bind_param('ii', $canonicalId, $duplicateId);
-            $updateStudentStmt->execute();
-            $updateStudentStmt->close();
-
-            $updateCourseStmt = $conn->prepare("UPDATE {$courseTable} SET college_id = ? WHERE college_id = ?");
-            $updateCourseStmt->bind_param('ii', $canonicalId, $duplicateId);
-            $updateCourseStmt->execute();
-            $updateCourseStmt->close();
-
-            $deleteCollegeStmt = $conn->prepare("DELETE FROM {$collegeTable} WHERE college_id = ?");
-            $deleteCollegeStmt->bind_param('i', $duplicateId);
-            $deleteCollegeStmt->execute();
-            $deleteCollegeStmt->close();
+            if (!$conn->query($statement)) {
+                throw new Exception("Unable to add {$tableName}.{$columnName}: " . $conn->error);
+            }
         }
     }
-
-    return $canonicalCollegeIds;
 }
 
 function ensureRegistrationLookupData(mysqli $conn): void {
@@ -450,58 +321,11 @@ function ensureRegistrationLookupData(mysqli $conn): void {
     $checked = true;
 
     ensureCourseCollegeForeignKey($conn);
+    ensureFlexibleOrganizationColumns($conn);
 
-    $canonicalCollegeIds = synchronizeBuiltInColleges($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
-
-    $courseValues = [
-        ['Bachelor of Science in Computer Science', 'BSCS', 'College of Teacher Education'],
-        ['Bachelor of Science in Mathematics', 'BSMATH', 'College of Sciences'],
-    ];
-    foreach ($courseValues as [$name, $code, $collegeName]) {
-        $collegeId = $canonicalCollegeIds[$collegeName] ?? getOrCreateCollegeId($conn, $collegeName);
-
-        $updateStmt = $conn->prepare(
-            "UPDATE {$courseTable}
-             SET course_name = ?,
-                 college_id = COALESCE(college_id, ?)
-             WHERE course_code = ?
-               AND (course_name = ? OR course_name IS NULL OR TRIM(course_name) = '')"
-        );
-        $updateStmt->bind_param('siss', $name, $collegeId, $code, $code);
-        $updateStmt->execute();
-        $updateStmt->close();
-
-        $collegeUpdateStmt = $conn->prepare(
-            "UPDATE {$courseTable}
-             SET college_id = ?
-             WHERE course_code = ?
-               AND (college_id IS NULL OR college_id = 0)"
-        );
-        $collegeUpdateStmt->bind_param('is', $collegeId, $code);
-        $collegeUpdateStmt->execute();
-        $collegeUpdateStmt->close();
-
-        $stmt = $conn->prepare(
-            "SELECT course_id FROM {$courseTable} WHERE course_name = ? OR course_code = ? LIMIT 1"
-        );
-        $stmt->bind_param('ss', $name, $code);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $exists = $result && $result->num_rows > 0;
-        $stmt->close();
-
-        if (!$exists) {
-            $insert = $conn->prepare(
-                "INSERT IGNORE INTO {$courseTable} (course_name, course_code, college_id) VALUES (?, ?, ?)"
-            );
-            $insert->bind_param('ssi', $name, $code, $collegeId);
-            $insert->execute();
-            $insert->close();
-        }
-    }
 
     $yearValues = ['Year 1', 'Year 2', 'Year 3', 'Year 4'];
     foreach ($yearValues as $value) {
@@ -613,7 +437,7 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
     ensureRegistrationLookupData($conn);
 
     $columns = [
-        'course_id' => "ALTER TABLE Subject ADD COLUMN course_id INT NULL AFTER teacher_id",
+        'course_id' => "ALTER TABLE Subject ADD COLUMN course_id INT NULL AFTER teacher_user_id",
         'section_id' => "ALTER TABLE Subject ADD COLUMN section_id INT NULL AFTER course_id",
         'year_id' => "ALTER TABLE Subject ADD COLUMN year_id INT NULL AFTER section_id",
     ];
@@ -836,9 +660,30 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
 function backfillStudentCollegeIds(mysqli $conn): array {
     ensureStudentProfileColumns($conn);
 
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+
+    $updateStmt = $conn->prepare(
+        "UPDATE {$userTable} u
+         INNER JOIN {$courseTable} c ON c.course_id = u.course_id
+         SET u.college_id = c.college_id
+         WHERE u.role = 'student'
+           AND u.course_id IS NOT NULL
+           AND c.college_id IS NOT NULL
+           AND (u.college_id IS NULL OR u.college_id = 0)"
+    );
+    $updateStmt->execute();
+    $updatedFromCourse = $updateStmt->affected_rows;
+    $updateStmt->close();
+
+    $remainingNull = fetchScalar(
+        $conn,
+        "SELECT COUNT(*) FROM {$userTable} WHERE role = 'student' AND (college_id IS NULL OR college_id = 0)"
+    );
+
     $summary = [
-        'updated_from_course' => 0,
-        'remaining_null' => 0,
+        'updated_from_course' => max(0, (int)$updatedFromCourse),
+        'remaining_null' => (int)$remainingNull,
     ];
 
     return $summary;

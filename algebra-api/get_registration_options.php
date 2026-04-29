@@ -23,12 +23,14 @@ try {
     ];
 
     $queries = [
-        'colleges' => "SELECT MIN(college_id) AS college_id, college_name
+        'colleges' => "SELECT college_id, college_name, is_active, created_at, updated_at
                        FROM {$collegeTable}
-                       WHERE college_name IN ('College of Teacher Education', 'College of Sciences')
-                       GROUP BY college_name
-                       ORDER BY FIELD(college_name, 'College of Teacher Education', 'College of Sciences')",
-        'courses' => "SELECT course_id, course_name, course_code, college_id FROM {$courseTable} ORDER BY course_name ASC",
+                       WHERE is_active = 1
+                       ORDER BY college_name ASC",
+        'courses' => "SELECT course_id, course_name, course_code, college_id, is_active, created_at, updated_at
+                      FROM {$courseTable}
+                      WHERE is_active = 1
+                      ORDER BY course_name ASC",
         'years' => "SELECT year_id, year_level FROM {$yearTable} ORDER BY year_level ASC",
         'sections' => "SELECT section_id, section_name FROM {$sectionTable} ORDER BY section_name ASC",
     ];

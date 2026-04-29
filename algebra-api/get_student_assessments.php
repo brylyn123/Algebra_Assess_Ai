@@ -54,9 +54,9 @@ try {
         INNER JOIN Subject s ON s.subject_id = ep.subject_id
         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
-        INNER JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_id = ?
+        INNER JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_user_id = ?
         LEFT JOIN exercise_items ei ON ei.exercise_id = ep.exercise_id
-        LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_id = ?
+        LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_user_id = ?
         LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
         WHERE s.archived = 0
     ";

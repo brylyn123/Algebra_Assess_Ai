@@ -34,7 +34,7 @@ SELECT
     cs.solution_id AS id,
     ep.exercise_id,
     CONCAT_WS(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
-    s.student_id,
+    s.institutional_id AS student_id,
     ep.title AS assessment_title,
     ep.rubric_set_id,
     rs.rubric_name,
@@ -69,14 +69,14 @@ LEFT JOIN Subject subj ON subj.subject_id = ep.subject_id
 LEFT JOIN {$courseTable} c ON c.course_id = subj.course_id
 LEFT JOIN {$sectionTable} sec ON sec.section_id = subj.section_id
 LEFT JOIN {$yearTable} yl ON yl.year_id = subj.year_id
-LEFT JOIN Student s ON s.student_id = cs.student_id
+LEFT JOIN Users s ON s.user_id = cs.student_user_id AND s.role = 'student'
 ";
 
 $filters = [];
 $params = [];
 $types = '';
 
-$filters[] = 'subj.teacher_id = ?';
+$filters[] = 'subj.teacher_user_id = ?';
 $types .= 'i';
 $params[] = $teacher_id;
 

@@ -40,7 +40,7 @@ if (count($items) === 0) {
 
 try {
     $subjectStmt = $conn->prepare(
-        "SELECT subject_id, teacher_id FROM subject WHERE subject_id = ? LIMIT 1"
+        "SELECT subject_id, teacher_user_id FROM subject WHERE subject_id = ? LIMIT 1"
     );
     $subjectStmt->bind_param("i", $subject_id);
     $subjectStmt->execute();
@@ -52,7 +52,7 @@ try {
         throw new Exception("Subject not found.");
     }
 
-    if ($teacher_id && (int)$subjectRow['teacher_id'] !== $teacher_id) {
+    if ($teacher_id && (int)$subjectRow['teacher_user_id'] !== $teacher_id) {
         throw new Exception("Teacher is not assigned to this subject.");
     }
 
@@ -61,7 +61,7 @@ try {
     $rubricStmt = $conn->prepare(
         "SELECT rubric_set_id
          FROM rubric_sets
-         WHERE rubric_set_id = ? AND teacher_id = ?
+         WHERE rubric_set_id = ? AND teacher_user_id = ?
          LIMIT 1"
     );
     $rubricStmt->bind_param("ii", $rubric_set_id, $teacher_id);

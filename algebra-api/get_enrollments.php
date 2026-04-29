@@ -30,7 +30,8 @@ try {
             s.semester,
             s.school_year,
             e.enrollment_id,
-            e.student_id,
+            st.institutional_id AS student_id,
+            e.student_user_id,
             e.enrollment_status,
             e.date_enrolled,
             CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name) AS student_name
@@ -38,8 +39,8 @@ try {
          JOIN Subject s ON s.subject_id = e.{$enrollmentCol}
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
-         JOIN Student st ON st.student_id = e.student_id
-         WHERE s.teacher_id = ?
+         JOIN Users st ON st.user_id = e.student_user_id AND st.role = 'student'
+         WHERE s.teacher_user_id = ?
          ORDER BY s.subject_name ASC, e.date_enrolled DESC"
     );
     $stmt->bind_param("i", $teacher_id);
@@ -65,6 +66,7 @@ try {
         $grouped[$subjectId]['students'][] = [
             'enrollment_id' => (int)$row['enrollment_id'],
             'student_id' => $row['student_id'],
+            'student_user_id' => isset($row['student_user_id']) ? (int)$row['student_user_id'] : null,
             'student_name' => trim((string)$row['student_name'] ?? ''),
             'enrollment_status' => $row['enrollment_status'] ?? 'enrolled',
             'date_enrolled' => $row['date_enrolled'],

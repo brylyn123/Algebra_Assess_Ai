@@ -41,7 +41,7 @@ try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
 
     $checkStmt = $conn->prepare(
-        "SELECT enrollment_id FROM Enrollment WHERE student_id = ? AND $enrollmentCol = ? LIMIT 1"
+        "SELECT enrollment_id FROM Enrollment WHERE student_user_id = ? AND $enrollmentCol = ? LIMIT 1"
     );
     $checkStmt->bind_param("ii", $student_id, $subject_id);
     $checkStmt->execute();
@@ -55,7 +55,7 @@ try {
     }
 
     $insertStmt = $conn->prepare(
-        "INSERT INTO Enrollment (student_id, $enrollmentCol) VALUES (?, ?)"
+        "INSERT INTO Enrollment (student_user_id, $enrollmentCol) VALUES (?, ?)"
     );
     $insertStmt->bind_param("ii", $student_id, $subject_id);
     $insertStmt->execute();

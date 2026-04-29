@@ -59,11 +59,11 @@ try {
             cs.ai_raw_json,
             ep.exercise_id,
             subj.subject_id,
-            subj.teacher_id
+            subj.teacher_user_id
          FROM Captured_Solution cs
          INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
-         WHERE cs.solution_id = ? AND subj.teacher_id = ?
+         WHERE cs.solution_id = ? AND subj.teacher_user_id = ?
          LIMIT 1"
     );
     $ownershipStmt->bind_param("ii", $solution_id, $teacher_id);

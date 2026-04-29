@@ -20,7 +20,8 @@ try {
     $stmt = $conn->prepare(
         "SELECT
             s.subject_id,
-            s.teacher_id,
+            s.teacher_user_id AS teacher_id,
+            s.teacher_user_id,
             s.subject_name,
             s.course_id,
             s.section_id,
@@ -36,7 +37,7 @@ try {
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
-         WHERE s.teacher_id = ? AND s.archived = 1
+         WHERE s.teacher_user_id = ? AND s.archived = 1
          ORDER BY s.subject_id DESC"
     );
     $stmt->bind_param("i", $teacher_id);

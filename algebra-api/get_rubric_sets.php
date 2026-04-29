@@ -27,7 +27,7 @@ try {
             rsi.rubric_item_id
          FROM rubric_sets rs
          LEFT JOIN rubric_set_items rsi ON rs.rubric_set_id = rsi.rubric_set_id
-         WHERE rs.teacher_id = ?
+         WHERE rs.teacher_user_id = ?
          ORDER BY rs.created_at DESC, rsi.rubric_item_id ASC"
     );
     $stmt->bind_param("i", $teacher_id);

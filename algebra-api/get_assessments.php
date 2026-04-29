@@ -55,7 +55,7 @@ try {
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
-         WHERE s.teacher_id = ?
+         WHERE s.teacher_user_id = ?
          ORDER BY ep.date_created DESC"
     );
     $stmt->bind_param("i", $teacher_id);
@@ -105,7 +105,7 @@ try {
              FROM exercise_items ei
              INNER JOIN exercises_problem ep ON ei.exercise_id = ep.exercise_id
              INNER JOIN subject s ON ep.subject_id = s.subject_id
-             WHERE s.teacher_id = ?
+             WHERE s.teacher_user_id = ?
              ORDER BY ei.exercise_id ASC, ei.item_no ASC"
         );
         $itemStmt->bind_param("i", $teacher_id);

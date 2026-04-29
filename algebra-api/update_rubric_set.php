@@ -24,7 +24,7 @@ if (!$teacher_id || !$rubric_set_id || !$rubric_name || !$criteria || count($ite
 }
 
 try {
-    $checkStmt = $conn->prepare("SELECT teacher_id FROM rubric_sets WHERE rubric_set_id = ? LIMIT 1");
+    $checkStmt = $conn->prepare("SELECT teacher_user_id FROM rubric_sets WHERE rubric_set_id = ? LIMIT 1");
     $checkStmt->bind_param("i", $rubric_set_id);
     $checkStmt->execute();
     $result = $checkStmt->get_result();
@@ -35,7 +35,7 @@ try {
     }
 
     $row = $result->fetch_assoc();
-    if ((int)$row['teacher_id'] !== $teacher_id) {
+    if ((int)$row['teacher_user_id'] !== $teacher_id) {
         throw new Exception("Rubric does not belong to this teacher.");
     }
 

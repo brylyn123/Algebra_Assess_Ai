@@ -62,7 +62,7 @@ try {
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
-    $teacherStmt = $conn->prepare("SELECT college_id FROM Teacher WHERE teacher_id = ? LIMIT 1");
+    $teacherStmt = $conn->prepare("SELECT college_id FROM Users WHERE user_id = ? AND role = 'teacher' LIMIT 1");
     $teacherStmt->bind_param("i", $teacher_id);
     $teacherStmt->execute();
     $teacherResult = $teacherStmt->get_result();
@@ -128,7 +128,7 @@ try {
             year_id,
             school_year,
             semester,
-            teacher_id,
+            teacher_user_id,
             join_code,
             archived
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)"

@@ -40,10 +40,6 @@ $yearId     = isset($data['yearId']) ? intval($data['yearId']) : 0;
 $conn->begin_transaction();
 
 try {
-    if ($role === 'student') {
-        ensureStudentProfileColumns($conn);
-    }
-
     ensureRegistrationLookupData($conn);
 
     $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
@@ -59,15 +55,6 @@ try {
         throw new Exception("Email already registered.");
     }
 
-    // Insert into 'users' table
-    // 1. Insert into 'users' (Security only)
-    $stmtUser = $conn->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
-    $stmtUser->bind_param("sss", $email, $password, $role);
-    $stmtUser->execute();
-    $newUserId = $conn->insert_id;
-
-    // 2. Insert into profile table (Identity + Linking)
-   // If your database uses lowercase 'firstname', etc.
     $collegeId = null;
     if ($collegeIdFromPayload > 0) {
         $collegeStmt = $conn->prepare("SELECT college_id, college_name FROM {$collegeTable} WHERE college_id = ? LIMIT 1");
@@ -89,8 +76,32 @@ try {
         if ($collegeId === null) {
             throw new Exception("Please choose one of the built-in colleges.");
         }
-        $stmtProf = $conn->prepare("INSERT INTO Teacher (user_id, teacher_id, first_name, middle_name, last_name, email, college_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmtProf->bind_param("isssssi", $newUserId, $idNumber, $firstName, $middleName, $lastName, $email, $collegeId);
+        $stmtUser = $conn->prepare(
+            "INSERT INTO users (
+                institutional_id,
+                first_name,
+                middle_name,
+                last_name,
+                email,
+                password,
+                college_id,
+                course_id,
+                section_id,
+                year_id,
+                role
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?)"
+        );
+        $stmtUser->bind_param(
+            "ssssssis",
+            $idNumber,
+            $firstName,
+            $middleName,
+            $lastName,
+            $email,
+            $password,
+            $collegeId,
+            $role
+        );
     } else {
         if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
             throw new Exception("Please choose a course, section, and year level.");
@@ -148,33 +159,39 @@ try {
         }
         $yearStmt->close();
 
-        $stmtProf = $conn->prepare(
-            "INSERT INTO Student (
-                user_id,
-                student_id,
+        $stmtUser = $conn->prepare(
+            "INSERT INTO users (
+                institutional_id,
                 first_name,
                 middle_name,
                 last_name,
                 email,
+                password,
+                college_id,
                 course_id,
                 section_id,
-                year_id
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                year_id,
+                role
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmtProf->bind_param(
-            "isssssiii",
-            $newUserId,
+        $stmtUser->bind_param(
+            "ssssssiiiis",
             $idNumber,
             $firstName,
             $middleName,
             $lastName,
             $email,
+            $password,
+            $collegeId,
             $courseId,
             $sectionId,
-            $yearId
+            $yearId,
+            $role
         );
     }
-$stmtProf->execute();
+    $stmtUser->execute();
+    $newUserId = $conn->insert_id;
+    $stmtUser->close();
 
     // Commit changes
     $conn->commit();

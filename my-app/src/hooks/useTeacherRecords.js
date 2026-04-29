@@ -10,7 +10,7 @@ export const useTeacherRecords = () => {
         if (!currentEmail) return null;
         return findLocalUser(currentEmail);
     }, [currentEmail]);
-    const teacherId = teacherUser?.teacher_id ?? teacherUser?.user_id ?? teacherUser?.id ?? null;
+    const teacherId = teacherUser?.user_id ?? teacherUser?.teacher_id ?? teacherUser?.id ?? null;
 
     const [assessments, setAssessments] = useState([]);
     const [rubrics, setRubrics] = useState([]);

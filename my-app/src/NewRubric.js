@@ -67,7 +67,7 @@ const NewRubric = () => {
             setTeacherId(null);
             return;
         }
-        const id = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
+        const id = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
         setTeacherId(id);
     }, [currentEmail, storedTeacher]);
 

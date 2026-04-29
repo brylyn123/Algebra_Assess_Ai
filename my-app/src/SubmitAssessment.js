@@ -23,7 +23,7 @@ const SubmitAssessment = () => {
   const { enrolledSubjects = [], loadingSubjects = false, subjectsError = '' } = useOutletContext() ?? {};
   const currentEmail = getCurrentLocalUserEmail();
   const currentUser = currentEmail ? findLocalUser(currentEmail) : null;
-  const studentId = currentUser?.student_id ?? currentUser?.user_id ?? null;
+  const studentId = currentUser?.user_id ?? currentUser?.student_id ?? null;
 
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');

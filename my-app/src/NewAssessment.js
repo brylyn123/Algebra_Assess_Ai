@@ -231,7 +231,7 @@ const NewAssessment = () => {
 
     const storedTeacher = findLocalUser(email);
 
-    const id = storedTeacher?.teacher_id ?? storedTeacher?.user_id ?? storedTeacher?.id ?? null;
+    const id = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
 
     dispatch({ type: 'SET_TEACHER_ID', payload: id });
 
