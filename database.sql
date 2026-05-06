@@ -5,7 +5,8 @@ USE algebraassess;
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `Scores`, `Item_Scores`, `Captured_Solution`, `item_rubric_mapping`,
                      `rubric_set_items`, `rubric_sets`, `Exercise_Items`, `Exercises_Problem`,
-                     `Enrollment`, `Subject`, `Users`, `Course`, `Section`, `Year_Level`, `Colleges`;
+                     `Enrollment`, `Subject`, `Users`, `Course`, `Section`, `Semester`,
+                     `School_Year`, `Year_Level`, `Colleges`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 1. Organizations & Structure
@@ -19,7 +20,9 @@ CREATE TABLE Colleges (
 
 CREATE TABLE Year_Level (
     year_id INT PRIMARY KEY AUTO_INCREMENT,
-    year_level VARCHAR(50) NOT NULL
+    year_level VARCHAR(50) NOT NULL,
+    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 CREATE TABLE Section (
@@ -60,23 +63,45 @@ CREATE TABLE Users (
 ) ENGINE=InnoDB;
 
 -- 3. Academic Calendar & Organization
+CREATE TABLE School_Year (
+    school_year_id INT PRIMARY KEY AUTO_INCREMENT,
+    label VARCHAR(64) NOT NULL UNIQUE,
+    start_date DATE NULL,
+    end_date DATE NULL,
+    is_active TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE Semester (
+    semester_id INT PRIMARY KEY AUTO_INCREMENT,
+    semester_name VARCHAR(64) NOT NULL UNIQUE,
+    is_active TINYINT(1) DEFAULT 1,
+    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 CREATE TABLE Subject (
     subject_id INT PRIMARY KEY AUTO_INCREMENT,
     teacher_user_id INT NOT NULL,
     course_id INT,
     section_id INT,
     year_id INT,
+    semester_id INT,
     subject_name VARCHAR(255) NOT NULL,
     subject_code VARCHAR(50) UNIQUE,
     semester VARCHAR(64),
     school_year VARCHAR(64),
+    school_year_id INT,
     join_code VARCHAR(20) UNIQUE,
     archived TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_subject_teacher_user FOREIGN KEY (teacher_user_id) REFERENCES Users(user_id),
     CONSTRAINT fk_subject_course FOREIGN KEY (course_id) REFERENCES Course(course_id),
     CONSTRAINT fk_subject_section FOREIGN KEY (section_id) REFERENCES Section(section_id),
-    CONSTRAINT fk_subject_year FOREIGN KEY (year_id) REFERENCES Year_Level(year_id)
+    CONSTRAINT fk_subject_year FOREIGN KEY (year_id) REFERENCES Year_Level(year_id),
+    CONSTRAINT fk_subject_semester FOREIGN KEY (semester_id) REFERENCES Semester(semester_id),
+    CONSTRAINT fk_subject_school_year FOREIGN KEY (school_year_id) REFERENCES School_Year(school_year_id)
 ) ENGINE=InnoDB;
 
 -- 4. Class Instances

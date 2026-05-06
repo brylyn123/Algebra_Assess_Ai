@@ -25,6 +25,7 @@ try {
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
     $stmt = $conn->prepare(
         "SELECT
@@ -35,8 +36,8 @@ try {
             CONCAT(t.first_name, ' ', t.last_name) AS teacher_name,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
-            s.semester,
-            s.school_year,
+            COALESCE(sem.semester_name, s.semester) AS semester,
+            COALESCE(sy.label, s.school_year) AS school_year,
             yl.year_level AS year_level,
             CASE
                 WHEN e.enrollment_id IS NOT NULL THEN 1
@@ -47,6 +48,8 @@ try {
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
+         LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
+         LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
          LEFT JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_user_id = ?
          ORDER BY s.subject_name ASC"
     );

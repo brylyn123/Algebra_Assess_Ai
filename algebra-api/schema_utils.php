@@ -322,8 +322,9 @@ function ensureRegistrationLookupData(mysqli $conn): void {
 
     ensureCourseCollegeForeignKey($conn);
     ensureFlexibleOrganizationColumns($conn);
+    ensureYearLevelAuditColumns($conn);
+    ensureSemesterSchema($conn);
 
-    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
@@ -358,6 +359,38 @@ function ensureRegistrationLookupData(mysqli $conn): void {
             $insert->bind_param('s', $value);
             $insert->execute();
             $insert->close();
+        }
+    }
+}
+
+function ensureYearLevelAuditColumns(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+    $columns = [
+        'date_created' => "ALTER TABLE {$yearTable} ADD COLUMN date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER year_level",
+        'date_updated' => "ALTER TABLE {$yearTable} ADD COLUMN date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER date_created",
+    ];
+
+    foreach ($columns as $columnName => $statement) {
+        $result = $conn->query("SHOW COLUMNS FROM {$yearTable} LIKE '{$columnName}'");
+        $exists = $result && $result->num_rows > 0;
+        if ($result) {
+            $result->free();
+        }
+
+        if ($exists) {
+            continue;
+        }
+
+        if (!$conn->query($statement)) {
+            throw new Exception("Unable to add {$yearTable}.{$columnName}: " . $conn->error);
         }
     }
 }
@@ -425,6 +458,315 @@ function getOrCreateCollegeId(mysqli $conn, string $collegeName): ?int {
     return $newId > 0 ? (int)$newId : null;
 }
 
+function ensureSemesterSchema(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (
+        !$conn->query(
+            "CREATE TABLE IF NOT EXISTS Semester (
+                semester_id INT AUTO_INCREMENT PRIMARY KEY,
+                semester_name VARCHAR(64) NOT NULL UNIQUE,
+                is_active TINYINT(1) DEFAULT 1,
+                date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB"
+        )
+    ) {
+        throw new Exception('Unable to create Semester table: ' . $conn->error);
+    }
+
+    $seedValues = ['1st Semester', '2nd Semester', 'Summer'];
+    $seedStmt = $conn->prepare(
+        "INSERT INTO Semester (semester_name)
+         VALUES (?)
+         ON DUPLICATE KEY UPDATE semester_name = VALUES(semester_name)"
+    );
+    foreach ($seedValues as $value) {
+        $seedStmt->bind_param('s', $value);
+        $seedStmt->execute();
+    }
+    $seedStmt->close();
+}
+
+function getOrCreateSemesterId(mysqli $conn, string $semesterName): ?int {
+    ensureSemesterSchema($conn);
+
+    $semesterName = trim($semesterName);
+    if ($semesterName === '') {
+        return null;
+    }
+
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
+
+    $lookup = $conn->prepare("SELECT semester_id FROM {$semesterTable} WHERE semester_name = ? LIMIT 1");
+    $lookup->bind_param('s', $semesterName);
+    $lookup->execute();
+    $result = $lookup->get_result();
+    $existing = $result ? $result->fetch_assoc() : null;
+    $lookup->close();
+
+    if ($existing && isset($existing['semester_id'])) {
+        return (int)$existing['semester_id'];
+    }
+
+    $insert = $conn->prepare("INSERT INTO {$semesterTable} (semester_name) VALUES (?)");
+    $insert->bind_param('s', $semesterName);
+    $insert->execute();
+    $newId = $conn->insert_id;
+    $insert->close();
+
+    return $newId > 0 ? (int)$newId : null;
+}
+
+function generateUniqueCourseCode(mysqli $conn, string $courseName): string {
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+
+    $lettersOnly = preg_replace('/[^A-Za-z0-9 ]+/', ' ', strtoupper($courseName));
+    $tokens = preg_split('/\s+/', trim((string)$lettersOnly)) ?: [];
+    $initials = '';
+
+    foreach ($tokens as $token) {
+        if ($token === '') {
+            continue;
+        }
+        $initials .= substr($token, 0, 1);
+    }
+
+    if ($initials === '') {
+        $initials = 'CRS';
+    }
+
+    $baseCode = substr($initials, 0, 8);
+    if ($baseCode === '') {
+        $baseCode = 'CRS';
+    }
+
+    $candidate = $baseCode;
+    $suffix = 1;
+    $lookup = $conn->prepare("SELECT course_id FROM {$courseTable} WHERE course_code = ? LIMIT 1");
+
+    while (true) {
+        $lookup->bind_param('s', $candidate);
+        $lookup->execute();
+        $result = $lookup->get_result();
+        $exists = $result && $result->num_rows > 0;
+
+        if ($result) {
+            $result->free();
+        }
+
+        if (!$exists) {
+            break;
+        }
+
+        $suffix++;
+        $candidate = substr($baseCode, 0, max(1, 8 - strlen((string)$suffix))) . $suffix;
+    }
+
+    $lookup->close();
+    return $candidate;
+}
+
+function getOrCreateCourseId(mysqli $conn, string $courseName, ?int $collegeId = null, ?string $courseCode = null): ?int {
+    $courseName = trim($courseName);
+    $courseCode = trim((string)$courseCode);
+
+    if ($courseName === '') {
+        return null;
+    }
+
+    $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+
+    if ($collegeId !== null) {
+        $lookup = $conn->prepare(
+            "SELECT course_id
+             FROM {$courseTable}
+             WHERE course_name = ?
+               AND ((college_id IS NULL AND ? IS NULL) OR college_id = ?)
+             LIMIT 1"
+        );
+        $lookup->bind_param('sii', $courseName, $collegeId, $collegeId);
+    } else {
+        $lookup = $conn->prepare(
+            "SELECT course_id
+             FROM {$courseTable}
+             WHERE course_name = ?
+             LIMIT 1"
+        );
+        $lookup->bind_param('s', $courseName);
+    }
+
+    $lookup->execute();
+    $result = $lookup->get_result();
+    $existing = $result ? $result->fetch_assoc() : null;
+    $lookup->close();
+
+    if ($existing && isset($existing['course_id'])) {
+        return (int)$existing['course_id'];
+    }
+
+    if ($courseCode === '') {
+        $courseCode = generateUniqueCourseCode($conn, $courseName);
+    }
+
+    $insert = $conn->prepare("INSERT INTO {$courseTable} (course_name, course_code, college_id) VALUES (?, ?, ?)");
+    $insert->bind_param('ssi', $courseName, $courseCode, $collegeId);
+    $insert->execute();
+    $newId = $conn->insert_id;
+    $insert->close();
+
+    return $newId > 0 ? (int)$newId : null;
+}
+
+function ensureSchoolYearSchema(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (
+        !$conn->query(
+            "CREATE TABLE IF NOT EXISTS school_year (
+                school_year_id INT AUTO_INCREMENT PRIMARY KEY,
+                label VARCHAR(64) NOT NULL,
+                start_date DATE NULL,
+                end_date DATE NULL,
+                is_active TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_school_year_label (label)
+            ) ENGINE=InnoDB"
+        )
+    ) {
+        throw new Exception('Unable to create school_year table: ' . $conn->error);
+    }
+
+    $currentYear = (int)date('Y');
+    $currentMonth = (int)date('n');
+    $academicStartYear = $currentMonth >= 6 ? $currentYear : ($currentYear - 1);
+    $defaultLabels = [
+        ($academicStartYear - 1) . '-' . $academicStartYear,
+        $academicStartYear . '-' . ($academicStartYear + 1),
+        ($academicStartYear + 1) . '-' . ($academicStartYear + 2),
+    ];
+
+    $seedStmt = $conn->prepare("INSERT INTO school_year (label) VALUES (?) ON DUPLICATE KEY UPDATE label = VALUES(label)");
+    foreach ($defaultLabels as $label) {
+        $seedStmt->bind_param('s', $label);
+        $seedStmt->execute();
+    }
+    $seedStmt->close();
+
+    $schoolYearIdResult = $conn->query("SHOW COLUMNS FROM Subject LIKE 'school_year_id'");
+    $hasSchoolYearId = $schoolYearIdResult && $schoolYearIdResult->num_rows > 0;
+    if ($schoolYearIdResult) {
+        $schoolYearIdResult->free();
+    }
+
+    if (!$hasSchoolYearId && !$conn->query("ALTER TABLE Subject ADD COLUMN school_year_id INT NULL AFTER school_year")) {
+        throw new Exception('Unable to add Subject.school_year_id: ' . $conn->error);
+    }
+
+    if (
+        !$conn->query(
+            "INSERT INTO school_year (label)
+             SELECT DISTINCT TRIM(school_year)
+             FROM Subject
+             WHERE school_year IS NOT NULL
+               AND TRIM(school_year) <> ''
+             ON DUPLICATE KEY UPDATE label = VALUES(label)"
+        )
+    ) {
+        throw new Exception('Unable to backfill school_year records: ' . $conn->error);
+    }
+
+    if (
+        !$conn->query(
+            "UPDATE Subject s
+             INNER JOIN school_year sy ON sy.label = TRIM(s.school_year)
+             SET s.school_year_id = sy.school_year_id
+             WHERE s.school_year_id IS NULL
+               AND s.school_year IS NOT NULL
+               AND TRIM(s.school_year) <> ''"
+        )
+    ) {
+        throw new Exception('Unable to link Subject.school_year_id: ' . $conn->error);
+    }
+
+    $indexResult = $conn->query("SHOW INDEX FROM Subject WHERE Key_name = 'idx_subject_school_year_id'");
+    $hasIndex = $indexResult && $indexResult->num_rows > 0;
+    if ($indexResult) {
+        $indexResult->free();
+    }
+
+    if (!$hasIndex && !$conn->query("ALTER TABLE Subject ADD INDEX idx_subject_school_year_id (school_year_id)")) {
+        throw new Exception('Unable to index Subject.school_year_id: ' . $conn->error);
+    }
+
+    $fkStmt = $conn->prepare(
+        "SELECT CONSTRAINT_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'Subject'
+           AND COLUMN_NAME = 'school_year_id'
+           AND REFERENCED_TABLE_NAME = 'school_year'
+           AND REFERENCED_COLUMN_NAME = 'school_year_id'
+         LIMIT 1"
+    );
+    $fkStmt->execute();
+    $fkResult = $fkStmt->get_result();
+    $hasFk = $fkResult && $fkResult->num_rows > 0;
+    $fkStmt->close();
+
+    if (
+        !$hasFk &&
+        !$conn->query(
+            "ALTER TABLE Subject
+             ADD CONSTRAINT fk_subject_school_year
+             FOREIGN KEY (school_year_id) REFERENCES school_year(school_year_id)"
+        )
+    ) {
+        throw new Exception('Unable to add Subject.school_year_id foreign key: ' . $conn->error);
+    }
+}
+
+function getOrCreateSchoolYearId(mysqli $conn, string $label): ?int {
+    ensureSchoolYearSchema($conn);
+
+    $label = trim($label);
+    if ($label === '') {
+        return null;
+    }
+
+    $lookup = $conn->prepare("SELECT school_year_id FROM school_year WHERE label = ? LIMIT 1");
+    $lookup->bind_param('s', $label);
+    $lookup->execute();
+    $result = $lookup->get_result();
+    $existing = $result ? $result->fetch_assoc() : null;
+    $lookup->close();
+
+    if ($existing && isset($existing['school_year_id'])) {
+        return (int)$existing['school_year_id'];
+    }
+
+    $insert = $conn->prepare("INSERT INTO school_year (label) VALUES (?)");
+    $insert->bind_param('s', $label);
+    $insert->execute();
+    $newId = $conn->insert_id;
+    $insert->close();
+
+    return $newId > 0 ? (int)$newId : null;
+}
+
 function ensureSubjectLookupColumns(mysqli $conn): void {
     static $checked = false;
 
@@ -435,11 +777,14 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
     $checked = true;
 
     ensureRegistrationLookupData($conn);
+    ensureSchoolYearSchema($conn);
+    ensureSemesterSchema($conn);
 
     $columns = [
         'course_id' => "ALTER TABLE Subject ADD COLUMN course_id INT NULL AFTER teacher_user_id",
         'section_id' => "ALTER TABLE Subject ADD COLUMN section_id INT NULL AFTER course_id",
         'year_id' => "ALTER TABLE Subject ADD COLUMN year_id INT NULL AFTER section_id",
+        'semester_id' => "ALTER TABLE Subject ADD COLUMN semester_id INT NULL AFTER year_id",
     ];
 
     foreach ($columns as $column => $statement) {
@@ -461,11 +806,13 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
     $fkChecks = [
         'subject_course_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_course_fk FOREIGN KEY (course_id) REFERENCES {$courseTable}(course_id)",
         'subject_section_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_section_fk FOREIGN KEY (section_id) REFERENCES {$sectionTable}(section_id)",
         'subject_year_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_year_fk FOREIGN KEY (year_id) REFERENCES {$yearTable}(year_id)",
+        'subject_semester_fk' => "ALTER TABLE Subject ADD CONSTRAINT subject_semester_fk FOREIGN KEY (semester_id) REFERENCES {$semesterTable}(semester_id)",
     ];
 
     foreach ($fkChecks as $constraint => $statement) {
@@ -619,6 +966,40 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
                 }
             }
         }
+    }
+
+    $hasSemesterTextColumn = false;
+    $semesterColumnResult = $conn->query("SHOW COLUMNS FROM Subject LIKE 'semester'");
+    if ($semesterColumnResult) {
+        $hasSemesterTextColumn = $semesterColumnResult->num_rows > 0;
+        $semesterColumnResult->free();
+    }
+
+    if ($hasSemesterTextColumn) {
+        $subjectResult = $conn->query("SELECT subject_id, semester_id, semester FROM Subject");
+        if (!$subjectResult) {
+            throw new Exception('Unable to inspect subjects for semester backfill: ' . $conn->error);
+        }
+
+        $updateStmt = $conn->prepare("UPDATE Subject SET semester_id = ? WHERE subject_id = ?");
+        while ($row = $subjectResult->fetch_assoc()) {
+            $semesterId = $row['semester_id'] !== null ? (int)$row['semester_id'] : null;
+            $semesterValue = trim((string)($row['semester'] ?? ''));
+
+            if ($semesterId !== null || $semesterValue === '') {
+                continue;
+            }
+
+            $semesterId = getOrCreateSemesterId($conn, $semesterValue);
+            if ($semesterId === null) {
+                continue;
+            }
+
+            $updateStmt->bind_param('ii', $semesterId, $row['subject_id']);
+            $updateStmt->execute();
+        }
+        $updateStmt->close();
+        $subjectResult->free();
     }
 
     $subjectConstraints = [];

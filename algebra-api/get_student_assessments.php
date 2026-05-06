@@ -27,6 +27,7 @@ try {
     ensureScoreReturnColumn($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
     $query = "
         SELECT
@@ -41,8 +42,8 @@ try {
             s.join_code,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
-            s.semester,
-            s.school_year,
+            COALESCE(sem.semester_name, s.semester) AS semester,
+            COALESCE(sy.label, s.school_year) AS school_year,
             COUNT(DISTINCT ei.item_id) AS item_count,
             COUNT(DISTINCT cs.solution_id) AS submission_count,
             COUNT(DISTINCT CASE WHEN sc.returned_at IS NOT NULL THEN sc.score_id END) AS graded_count,
@@ -54,6 +55,8 @@ try {
         INNER JOIN Subject s ON s.subject_id = ep.subject_id
         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+        LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
+        LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
         INNER JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_user_id = ?
         LEFT JOIN exercise_items ei ON ei.exercise_id = ep.exercise_id
         LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_user_id = ?
@@ -84,7 +87,8 @@ try {
             c.course_code,
             c.course_name,
             sec.section_name,
-            s.semester,
+            COALESCE(sem.semester_name, s.semester),
+            sy.label,
             s.school_year
         ORDER BY ep.date_created DESC, ep.exercise_id DESC
     ";

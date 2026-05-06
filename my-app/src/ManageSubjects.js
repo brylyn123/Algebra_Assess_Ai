@@ -6,10 +6,22 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { getSubjectCardTheme } from './subjectCardThemes';
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 
-const FALL_SCHOOL_YEAR_DEFAULTS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027'];
 const SEMESTER_OPTIONS = ['1st Semester', '2nd Semester', 'Summer'];
 const YEAR_DROPDOWN_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 const SECTION_OPTIONS = ['A', 'B', 'C'];
+
+const buildLocalSchoolYearFallbacks = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
+    const startYear = month >= 6 ? year : year - 1;
+
+    return [
+        `${startYear - 1}-${startYear}`,
+        `${startYear}-${startYear + 1}`,
+        `${startYear + 1}-${startYear + 2}`,
+    ];
+};
 
 const ManageSubjects = () => {
     const [subjects, setSubjects] = useState([]);
@@ -452,7 +464,7 @@ const ManageSubjects = () => {
         ...normalizedSubjects.map((subject) => subject.section).filter(Boolean),
     ])).filter(Boolean);
     const dropdownSchoolYearOptions = Array.from(new Set([
-        ...FALL_SCHOOL_YEAR_DEFAULTS,
+        ...buildLocalSchoolYearFallbacks(),
         ...subjectFilters.schoolYears,
         ...normalizedSubjects.map((subject) => subject.schoolYear).filter(Boolean),
     ])).filter(Boolean);

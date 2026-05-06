@@ -19,6 +19,7 @@ try {
     ensureSubjectLookupColumns($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
     $stmt = $conn->prepare(
         "SELECT
@@ -34,8 +35,8 @@ try {
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
-            s.semester,
-            s.school_year,
+            COALESCE(sem.semester_name, s.semester) AS semester,
+            COALESCE(sy.label, s.school_year) AS school_year,
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -54,6 +55,8 @@ try {
          LEFT JOIN subject s ON ep.subject_id = s.subject_id
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
+         LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
          WHERE s.teacher_user_id = ?
          ORDER BY ep.date_created DESC"

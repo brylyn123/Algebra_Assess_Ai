@@ -19,6 +19,7 @@ try {
     ensureSubjectLookupColumns($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
     $stmt = $conn->prepare(
         "SELECT
@@ -27,8 +28,8 @@ try {
             s.join_code,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
-            s.semester,
-            s.school_year,
+            COALESCE(sem.semester_name, s.semester) AS semester,
+            COALESCE(sy.label, s.school_year) AS school_year,
             e.enrollment_id,
             st.institutional_id AS student_id,
             e.student_user_id,
@@ -39,6 +40,8 @@ try {
          JOIN Subject s ON s.subject_id = e.{$enrollmentCol}
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
+         LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
          JOIN Users st ON st.user_id = e.student_user_id AND st.role = 'student'
          WHERE s.teacher_user_id = ?
          ORDER BY s.subject_name ASC, e.date_enrolled DESC"

@@ -55,6 +55,11 @@ if (empty($subject_name) || empty($teacher_id)) {
 
 ensureArchivedColumn($conn);
 ensureSubjectLookupColumns($conn);
+ensureSemesterSchema($conn);
+$school_year = trim((string)$school_year);
+$schoolYearId = getOrCreateSchoolYearId($conn, $school_year);
+$semester = trim((string)$semester);
+$semesterId = getOrCreateSemesterId($conn, $semester);
 
 // 3. Prepared Statement
 try {
@@ -126,21 +131,25 @@ try {
             course_id,
             section_id,
             year_id,
+            semester_id,
             school_year,
+            school_year_id,
             semester,
             teacher_user_id,
             join_code,
             archived
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)"
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
     );
 
     $stmt->bind_param(
-        "siiissis",
+        "siiiisisis",
         $subject_name,
         $courseId,
         $sectionId,
         $yearId,
+        $semesterId,
         $school_year,
+        $schoolYearId,
         $semester,
         $teacher_id,
         $join_code

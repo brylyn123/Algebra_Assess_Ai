@@ -13,9 +13,11 @@ if (!$teacher_id) {
 }
 
 try {
+    ensureSubjectLookupColumns($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
     $stmt = $conn->prepare(
         "SELECT
@@ -26,8 +28,8 @@ try {
             s.course_id,
             s.section_id,
             s.year_id,
-            s.school_year,
-            s.semester,
+            COALESCE(sy.label, s.school_year) AS school_year,
+            COALESCE(sem.semester_name, s.semester) AS semester,
             s.join_code,
             s.archived,
             COALESCE(c.course_code, c.course_name) AS course,
@@ -37,6 +39,8 @@ try {
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
+         LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
          WHERE s.teacher_user_id = ? AND s.archived = 1
          ORDER BY s.subject_id DESC"
     );

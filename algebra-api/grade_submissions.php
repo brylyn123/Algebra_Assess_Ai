@@ -20,6 +20,7 @@ ensureScoreReturnColumn($conn);
 $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
 $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
 $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+$semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
 if ($subject_filter_raw !== null) {
     if ($subject_filter_raw === 'unassigned' || $subject_filter_raw === '0') {
@@ -46,8 +47,8 @@ SELECT
     COALESCE(c.course_code, c.course_name) AS course,
     sec.section_name AS section,
     yl.year_level AS year,
-    subj.semester,
-    subj.school_year,
+    COALESCE(sem.semester_name, subj.semester) AS semester,
+    COALESCE(sy.label, subj.school_year) AS school_year,
     cs.file_path,
     cs.ai_raw_json,
     sc.score_id,
@@ -69,6 +70,8 @@ LEFT JOIN Subject subj ON subj.subject_id = ep.subject_id
 LEFT JOIN {$courseTable} c ON c.course_id = subj.course_id
 LEFT JOIN {$sectionTable} sec ON sec.section_id = subj.section_id
 LEFT JOIN {$yearTable} yl ON yl.year_id = subj.year_id
+LEFT JOIN {$semesterTable} sem ON sem.semester_id = subj.semester_id
+LEFT JOIN school_year sy ON sy.school_year_id = subj.school_year_id
 LEFT JOIN Users s ON s.user_id = cs.student_user_id AND s.role = 'student'
 ";
 

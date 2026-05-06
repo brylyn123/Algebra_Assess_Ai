@@ -33,6 +33,8 @@ $idNumber   = $data['idNumber'] ?? '';
 $college    = trim($data['collegeName'] ?? '');
 $collegeIdFromPayload = isset($data['collegeId']) ? intval($data['collegeId']) : 0;
 $courseId   = isset($data['courseId']) ? intval($data['courseId']) : 0;
+$courseName = trim($data['courseName'] ?? '');
+$courseCode = trim($data['courseCode'] ?? '');
 $sectionId  = isset($data['sectionId']) ? intval($data['sectionId']) : 0;
 $yearId     = isset($data['yearId']) ? intval($data['yearId']) : 0;
 
@@ -72,9 +74,13 @@ try {
         $college = trim((string)($collegeRow['college_name'] ?? ''));
     }
 
+    if ($collegeId === null && $college !== '') {
+        $collegeId = getOrCreateCollegeId($conn, $college);
+    }
+
     if ($role === 'teacher') {
         if ($collegeId === null) {
-            throw new Exception("Please choose one of the built-in colleges.");
+            throw new Exception("Please choose a college or enter a new one.");
         }
         $stmtUser = $conn->prepare(
             "INSERT INTO users (
@@ -103,41 +109,37 @@ try {
             $role
         );
     } else {
-        if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
-            throw new Exception("Please choose a course, section, and year level.");
+        if (($courseId <= 0 && $courseName === '') || $sectionId <= 0 || $yearId <= 0) {
+            throw new Exception("Please choose a course or enter a new one, then select section and year level.");
         }
 
-        $courseStmt = $conn->prepare("SELECT course_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
-        $courseStmt->bind_param("i", $courseId);
-        $courseStmt->execute();
-        $courseResult = $courseStmt->get_result();
-        $courseRow = $courseResult ? $courseResult->fetch_assoc() : null;
-        if (!$courseRow) {
-            $courseStmt->close();
-            throw new Exception("Selected course was not found.");
+        if ($courseId > 0) {
+            $courseCollegeStmt = $conn->prepare("SELECT college_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
+            $courseCollegeStmt->bind_param("i", $courseId);
+            $courseCollegeStmt->execute();
+            $courseCollegeResult = $courseCollegeStmt->get_result();
+            $courseCollegeRow = $courseCollegeResult ? $courseCollegeResult->fetch_assoc() : null;
+            $courseCollegeStmt->close();
+
+            if (!$courseCollegeRow) {
+                throw new Exception("Selected course was not found.");
+            }
+
+            $courseCollegeId = $courseCollegeRow['college_id'] !== null
+                ? (int)$courseCollegeRow['college_id']
+                : null;
+
+            if ($collegeId !== null && $courseCollegeId !== $collegeId) {
+                throw new Exception("Selected course does not belong to the chosen college.");
+            }
+
+            $collegeId = $courseCollegeId;
+        } else {
+            $courseId = getOrCreateCourseId($conn, $courseName, $collegeId, $courseCode);
+            if ($courseId === null) {
+                throw new Exception("Unable to create the selected course.");
+            }
         }
-        $courseStmt->close();
-
-        $courseCollegeStmt = $conn->prepare("SELECT college_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
-        $courseCollegeStmt->bind_param("i", $courseId);
-        $courseCollegeStmt->execute();
-        $courseCollegeResult = $courseCollegeStmt->get_result();
-        $courseCollegeRow = $courseCollegeResult ? $courseCollegeResult->fetch_assoc() : null;
-        $courseCollegeStmt->close();
-
-        $courseCollegeId = $courseCollegeRow && $courseCollegeRow['college_id'] !== null
-            ? (int)$courseCollegeRow['college_id']
-            : null;
-
-        if ($courseCollegeId === null) {
-            throw new Exception("Selected course is not linked to a college.");
-        }
-
-        if ($collegeId !== null && $courseCollegeId !== $collegeId) {
-            throw new Exception("Selected course does not belong to the chosen college.");
-        }
-
-        $collegeId = $courseCollegeId;
 
         $sectionStmt = $conn->prepare("SELECT section_id FROM {$sectionTable} WHERE section_id = ? LIMIT 1");
         $sectionStmt->bind_param("i", $sectionId);

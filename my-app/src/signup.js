@@ -33,6 +33,7 @@ const Signup = () => {
         collegeId: '',
         collegeName: '',
         courseId: '',
+        courseName: '',
         sectionId: '',
         yearId: '',
         email: '',
@@ -49,7 +50,6 @@ const Signup = () => {
         years: [],
     });
     const [optionsLoading, setOptionsLoading] = useState(false);
-    const [optionsError, setOptionsError] = useState('');
     const toastTimer = useRef(null);
     const navigationTimer = useRef(null);
 
@@ -74,10 +74,12 @@ const Signup = () => {
         setRole(newRole);
         setFormData((prev) => ({
             ...prev,
+            collegeId: newRole === 'teacher' ? prev.collegeId : '',
+            collegeName: newRole === 'teacher' ? prev.collegeName : '',
             courseId: '',
+            courseName: '',
             sectionId: '',
             yearId: '',
-            collegeId: newRole === 'teacher' ? prev.collegeId : '',
         }));
     };
 
@@ -88,7 +90,7 @@ const Signup = () => {
 
         const selectedCourseStillMatches = registrationOptions.courses.some((course) => (
             String(course.course_id) === String(formData.courseId)
-                && (!course.college_id || String(course.college_id) === String(formData.collegeId))
+            && (!course.college_id || String(course.college_id) === String(formData.collegeId))
         ));
 
         if (!selectedCourseStillMatches && formData.courseId) {
@@ -105,7 +107,6 @@ const Signup = () => {
 
         const loadOptions = async () => {
             setOptionsLoading(true);
-            setOptionsError('');
 
             try {
                 const response = await fetch(`${API_BASE_URL}/get_registration_options.php`, {
@@ -133,7 +134,6 @@ const Signup = () => {
             } catch (error) {
                 if (controller.signal.aborted) return;
                 if (isMounted) {
-                    setOptionsError(error.message || 'Unable to load registration options.');
                     setRegistrationOptions({ colleges: [], courses: [], sections: [], years: [] });
                 }
             } finally {
@@ -156,6 +156,9 @@ const Signup = () => {
         setMessage('');
         setLoading(true);
 
+        const normalizedCollegeId = formData.collegeId === '__custom__' ? '' : formData.collegeId;
+        const normalizedCourseId = formData.courseId === '__custom__' ? '' : formData.courseId;
+
         const payload = {
             firstName: formData.firstName,
             middleName: formData.middleName,
@@ -164,15 +167,16 @@ const Signup = () => {
             email: formData.email,
             password: formData.password,
             role,
-            collegeId: formData.collegeId,
+            collegeId: normalizedCollegeId,
             collegeName: formData.collegeName,
-            courseId: formData.courseId,
+            courseId: normalizedCourseId,
+            courseName: formData.courseName,
             sectionId: formData.sectionId,
             yearId: formData.yearId,
         };
 
-        const selectedCollege = registrationOptions.colleges.find((college) => String(college.college_id) === String(formData.collegeId));
-        const selectedCourse = registrationOptions.courses.find((course) => String(course.course_id) === String(formData.courseId));
+        const selectedCollege = registrationOptions.colleges.find((college) => String(college.college_id) === String(normalizedCollegeId));
+        const selectedCourse = registrationOptions.courses.find((course) => String(course.course_id) === String(normalizedCourseId));
         const selectedSection = registrationOptions.sections.find((section) => String(section.section_id) === String(formData.sectionId));
         const selectedYear = registrationOptions.years.find((year) => String(year.year_id) === String(formData.yearId));
 
@@ -199,10 +203,10 @@ const Signup = () => {
                     middleName: formData.middleName,
                     lastName: formData.lastName,
                     idNumber: formData.idNumber,
-                    collegeId: formData.collegeId,
+                    collegeId: normalizedCollegeId,
                     collegeName: selectedCollege?.college_name ?? formData.collegeName,
-                    courseId: formData.courseId,
-                    courseName: selectedCourse?.course_name ?? '',
+                    courseId: normalizedCourseId,
+                    courseName: selectedCourse?.course_name ?? formData.courseName,
                     sectionId: formData.sectionId,
                     sectionName: selectedSection?.section_name ?? '',
                     yearId: formData.yearId,
@@ -229,11 +233,12 @@ const Signup = () => {
         { label: 'I am a Teacher', value: 'teacher' },
         { label: 'I am a Student', value: 'student' },
     ];
-    const filteredCourseOptions = role === 'student'
-        ? registrationOptions.courses
-        : registrationOptions.courses.filter((course) => (
-            !formData.collegeId || !course.college_id || String(course.college_id) === String(formData.collegeId)
-        ));
+    const hasCourseOptions = registrationOptions.courses.length > 0;
+    const useCustomCourse = !hasCourseOptions || formData.courseId === '__custom__';
+    const filteredCourseOptions = registrationOptions.courses;
+
+    const inputClassName = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100';
+    const selectClassName = `${inputClassName} disabled:cursor-not-allowed disabled:opacity-70`;
 
     return (
         <div
@@ -285,11 +290,10 @@ const Signup = () => {
                                             type="button"
                                             whileTap={{ scale: 0.98 }}
                                             onClick={() => handleRoleChange(option.value)}
-                                            className={`relative flex-1 rounded-2xl px-5 py-3 text-sm font-semibold transition ${
-                                                role === option.value
+                                            className={`relative flex-1 rounded-2xl px-5 py-3 text-sm font-semibold transition ${role === option.value
                                                     ? 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-200/80'
                                                     : 'text-slate-500 hover:text-indigo-500'
-                                            }`}
+                                                }`}
                                         >
                                             {option.label}
                                         </motion.button>
@@ -319,11 +323,10 @@ const Signup = () => {
                                             initial={{ opacity: 0, y: 8 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -8 }}
-                                            className={`mb-4 w-full rounded-2xl border px-5 py-3 text-sm font-semibold ${
-                                                toast.type === 'success'
+                                            className={`mb-4 w-full rounded-2xl border px-5 py-3 text-sm font-semibold ${toast.type === 'success'
                                                     ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
                                                     : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
-                                            }`}
+                                                }`}
                                         >
                                             {toast.text}
                                         </motion.div>
@@ -405,21 +408,36 @@ const Signup = () => {
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
                                                     <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">College</label>
-                                                    <select
-                                                        name="collegeId"
-                                                        required
-                                                        value={formData.collegeId}
-                                                        onChange={handleChange}
-                                                        disabled={optionsLoading}
-                                                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                                    >
-                                                        <option value="" disabled hidden>Select college</option>
-                                                        {registrationOptions.colleges.map((college) => (
-                                                            <option key={college.college_id} value={college.college_id}>
-                                                                {college.college_name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    {registrationOptions.colleges.length > 0 ? (
+                                                        <select
+                                                            name="collegeId"
+                                                            required={formData.collegeId !== '__custom__'}
+                                                            value={formData.collegeId}
+                                                            onChange={handleChange}
+                                                            disabled={optionsLoading}
+                                                            className={selectClassName}
+                                                        >
+                                                            <option value="" disabled hidden>Select college</option>
+                                                            {registrationOptions.colleges.map((college) => (
+                                                                <option key={college.college_id} value={college.college_id}>
+                                                                    {college.college_name}
+                                                                </option>
+                                                            ))}
+                                                            <option value="__custom__">Add new college</option>
+                                                        </select>
+                                                    ) : null}
+                                                    {(registrationOptions.colleges.length === 0 || formData.collegeId === '__custom__') && (
+                                                        <div className={registrationOptions.colleges.length > 0 ? 'mt-3' : ''}>
+                                                            <input
+                                                                name="collegeName"
+                                                                value={formData.collegeName}
+                                                                onChange={handleChange}
+                                                                placeholder="Enter college name"
+                                                                required
+                                                                className={inputClassName}
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </motion.div>
                                             ) : (
                                                 <motion.div
@@ -430,23 +448,38 @@ const Signup = () => {
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
-                                                    <div>
+                                                    <div className="sm:col-span-2">
                                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Course</label>
-                                                        <select
-                                                            name="courseId"
-                                                            required
-                                                            value={formData.courseId}
-                                                            onChange={handleChange}
-                                                            disabled={optionsLoading}
-                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                                        >
-                                                            <option value="" disabled hidden>Select course</option>
-                                                            {filteredCourseOptions.map((course) => (
-                                                                <option key={course.course_id} value={course.course_id}>
-                                                                    {course.course_name} ({course.course_code})
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                        {hasCourseOptions ? (
+                                                            <select
+                                                                name="courseId"
+                                                                required={!useCustomCourse}
+                                                                value={formData.courseId}
+                                                                onChange={handleChange}
+                                                                disabled={optionsLoading}
+                                                                className={selectClassName}
+                                                            >
+                                                                <option value="" disabled hidden>Select course</option>
+                                                                {filteredCourseOptions.map((course) => (
+                                                                    <option key={course.course_id} value={course.course_id}>
+                                                                        {course.course_name} ({course.course_code})
+                                                                    </option>
+                                                                ))}
+                                                                <option value="__custom__">Add new course</option>
+                                                            </select>
+                                                        ) : null}
+                                                        {useCustomCourse && (
+                                                            <div className={hasCourseOptions ? 'mt-3' : ''}>
+                                                                <input
+                                                                    name="courseName"
+                                                                    value={formData.courseName}
+                                                                    onChange={handleChange}
+                                                                    placeholder="Enter course name"
+                                                                    required
+                                                                    className={inputClassName}
+                                                                />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div>
                                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Year Level</label>
@@ -456,7 +489,7 @@ const Signup = () => {
                                                             value={formData.yearId}
                                                             onChange={handleChange}
                                                             disabled={optionsLoading}
-                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                                            className={selectClassName}
                                                         >
                                                             <option value="" disabled hidden>Select year level</option>
                                                             {registrationOptions.years.map((year) => (
@@ -466,7 +499,7 @@ const Signup = () => {
                                                             ))}
                                                         </select>
                                                     </div>
-                                                    <div className="sm:col-span-2">
+                                                    <div>
                                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Section</label>
                                                         <select
                                                             name="sectionId"
@@ -474,7 +507,7 @@ const Signup = () => {
                                                             value={formData.sectionId}
                                                             onChange={handleChange}
                                                             disabled={optionsLoading}
-                                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                                            className={selectClassName}
                                                         >
                                                             <option value="" disabled hidden>Select section</option>
                                                             {registrationOptions.sections.map((section) => (
@@ -488,14 +521,6 @@ const Signup = () => {
                                             )}
                                         </AnimatePresence>
                                     </div>
-
-                                    {role === 'student' && (
-                                        <p className="text-xs text-slate-400">
-                                            {optionsLoading
-                                                ? 'Loading course, year, and section lists...'
-                                                : optionsError || 'These selections are stored with the student profile, including the college link.'}
-                                        </p>
-                                    )}
 
                                     <div>
                                         <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Email address</label>
@@ -523,11 +548,10 @@ const Signup = () => {
                                         whileHover={{ y: -2 }}
                                         whileTap={{ scale: 0.99 }}
                                         type="submit"
-                                        className={`w-full rounded-2xl py-4 font-bold text-white shadow-lg transition duration-300 ${
-                                            loading
+                                        className={`w-full rounded-2xl py-4 font-bold text-white shadow-lg transition duration-300 ${loading
                                                 ? 'cursor-wait bg-sky-400 shadow-sky-200'
                                                 : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-xl'
-                                        }`}
+                                            }`}
                                         disabled={loading}
                                     >
                                         {loading ? 'Submitting...' : 'Sign Up'}

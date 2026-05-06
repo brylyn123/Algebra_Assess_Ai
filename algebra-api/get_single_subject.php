@@ -18,6 +18,7 @@ try {
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+    $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
     $stmt = $conn->prepare(
         "SELECT
@@ -26,11 +27,13 @@ try {
             s.join_code AS enrollment_code,
             COALESCE(c.course_code, c.course_name) AS course,
             yl.year_level AS year,
-            sec.section_name AS section
+            sec.section_name AS section,
+            COALESCE(sem.semester_name, s.semester) AS semester
          FROM Subject s
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+         LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
          WHERE s.subject_id = ?
          LIMIT 1"
     );
