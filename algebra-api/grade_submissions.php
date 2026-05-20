@@ -72,7 +72,7 @@ LEFT JOIN {$sectionTable} sec ON sec.section_id = subj.section_id
 LEFT JOIN {$yearTable} yl ON yl.year_id = subj.year_id
 LEFT JOIN {$semesterTable} sem ON sem.semester_id = subj.semester_id
 LEFT JOIN school_year sy ON sy.school_year_id = subj.school_year_id
-LEFT JOIN Users s ON s.user_id = cs.student_user_id AND s.role = 'student'
+LEFT JOIN Users s ON s.user_id = cs.student_user_id
 ";
 
 $filters = [];

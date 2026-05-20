@@ -43,11 +43,18 @@ $conn->begin_transaction();
 
 try {
     ensureRegistrationLookupData($conn);
+    $roleId = getRoleIdByName($conn, $role);
+    if ($roleId === null) {
+        throw new Exception("Selected role was not found.");
+    }
+    ensureUserAccountStatusSchema($conn);
 
     $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    $hasLegacyRoleColumn = schemaColumnExists($conn, $userTable, 'role');
 
     // Check if email exists
     $check = $conn->prepare("SELECT email FROM users WHERE email = ?");
@@ -82,32 +89,65 @@ try {
         if ($collegeId === null) {
             throw new Exception("Please choose a college or enter a new one.");
         }
-        $stmtUser = $conn->prepare(
-            "INSERT INTO users (
-                institutional_id,
-                first_name,
-                middle_name,
-                last_name,
-                email,
-                password,
-                college_id,
-                course_id,
-                section_id,
-                year_id,
-                role
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?)"
-        );
-        $stmtUser->bind_param(
-            "ssssssis",
-            $idNumber,
-            $firstName,
-            $middleName,
-            $lastName,
-            $email,
-            $password,
-            $collegeId,
-            $role
-        );
+        if ($hasLegacyRoleColumn) {
+            $stmtUser = $conn->prepare(
+                "INSERT INTO users (
+                    institutional_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    email,
+                    password,
+                    college_id,
+                    course_id,
+                    section_id,
+                    year_id,
+                    role_id,
+                    account_status,
+                    role
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, 'active', ?)"
+            );
+            $stmtUser->bind_param(
+                "ssssssiis",
+                $idNumber,
+                $firstName,
+                $middleName,
+                $lastName,
+                $email,
+                $password,
+                $collegeId,
+                $roleId,
+                $role
+            );
+        } else {
+            $stmtUser = $conn->prepare(
+                "INSERT INTO users (
+                    institutional_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    email,
+                    password,
+                    college_id,
+                    course_id,
+                    section_id,
+                    year_id,
+                    role_id
+                    , account_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, 'active')"
+            );
+            $stmtUser->bind_param(
+                "ssssssii",
+                $idNumber,
+                $firstName,
+                $middleName,
+                $lastName,
+                $email,
+                $password,
+                $collegeId,
+                $roleId
+            );
+        }
     } else {
         if (($courseId <= 0 && $courseName === '') || $sectionId <= 0 || $yearId <= 0) {
             throw new Exception("Please choose a course or enter a new one, then select section and year level.");
@@ -161,35 +201,71 @@ try {
         }
         $yearStmt->close();
 
-        $stmtUser = $conn->prepare(
-            "INSERT INTO users (
-                institutional_id,
-                first_name,
-                middle_name,
-                last_name,
-                email,
-                password,
-                college_id,
-                course_id,
-                section_id,
-                year_id,
-                role
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        $stmtUser->bind_param(
-            "ssssssiiiis",
-            $idNumber,
-            $firstName,
-            $middleName,
-            $lastName,
-            $email,
-            $password,
-            $collegeId,
-            $courseId,
-            $sectionId,
-            $yearId,
-            $role
-        );
+        if ($hasLegacyRoleColumn) {
+            $stmtUser = $conn->prepare(
+                "INSERT INTO users (
+                    institutional_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    email,
+                    password,
+                    college_id,
+                    course_id,
+                    section_id,
+                    year_id,
+                    role_id,
+                    account_status,
+                    role
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)"
+            );
+            $stmtUser->bind_param(
+                "ssssssiiiiis",
+                $idNumber,
+                $firstName,
+                $middleName,
+                $lastName,
+                $email,
+                $password,
+                $collegeId,
+                $courseId,
+                $sectionId,
+                $yearId,
+                $roleId,
+                $role
+            );
+        } else {
+            $stmtUser = $conn->prepare(
+                "INSERT INTO users (
+                    institutional_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    email,
+                    password,
+                    college_id,
+                    course_id,
+                    section_id,
+                    year_id,
+                    role_id
+                    , account_status
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
+            );
+            $stmtUser->bind_param(
+                "ssssssiiiii",
+                $idNumber,
+                $firstName,
+                $middleName,
+                $lastName,
+                $email,
+                $password,
+                $collegeId,
+                $courseId,
+                $sectionId,
+                $yearId,
+                $roleId
+            );
+        }
     }
     $stmtUser->execute();
     $newUserId = $conn->insert_id;

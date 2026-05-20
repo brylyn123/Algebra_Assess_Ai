@@ -67,12 +67,15 @@ try {
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
-    $teacherStmt = $conn->prepare("SELECT college_id FROM Users WHERE user_id = ? AND role = 'teacher' LIMIT 1");
+    $teacherStmt = $conn->prepare("SELECT college_id FROM Users WHERE user_id = ? LIMIT 1");
     $teacherStmt->bind_param("i", $teacher_id);
     $teacherStmt->execute();
     $teacherResult = $teacherStmt->get_result();
     $teacherRow = $teacherResult ? $teacherResult->fetch_assoc() : null;
     $teacherStmt->close();
+    if (!$teacherRow || !userHasRole($conn, (int)$teacher_id, 'teacher')) {
+        throw new Exception("Teacher not found.");
+    }
     $teacherCollegeId = ($teacherRow && $teacherRow['college_id'] !== null) ? (int)$teacherRow['college_id'] : null;
 
     if ($courseId > 0) {

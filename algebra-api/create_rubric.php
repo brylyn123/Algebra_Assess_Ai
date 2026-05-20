@@ -4,6 +4,7 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 include 'db_connect.php';
+require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -30,13 +31,7 @@ if (count($items) === 0) {
 }
 
 try {
-    $teacherStmt = $conn->prepare("SELECT user_id FROM Users WHERE user_id = ? AND role = 'teacher' LIMIT 1");
-    $teacherStmt->bind_param("i", $teacher_id);
-    $teacherStmt->execute();
-    $result = $teacherStmt->get_result();
-    $teacherStmt->close();
-
-    if (!$result || $result->num_rows === 0) {
+    if (!userHasRole($conn, $teacher_id, 'teacher')) {
         throw new Exception("Teacher not found.");
     }
 

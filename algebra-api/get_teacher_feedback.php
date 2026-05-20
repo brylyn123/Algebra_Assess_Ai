@@ -46,7 +46,7 @@ try {
         INNER JOIN Captured_Solution cs ON cs.solution_id = sc.solution_id
         INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
         INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
-        LEFT JOIN Users st ON st.user_id = cs.student_user_id AND st.role = 'student'
+        LEFT JOIN Users st ON st.user_id = cs.student_user_id
         LEFT JOIN (
             SELECT exercise_id, COALESCE(SUM(max_score), 0) AS max_score_possible
             FROM exercise_items

@@ -202,6 +202,81 @@ function ensureUniqueIndex(mysqli $conn, string $table, string $indexName, strin
     runSql($conn, "ALTER TABLE {$table} ADD UNIQUE KEY {$indexName} ({$column})", "Added unique index {$indexName}");
 }
 
+function ensureRolesTable(mysqli $conn): void
+{
+    out('Updating roles table...');
+
+    runSql(
+        $conn,
+        "CREATE TABLE IF NOT EXISTS roles (
+            role_id INT AUTO_INCREMENT PRIMARY KEY,
+            role_name VARCHAR(50) NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        'Ensured roles table exists'
+    );
+
+    foreach (['admin', 'teacher', 'student'] as $roleName) {
+        $stmt = $conn->prepare(
+            "INSERT INTO roles (role_name)
+             VALUES (?)
+             ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)"
+        );
+        $stmt->bind_param('s', $roleName);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    addColumnIfMissing($conn, 'users', 'role_id', 'INT NULL', 'Added users.role_id');
+
+    if (!indexExists($conn, 'users', 'idx_users_role_id')) {
+        runSql($conn, "ALTER TABLE users ADD INDEX idx_users_role_id (role_id)", 'Added users.role_id index');
+    } else {
+        out('[skip] Added users.role_id index');
+    }
+
+    if (columnExists($conn, 'users', 'role')) {
+        runSql(
+            $conn,
+            "UPDATE users u
+             INNER JOIN roles r ON r.role_name = u.role
+             SET u.role_id = r.role_id
+             WHERE u.role_id IS NULL
+               AND u.role IS NOT NULL
+               AND TRIM(u.role) <> ''",
+            'Backfilled users.role_id from users.role'
+        );
+    }
+
+    ensureForeignKey($conn, 'users', 'role_id', 'roles', 'role_id', 'fk_users_role');
+}
+
+function ensureUserAccountStatus(mysqli $conn): void
+{
+    addColumnIfMissing(
+        $conn,
+        'users',
+        'account_status',
+        "ENUM('active','inactive','suspended') NOT NULL DEFAULT 'active'",
+        'Added users.account_status'
+    );
+
+    runSql(
+        $conn,
+        "UPDATE users
+         SET account_status = 'active'
+         WHERE account_status IS NULL
+            OR TRIM(account_status) = ''",
+        'Backfilled users.account_status'
+    );
+
+    if (!indexExists($conn, 'users', 'idx_users_account_status')) {
+        runSql($conn, "ALTER TABLE users ADD INDEX idx_users_account_status (account_status)", 'Added users.account_status index');
+    } else {
+        out('[skip] Added users.account_status index');
+    }
+}
+
 function ensureUsersSchema(mysqli $conn): void
 {
     out('Updating users table...');
@@ -215,17 +290,22 @@ function ensureUsersSchema(mysqli $conn): void
     addColumnIfMissing($conn, 'users', 'section_id', 'INT NULL', 'Added users.section_id');
     addColumnIfMissing($conn, 'users', 'year_id', 'INT NULL', 'Added users.year_id');
     addColumnIfMissing($conn, 'users', 'created_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP', 'Added users.created_at');
+    ensureRolesTable($conn);
+    ensureUserAccountStatus($conn);
 
     if (tableExists($conn, 'teacher')) {
         runSql(
             $conn,
             "UPDATE users u
              INNER JOIN teacher t ON t.user_id = u.user_id
+             INNER JOIN roles r ON r.role_name = 'teacher'
              SET u.first_name = COALESCE(NULLIF(u.first_name, ''), t.first_name),
                  u.middle_name = COALESCE(NULLIF(u.middle_name, ''), t.middle_name),
                  u.last_name = COALESCE(NULLIF(u.last_name, ''), t.last_name),
                  u.college_id = COALESCE(u.college_id, t.college_id),
-                 u.role = 'teacher'",
+                 u.role_id = COALESCE(u.role_id, r.role_id)" .
+                 (columnExists($conn, 'users', 'role') ? ",
+                 u.role = 'teacher'" : ''),
             'Backfilled teacher profile data into users'
         );
     }
@@ -235,13 +315,16 @@ function ensureUsersSchema(mysqli $conn): void
             $conn,
             "UPDATE users u
              INNER JOIN student s ON s.user_id = u.user_id
+             INNER JOIN roles r ON r.role_name = 'student'
              SET u.first_name = COALESCE(NULLIF(u.first_name, ''), s.first_name),
                  u.middle_name = COALESCE(NULLIF(u.middle_name, ''), s.middle_name),
                  u.last_name = COALESCE(NULLIF(u.last_name, ''), s.last_name),
                  u.course_id = COALESCE(u.course_id, s.course_id),
                  u.section_id = COALESCE(u.section_id, s.section_id),
                  u.year_id = COALESCE(u.year_id, s.year_id),
-                 u.role = 'student'",
+                 u.role_id = COALESCE(u.role_id, r.role_id)" .
+                 (columnExists($conn, 'users', 'role') ? ",
+                 u.role = 'student'" : ''),
             'Backfilled student profile data into users'
         );
     }

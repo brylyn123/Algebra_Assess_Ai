@@ -2,6 +2,7 @@
 require_once 'cors.php';
 require_once 'db_connection.php';
 require_once 'ai_client.php';
+require_once 'schema_utils.php';
 
 function decodeSubmissionRawPayload($rawJson) {
     if (!$rawJson) {
@@ -76,7 +77,7 @@ try {
          INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
-         LEFT JOIN Users st ON st.user_id = cs.student_user_id AND st.role = 'student'
+         LEFT JOIN Users st ON st.user_id = cs.student_user_id
          WHERE cs.solution_id = ? AND subj.teacher_user_id = ?
          LIMIT 1"
     );

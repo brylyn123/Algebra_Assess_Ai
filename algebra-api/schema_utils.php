@@ -1,4 +1,244 @@
 <?php
+function schemaColumnExists(mysqli $conn, string $table, string $column): bool {
+    $stmt = $conn->prepare(
+        "SELECT 1
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND LOWER(TABLE_NAME) = LOWER(?)
+           AND LOWER(COLUMN_NAME) = LOWER(?)
+         LIMIT 1"
+    );
+    $stmt->bind_param('ss', $table, $column);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $exists = $result && $result->num_rows > 0;
+    $stmt->close();
+    return $exists;
+}
+
+function schemaIndexExists(mysqli $conn, string $table, string $indexName): bool {
+    $stmt = $conn->prepare(
+        "SELECT 1
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND LOWER(TABLE_NAME) = LOWER(?)
+           AND LOWER(INDEX_NAME) = LOWER(?)
+         LIMIT 1"
+    );
+    $stmt->bind_param('ss', $table, $indexName);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $exists = $result && $result->num_rows > 0;
+    $stmt->close();
+    return $exists;
+}
+
+function ensureUserAccountStatusSchema(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+
+    if (!schemaColumnExists($conn, $userTable, 'account_status')) {
+        if (
+            !$conn->query(
+                "ALTER TABLE {$userTable}
+                 ADD COLUMN account_status ENUM('active','inactive','suspended') NOT NULL DEFAULT 'active'
+                 AFTER role_id"
+            )
+        ) {
+            throw new Exception("Unable to add {$userTable}.account_status: " . $conn->error);
+        }
+    }
+
+    if (
+        !$conn->query(
+            "UPDATE {$userTable}
+             SET account_status = 'active'
+             WHERE account_status IS NULL
+                OR TRIM(account_status) = ''"
+        )
+    ) {
+        throw new Exception("Unable to backfill {$userTable}.account_status: " . $conn->error);
+    }
+
+    if (!schemaIndexExists($conn, $userTable, 'idx_users_account_status')) {
+        if (!$conn->query("ALTER TABLE {$userTable} ADD INDEX idx_users_account_status (account_status)")) {
+            throw new Exception("Unable to index {$userTable}.account_status: " . $conn->error);
+        }
+    }
+}
+
+function ensureRolesSchema(mysqli $conn): void {
+    static $checked = false;
+
+    if ($checked) {
+        return;
+    }
+
+    $checked = true;
+
+    if (
+        !$conn->query(
+            "CREATE TABLE IF NOT EXISTS roles (
+                role_id INT AUTO_INCREMENT PRIMARY KEY,
+                role_name VARCHAR(50) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        )
+    ) {
+        throw new Exception('Unable to create roles table: ' . $conn->error);
+    }
+
+    $roleStmt = $conn->prepare(
+        "INSERT INTO roles (role_name)
+         VALUES (?)
+         ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)"
+    );
+    foreach (['admin', 'teacher', 'student'] as $roleName) {
+        $roleStmt->bind_param('s', $roleName);
+        $roleStmt->execute();
+    }
+    $roleStmt->close();
+
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+
+    if (!schemaColumnExists($conn, $userTable, 'role_id')) {
+        if (!$conn->query("ALTER TABLE {$userTable} ADD COLUMN role_id INT NULL AFTER year_id")) {
+            throw new Exception("Unable to add {$userTable}.role_id: " . $conn->error);
+        }
+    }
+
+    if (!schemaIndexExists($conn, $userTable, 'idx_users_role_id')) {
+        if (!$conn->query("ALTER TABLE {$userTable} ADD INDEX idx_users_role_id (role_id)")) {
+            throw new Exception("Unable to index {$userTable}.role_id: " . $conn->error);
+        }
+    }
+
+    $hasLegacyRoleColumn = schemaColumnExists($conn, $userTable, 'role');
+    if ($hasLegacyRoleColumn) {
+        if (
+            !$conn->query(
+                "UPDATE {$userTable} u
+                 INNER JOIN roles r ON r.role_name = u.role
+                 SET u.role_id = r.role_id
+                 WHERE u.role_id IS NULL
+                   AND u.role IS NOT NULL
+                   AND TRIM(u.role) <> ''"
+            )
+        ) {
+            throw new Exception("Unable to backfill {$userTable}.role_id: " . $conn->error);
+        }
+    }
+
+    $fkStmt = $conn->prepare(
+        "SELECT CONSTRAINT_NAME
+         FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND LOWER(TABLE_NAME) = LOWER(?)
+           AND LOWER(COLUMN_NAME) = 'role_id'
+           AND LOWER(REFERENCED_TABLE_NAME) = 'roles'
+           AND LOWER(REFERENCED_COLUMN_NAME) = 'role_id'
+         LIMIT 1"
+    );
+    $fkStmt->bind_param('s', $userTable);
+    $fkStmt->execute();
+    $fkResult = $fkStmt->get_result();
+    $hasFk = $fkResult && $fkResult->num_rows > 0;
+    $fkStmt->close();
+
+    if (
+        !$hasFk &&
+        !$conn->query(
+            "ALTER TABLE {$userTable}
+             ADD CONSTRAINT fk_users_role
+             FOREIGN KEY (role_id) REFERENCES roles(role_id)"
+        )
+    ) {
+        throw new Exception("Unable to add {$userTable}.role_id foreign key: " . $conn->error);
+    }
+
+    ensureUserAccountStatusSchema($conn);
+}
+
+function getRoleIdByName(mysqli $conn, string $roleName): ?int {
+    ensureRolesSchema($conn);
+
+    $roleName = trim($roleName);
+    if ($roleName === '') {
+        return null;
+    }
+
+    $stmt = $conn->prepare("SELECT role_id FROM roles WHERE role_name = ? LIMIT 1");
+    $stmt->bind_param('s', $roleName);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    return ($row && isset($row['role_id'])) ? (int)$row['role_id'] : null;
+}
+
+function getUserRoleJoinClause(mysqli $conn, string $userAlias): string {
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    if (!schemaColumnExists($conn, $userTable, 'role_id')) {
+        return '';
+    }
+
+    return " LEFT JOIN roles {$userAlias}_role_ref ON {$userAlias}_role_ref.role_id = {$userAlias}.role_id ";
+}
+
+function getUserRoleNameExpression(mysqli $conn, string $userAlias): string {
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    $hasRoleId = schemaColumnExists($conn, $userTable, 'role_id');
+    $hasLegacyRole = schemaColumnExists($conn, $userTable, 'role');
+
+    if ($hasRoleId && $hasLegacyRole) {
+        return "COALESCE({$userAlias}_role_ref.role_name, {$userAlias}.role)";
+    }
+
+    if ($hasRoleId) {
+        return "{$userAlias}_role_ref.role_name";
+    }
+
+    if ($hasLegacyRole) {
+        return "{$userAlias}.role";
+    }
+
+    throw new Exception('Users table has neither role_id nor role.');
+}
+
+function userHasRole(mysqli $conn, int $userId, string $roleName): bool {
+    ensureRolesSchema($conn);
+    ensureUserAccountStatusSchema($conn);
+
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    $roleExpression = getUserRoleNameExpression($conn, 'u');
+    $roleJoin = getUserRoleJoinClause($conn, 'u');
+
+    $stmt = $conn->prepare(
+        "SELECT u.user_id
+         FROM {$userTable} u
+         {$roleJoin}
+         WHERE u.user_id = ?
+           AND {$roleExpression} = ?
+           AND u.account_status = 'active'
+         LIMIT 1"
+    );
+    $stmt->bind_param('is', $userId, $roleName);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $exists = $result && $result->num_rows > 0;
+    $stmt->close();
+
+    return $exists;
+}
+
 function getEnrollmentSubjectColumn(mysqli $conn): string {
     static $column = null;
 
@@ -200,6 +440,8 @@ function ensureStudentProfileColumns(mysqli $conn): void {
     $checked = true;
 
     $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    ensureRolesSchema($conn);
+    ensureUserAccountStatusSchema($conn);
     ensureCollegeForeignKeyForTable($conn, $userTable);
 }
 
@@ -320,6 +562,7 @@ function ensureRegistrationLookupData(mysqli $conn): void {
 
     $checked = true;
 
+    ensureRolesSchema($conn);
     ensureCourseCollegeForeignKey($conn);
     ensureFlexibleOrganizationColumns($conn);
     ensureYearLevelAuditColumns($conn);
@@ -1043,12 +1286,15 @@ function backfillStudentCollegeIds(mysqli $conn): array {
 
     $userTable = resolveExistingTableName($conn, ['Users', 'users']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
+    $roleExpression = getUserRoleNameExpression($conn, 'u');
+    $roleJoin = getUserRoleJoinClause($conn, 'u');
 
     $updateStmt = $conn->prepare(
         "UPDATE {$userTable} u
+         {$roleJoin}
          INNER JOIN {$courseTable} c ON c.course_id = u.course_id
          SET u.college_id = c.college_id
-         WHERE u.role = 'student'
+         WHERE {$roleExpression} = 'student'
            AND u.course_id IS NOT NULL
            AND c.college_id IS NOT NULL
            AND (u.college_id IS NULL OR u.college_id = 0)"
@@ -1057,10 +1303,18 @@ function backfillStudentCollegeIds(mysqli $conn): array {
     $updatedFromCourse = $updateStmt->affected_rows;
     $updateStmt->close();
 
-    $remainingNull = fetchScalar(
-        $conn,
-        "SELECT COUNT(*) FROM {$userTable} WHERE role = 'student' AND (college_id IS NULL OR college_id = 0)"
+    $remainingStmt = $conn->prepare(
+        "SELECT COUNT(*)
+         FROM {$userTable} u
+         {$roleJoin}
+         WHERE {$roleExpression} = 'student'
+           AND (u.college_id IS NULL OR u.college_id = 0)"
     );
+    $remainingStmt->execute();
+    $remainingResult = $remainingStmt->get_result();
+    $remainingRow = $remainingResult ? $remainingResult->fetch_row() : null;
+    $remainingNull = $remainingRow[0] ?? 0;
+    $remainingStmt->close();
 
     $summary = [
         'updated_from_course' => max(0, (int)$updatedFromCourse),

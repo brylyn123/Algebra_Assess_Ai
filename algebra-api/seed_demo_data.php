@@ -66,6 +66,8 @@ try {
     ensureScoreMetricsColumns($conn);
     ensureScoreReturnColumn($conn);
     ensureRegistrationLookupData($conn);
+    $teacherRoleId = getRoleIdByName($conn, 'teacher');
+    $studentRoleId = getRoleIdByName($conn, 'student');
 
     $courseId = (int)fetchSeedScalar($conn, "SELECT course_id FROM Course WHERE course_code = 'BSMATH' LIMIT 1");
     $sectionId = (int)fetchSeedScalar($conn, "SELECT section_id FROM Section WHERE section_name = 'Section A' LIMIT 1");
@@ -93,9 +95,10 @@ try {
             email,
             password,
             college_id,
+            role_id,
             role
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'teacher')",
-        'ssssssi',
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'teacher')",
+        'ssssssii',
         [
             'T-1001',
             'Alicia',
@@ -104,6 +107,7 @@ try {
             'demo.teacher@algebra.local',
             password_hash('DemoTeacher123!', PASSWORD_DEFAULT),
             $collegeId,
+            $teacherRoleId,
         ]
     );
 
@@ -129,9 +133,10 @@ try {
                 course_id,
                 section_id,
                 year_id,
+                role_id,
                 role
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'student')",
-            'ssssssiiii',
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'student')",
+            'ssssssiiiii',
             [
                 $institutionalId,
                 $firstName,
@@ -143,6 +148,7 @@ try {
                 $courseId,
                 $sectionId,
                 $yearId,
+                $studentRoleId,
             ]
         );
 

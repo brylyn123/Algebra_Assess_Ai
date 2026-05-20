@@ -5,7 +5,7 @@ USE algebraassess;
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `Scores`, `Item_Scores`, `Captured_Solution`, `item_rubric_mapping`,
                      `rubric_set_items`, `rubric_sets`, `Exercise_Items`, `Exercises_Problem`,
-                     `Enrollment`, `Subject`, `Users`, `Course`, `Section`, `Semester`,
+                     `Enrollment`, `Subject`, `Users`, `roles`, `Course`, `Section`, `Semester`,
                      `School_Year`, `Year_Level`, `Colleges`;
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -42,6 +42,17 @@ CREATE TABLE Course (
 ) ENGINE=InnoDB;
 
 -- 2. User Management
+CREATE TABLE roles (
+    role_id INT PRIMARY KEY AUTO_INCREMENT,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+INSERT INTO roles (role_name) VALUES
+    ('admin'),
+    ('teacher'),
+    ('student');
+
 CREATE TABLE Users (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
     institutional_id VARCHAR(64) UNIQUE,
@@ -54,8 +65,10 @@ CREATE TABLE Users (
     course_id INT,
     section_id INT,
     year_id INT,
-    role ENUM('admin', 'teacher', 'student') NOT NULL,
+    role_id INT NOT NULL,
+    account_status ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(role_id),
     CONSTRAINT fk_users_college FOREIGN KEY (college_id) REFERENCES Colleges(college_id),
     CONSTRAINT fk_users_course FOREIGN KEY (course_id) REFERENCES Course(course_id),
     CONSTRAINT fk_users_section FOREIGN KEY (section_id) REFERENCES Section(section_id),

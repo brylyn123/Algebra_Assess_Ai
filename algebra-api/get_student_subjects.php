@@ -44,7 +44,7 @@ try {
                 ELSE 0
             END AS enrolled
          FROM Subject s
-         LEFT JOIN Users t ON t.user_id = s.teacher_user_id AND t.role = 'teacher'
+         LEFT JOIN Users t ON t.user_id = s.teacher_user_id
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id

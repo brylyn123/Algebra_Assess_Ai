@@ -10,6 +10,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 }
 
 require_once 'db_connect.php';
+require_once 'schema_utils.php';
+
+ensureRolesSchema($conn);
+ensureUserAccountStatusSchema($conn);
+
+$roleExpression = getUserRoleNameExpression($conn, 'u');
+$roleJoin = getUserRoleJoinClause($conn, 'u');
 
 $data = json_decode(file_get_contents("php://input"), true);
 $email = $data['email'] ?? '';
@@ -25,7 +32,9 @@ try {
             u.last_name AS last_Name,
             u.email,
             u.password,
-            u.role,
+            u.role_id,
+            {$roleExpression} AS role,
+            u.account_status,
             u.college_id,
             u.course_id,
             u.section_id,
@@ -39,7 +48,9 @@ try {
          LEFT JOIN Course crs ON crs.course_id = u.course_id
          LEFT JOIN Section sec ON sec.section_id = u.section_id
          LEFT JOIN Year_Level yl ON yl.year_id = u.year_id
+         {$roleJoin}
          WHERE u.email = ?
+           AND u.account_status = 'active'
          LIMIT 1"
     );
     $stmt->bind_param("s", $email);
@@ -63,7 +74,7 @@ try {
             echo json_encode(["status" => "error", "message" => "Incorrect password."]);
         }
     } else {
-        echo json_encode(["status" => "error", "message" => "Email not found."]);
+        echo json_encode(["status" => "error", "message" => "Active account not found."]);
     }
 } catch (Exception $e) {
     echo json_encode(["status" => "error", "message" => "Server Error: " . $e->getMessage()]);

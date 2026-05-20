@@ -42,7 +42,7 @@ try {
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
          LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
-         JOIN Users st ON st.user_id = e.student_user_id AND st.role = 'student'
+         JOIN Users st ON st.user_id = e.student_user_id
          WHERE s.teacher_user_id = ?
          ORDER BY s.subject_name ASC, e.date_enrolled DESC"
     );
