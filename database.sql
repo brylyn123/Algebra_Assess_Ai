@@ -45,7 +45,8 @@ CREATE TABLE Course (
 CREATE TABLE roles (
     role_id INT PRIMARY KEY AUTO_INCREMENT,
     role_name VARCHAR(50) NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 INSERT INTO roles (role_name) VALUES
@@ -68,6 +69,7 @@ CREATE TABLE Users (
     role_id INT NOT NULL,
     account_status ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(role_id),
     CONSTRAINT fk_users_college FOREIGN KEY (college_id) REFERENCES Colleges(college_id),
     CONSTRAINT fk_users_course FOREIGN KEY (course_id) REFERENCES Course(course_id),
@@ -109,6 +111,7 @@ CREATE TABLE Subject (
     join_code VARCHAR(20) UNIQUE,
     archived TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_subject_teacher_user FOREIGN KEY (teacher_user_id) REFERENCES Users(user_id),
     CONSTRAINT fk_subject_course FOREIGN KEY (course_id) REFERENCES Course(course_id),
     CONSTRAINT fk_subject_section FOREIGN KEY (section_id) REFERENCES Section(section_id),
@@ -139,6 +142,7 @@ CREATE TABLE Exercises_Problem (
     topic VARCHAR(100),
     difficulty ENUM('Easy', 'Medium', 'Hard') DEFAULT 'Medium',
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_exercises_problem_subject FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
 ) ENGINE=InnoDB;
 
@@ -151,6 +155,7 @@ CREATE TABLE Exercise_Items (
     model_solution TEXT,
     max_score DECIMAL(5,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (exercise_id) REFERENCES Exercises_Problem(exercise_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -163,6 +168,7 @@ CREATE TABLE rubric_sets (
     ai_instructions TEXT,
     level_definitions JSON,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_rubric_sets_teacher_user FOREIGN KEY (teacher_user_id) REFERENCES Users(user_id)
 ) ENGINE=InnoDB;
 
@@ -197,6 +203,7 @@ CREATE TABLE Captured_Solution (
     ai_status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
     ai_raw_json JSON,
     date_uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (exercise_id) REFERENCES Exercises_Problem(exercise_id),
     FOREIGN KEY (student_user_id) REFERENCES Users(user_id)
 ) ENGINE=InnoDB;
@@ -221,6 +228,7 @@ CREATE TABLE Scores (
     ai_feedback TEXT,
     returned_at DATETIME NULL,
     date_scored TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_scores_solution (solution_id),
     FOREIGN KEY (solution_id) REFERENCES Captured_Solution(solution_id)
 ) ENGINE=InnoDB;
