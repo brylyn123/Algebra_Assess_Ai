@@ -211,10 +211,15 @@ function ensureRolesTable(mysqli $conn): void
         "CREATE TABLE IF NOT EXISTS roles (
             role_id INT AUTO_INCREMENT PRIMARY KEY,
             role_name VARCHAR(50) NOT NULL UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         'Ensured roles table exists'
     );
+
+    addColumnIfMissing($conn, 'roles', 'is_deleted', 'TINYINT(1) NOT NULL DEFAULT 0', 'Added roles.is_deleted');
+    addColumnIfMissing($conn, 'roles', 'updated_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'Added roles.updated_at');
 
     foreach (['admin', 'teacher', 'student'] as $roleName) {
         $stmt = $conn->prepare(
@@ -367,6 +372,9 @@ function ensureOrganizationSchema(mysqli $conn): void
     addColumnIfMissing($conn, 'course', 'is_active', 'TINYINT(1) DEFAULT 1', 'Added course.is_active');
     addColumnIfMissing($conn, 'course', 'created_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP', 'Added course.created_at');
     addColumnIfMissing($conn, 'course', 'updated_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'Added course.updated_at');
+
+    addColumnIfMissing($conn, 'section', 'created_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP', 'Added section.created_at');
+    addColumnIfMissing($conn, 'section', 'updated_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'Added section.updated_at');
 
     ensureForeignKey($conn, 'course', 'college_id', 'colleges', 'college_id', 'fk_course_college');
 }

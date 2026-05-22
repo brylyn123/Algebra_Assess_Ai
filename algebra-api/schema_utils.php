@@ -88,11 +88,25 @@ function ensureRolesSchema(mysqli $conn): void {
             "CREATE TABLE IF NOT EXISTS roles (
                 role_id INT AUTO_INCREMENT PRIMARY KEY,
                 role_name VARCHAR(50) NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         )
     ) {
         throw new Exception('Unable to create roles table: ' . $conn->error);
+    }
+
+    $rolesTable = resolveExistingTableName($conn, ['roles']);
+    $roleColumns = [
+        'is_deleted' => "ALTER TABLE {$rolesTable} ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0 AFTER role_name",
+        'updated_at' => "ALTER TABLE {$rolesTable} ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
+    ];
+
+    foreach ($roleColumns as $columnName => $statement) {
+        if (!schemaColumnExists($conn, $rolesTable, $columnName) && !$conn->query($statement)) {
+            throw new Exception("Unable to add {$rolesTable}.{$columnName}: " . $conn->error);
+        }
     }
 
     $roleStmt = $conn->prepare(
@@ -518,10 +532,15 @@ function ensureFlexibleOrganizationColumns(mysqli $conn): void {
 
     $checked = true;
 
+    $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
 
     $tableDefinitions = [
+        $sectionTable => [
+            'created_at' => "ALTER TABLE {$sectionTable} ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER section_name",
+            'updated_at' => "ALTER TABLE {$sectionTable} ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
+        ],
         $collegeTable => [
             'is_active' => "ALTER TABLE {$collegeTable} ADD COLUMN is_active TINYINT(1) DEFAULT 1 AFTER college_name",
             'created_at' => "ALTER TABLE {$collegeTable} ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER is_active",

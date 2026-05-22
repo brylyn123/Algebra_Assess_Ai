@@ -100,6 +100,72 @@ PREPARE stmt FROM @add_course_updated_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- Add audit columns to Section if they do not already exist.
+SET @section_created_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'Section'
+      AND COLUMN_NAME = 'created_at'
+);
+SET @add_section_created_sql := IF(
+    @section_created_exists = 0,
+    'ALTER TABLE Section ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER section_name',
+    'SELECT ''Section.created_at already exists'' AS message'
+);
+PREPARE stmt FROM @add_section_created_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @section_updated_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'Section'
+      AND COLUMN_NAME = 'updated_at'
+);
+SET @add_section_updated_sql := IF(
+    @section_updated_exists = 0,
+    'ALTER TABLE Section ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at',
+    'SELECT ''Section.updated_at already exists'' AS message'
+);
+PREPARE stmt FROM @add_section_updated_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add soft-delete flag to roles if it does not already exist.
+SET @roles_is_deleted_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'roles'
+      AND COLUMN_NAME = 'is_deleted'
+);
+SET @add_roles_is_deleted_sql := IF(
+    @roles_is_deleted_exists = 0,
+    'ALTER TABLE roles ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0 AFTER role_name',
+    'SELECT ''roles.is_deleted already exists'' AS message'
+);
+PREPARE stmt FROM @add_roles_is_deleted_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @roles_updated_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'roles'
+      AND COLUMN_NAME = 'updated_at'
+);
+SET @add_roles_updated_sql := IF(
+    @roles_updated_exists = 0,
+    'ALTER TABLE roles ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at',
+    'SELECT ''roles.updated_at already exists'' AS message'
+);
+PREPARE stmt FROM @add_roles_updated_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- Check for duplicate enrollments before adding the unique key.
 SELECT student_user_id, subject_id, COUNT(*) AS duplicate_count
 FROM Enrollment
