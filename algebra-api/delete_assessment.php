@@ -4,9 +4,11 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 include 'db_connect.php';
+require_once 'auth.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
-$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $exercise_id = isset($data['exercise_id']) ? intval($data['exercise_id']) : null;
 
 if (!$teacher_id || !$exercise_id) {

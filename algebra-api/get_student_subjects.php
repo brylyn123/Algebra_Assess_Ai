@@ -1,27 +1,16 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
+require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
-$student_id = isset($_GET['student_id']) ? intval($_GET['student_id']) : null;
-if (!$student_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Student ID is required.']);
-    exit();
-}
+$authUser = requireAuthenticatedUser('student');
+$student_id = (int)$authUser['user_id'];
 
 try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
     ensureSubjectLookupColumns($conn);
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
@@ -44,7 +33,7 @@ try {
                 ELSE 0
             END AS enrolled
          FROM Subject s
-         LEFT JOIN Users t ON t.user_id = s.teacher_user_id
+         LEFT JOIN {$userTable} t ON t.user_id = s.teacher_user_id
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id

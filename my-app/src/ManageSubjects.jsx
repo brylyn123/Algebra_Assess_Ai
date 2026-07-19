@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from './axiosClient';
+import { API_BASE_URL } from './apiBase';
 import { loadSubjects, saveSubjects } from './subjectsStore';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { getSubjectCardTheme } from './subjectCardThemes';
@@ -117,7 +118,7 @@ const ManageSubjects = () => {
         setIsAdding(true);
 
         try {
-            const response = await axios.post('http://localhost/Algebra_Assess_Ai/algebra-api/add_subject.php', {
+            const response = await axios.post(`${API_BASE_URL}/add_subject.php`, {
                 subject_name: newSubject.name,
                 course_id: Number(newSubject.courseId),
                 year_id: Number(newSubject.yearId),
@@ -171,7 +172,7 @@ const ManageSubjects = () => {
     const fetchSubjects = useCallback(async () => {
         try {
             // Ensure you are passing the teacherId in the URL as a query parameter
-            const response = await axios.get(`http://localhost/Algebra_Assess_Ai/algebra-api/get_subjects.php?teacher_id=${teacherId}`);
+            const response = await axios.get(`${API_BASE_URL}/get_subjects.php?teacher_id=${teacherId}`);
 
             // Change this line to look for 'subjects' inside the response object
             const subjectsSource = Array.isArray(response.data.subjects)
@@ -193,7 +194,7 @@ const ManageSubjects = () => {
             return;
         }
         try {
-            const response = await axios.get('http://localhost/Algebra_Assess_Ai/algebra-api/get_enrollments.php', {
+            const response = await axios.get(`${API_BASE_URL}/get_enrollments.php`, {
                 params: { teacher_id: teacherId },
             });
             const enrollments = Array.isArray(response.data.enrollments) ? response.data.enrollments : [];
@@ -233,7 +234,7 @@ const ManageSubjects = () => {
 
         const loadRegistrationOptions = async () => {
             try {
-                const response = await axios.get('http://localhost/Algebra_Assess_Ai/algebra-api/get_registration_options.php');
+                const response = await axios.get(`${API_BASE_URL}/get_registration_options.php`);
                 const data = response.data || {};
                 if (!isMounted || data.status !== 'success') {
                     return;
@@ -273,7 +274,7 @@ const ManageSubjects = () => {
             return;
         }
         try {
-            const response = await axios.get('http://localhost/Algebra_Assess_Ai/algebra-api/get_subject_filters.php', {
+            const response = await axios.get(`${API_BASE_URL}/get_subject_filters.php`, {
                 params: { teacher_id: teacherId }
             });
             const data = response.data || {};
@@ -294,7 +295,7 @@ const ManageSubjects = () => {
             return;
         }
         try {
-            const response = await axios.get('http://localhost/Algebra_Assess_Ai/algebra-api/get_archived_subjects.php', {
+            const response = await axios.get(`${API_BASE_URL}/get_archived_subjects.php`, {
                 params: { teacher_id: teacherId }
             });
             const archivedData = Array.isArray(response.data) ? response.data : [];
@@ -363,7 +364,7 @@ const ManageSubjects = () => {
 
     const handleArchive = async (subject) => {
         try {
-            await axios.post('http://localhost/Algebra_Assess_Ai/algebra-api/archive_subject.php', {
+            await axios.post(`${API_BASE_URL}/archive_subject.php`, {
                 subject_id: subject.id,
                 teacher_id: teacherId
             });

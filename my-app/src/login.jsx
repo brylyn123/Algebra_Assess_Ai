@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { storeLocalUser, findLocalUser, setCurrentLocalUserEmail } from './localAuthStore';
+import { API_BASE_URL } from './apiBase';
 
 const pageVariants = {
     hidden: { opacity: 0, y: 18 },
@@ -14,6 +15,7 @@ const pageVariants = {
 
 const Login = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [message, setMessage] = useState('');
     const [toast, setToast] = useState(null);
@@ -21,7 +23,14 @@ const Login = () => {
     const [resultBanner, setResultBanner] = useState(null);
     const toastTimer = useRef(null);
 
-    useEffect(() => () => clearTimeout(toastTimer.current), []);
+    useEffect(() => {
+        if (location?.state?.message) {
+            setMessage(location.state.message);
+            showToast(location.state.message, 'error');
+        }
+
+        return () => clearTimeout(toastTimer.current);
+    }, [location]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -41,23 +50,6 @@ const Login = () => {
         }
     };
 
-    const attemptLocalLogin = () => {
-        const saved = findLocalUser(formData.email);
-        if (!saved) {
-            return false;
-        }
-
-        if (saved.password === formData.password) {
-            showToast('Login successful (offline mode)', 'success');
-            displayResultBanner('Login successful (offline mode)', 'success');
-            setCurrentLocalUserEmail(saved.email);
-            navigateByRole(saved.role);
-            return true;
-        }
-
-        return false;
-    };
-
     const displayResultBanner = (text, type = 'success') => {
         setResultBanner({ text, type });
         setTimeout(() => setResultBanner(null), 3200);
@@ -69,13 +61,25 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost/Algebra_Assess_Ai/algebra-api/login.php', {
+            const response = await fetch(`${API_BASE_URL}/login.php`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
             });
 
-            const result = await response.json();
+            const responseText = await response.text();
+            let result = null;
+
+            try {
+                result = responseText ? JSON.parse(responseText) : null;
+            } catch (parseError) {
+                throw new Error(`Unexpected server response: ${responseText.slice(0, 120) || 'empty response'}`);
+            }
+
+            if (!response.ok && (!result || !result.message)) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
 
             if (result.status === 'success') {
                 const userData = result.user;
@@ -87,7 +91,6 @@ const Login = () => {
                 storeLocalUser({
                     ...existingLocalUser,
                     ...userData,
-                    password: formData.password,
                 });
                 setCurrentLocalUserEmail(userData.email);
                 displayResultBanner('Login successful!', 'success');
@@ -95,18 +98,15 @@ const Login = () => {
                 return;
             }
 
-            if (!attemptLocalLogin()) {
-                setMessage(result.message || 'Invalid credentials.');
-                showToast(result.message || 'Invalid credentials.', 'error');
-                displayResultBanner(result.message || 'Invalid credentials.', 'error');
-            }
+            setMessage(result.message || 'Invalid credentials.');
+            showToast(result.message || 'Invalid credentials.', 'error');
+            displayResultBanner(result.message || 'Invalid credentials.', 'error');
         } catch (error) {
             console.error('Login error:', error);
-            if (!attemptLocalLogin()) {
-                setMessage('Error connecting to the server.');
-                showToast('Error connecting to the server.', 'error');
-                displayResultBanner('Error connecting to the server.', 'error');
-            }
+            const friendlyMessage = error instanceof Error ? error.message : 'Error connecting to the server.';
+            setMessage(friendlyMessage);
+            showToast(friendlyMessage, 'error');
+            displayResultBanner(friendlyMessage, 'error');
         } finally {
             setLoading(false);
         }
@@ -122,7 +122,7 @@ const Login = () => {
             }}
         >
             <div className="relative min-h-screen">
-                <div className="absolute left-[10%] top-20 -z-10 h-48 w-48 rounded-full bg-white/35 blur-3xl" />
+                <div className="absolute left-[8%] top-20 -z-10 h-48 w-48 rounded-full bg-white/35 blur-3xl" />
                 <div className="absolute right-[10%] top-24 -z-10 h-56 w-56 rounded-full bg-indigo-100/30 blur-3xl" />
 
                 <header className="sticky top-0 z-20 bg-blue-600 text-white shadow-md">
@@ -140,6 +140,7 @@ const Login = () => {
                             </div>
                             <div>
                                 <p className="text-lg font-black tracking-tight text-white">AlgebraAssess</p>
+                                <p className="text-xs font-medium text-slate-200">Login to continue</p>
                             </div>
                         </div>
                         <Link
@@ -153,8 +154,8 @@ const Login = () => {
 
                 <main className="mx-auto flex min-h-[calc(100vh-88px)] max-w-7xl items-center justify-center px-6 py-10 lg:px-10">
                     <motion.section initial="hidden" animate="show" variants={pageVariants} className="relative w-full max-w-md">
-                        <div className="rounded-[2rem] border border-white/70 bg-white/88 p-5 shadow-[0_20px_60px_rgba(148,163,184,0.18)] backdrop-blur-xl sm:p-6">
-                            <div className="rounded-[1.7rem] border border-slate-100 bg-slate-50/95 p-7 sm:p-8">
+                        <div className="auth-card p-5 sm:p-6">
+                            <div className="auth-panel p-7 sm:p-8">
                                 <div className="mb-8 text-center">
                                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-indigo-500 to-sky-500 text-white shadow-lg shadow-sky-100">
                                         <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -162,7 +163,9 @@ const Login = () => {
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" />
                                         </svg>
                                     </div>
+                                    <p className="auth-badge mx-auto mb-3">Welcome back</p>
                                     <h1 className="text-3xl font-black text-slate-900">Welcome</h1>
+                                    <p className="mt-2 text-sm text-slate-500">Sign in to reach your dashboard, students, or admin tools.</p>
                                 </div>
 
                                 <form className="space-y-5" onSubmit={handleSubmit}>
@@ -174,7 +177,7 @@ const Login = () => {
                                             value={formData.email}
                                             onChange={handleChange}
                                             placeholder="name@email.com"
-                                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            className="auth-input"
                                         />
                                     </div>
 
@@ -186,7 +189,7 @@ const Login = () => {
                                             value={formData.password}
                                             onChange={handleChange}
                                             placeholder="Enter your password"
-                                            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            className="auth-input"
                                         />
                                     </div>
 
@@ -196,11 +199,10 @@ const Login = () => {
                                                 initial={{ opacity: 0, y: 8 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: -8 }}
-                                                className={`w-full rounded-2xl border px-5 py-3 text-sm font-semibold ${
-                                                    toast.type === 'success'
-                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
-                                                        : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
-                                                }`}
+                                                className={`w-full rounded-2xl border px-5 py-3 text-sm font-semibold ${toast.type === 'success'
+                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
+                                                    : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
+                                                    }`}
                                             >
                                                 {toast.text}
                                             </motion.div>
@@ -208,8 +210,8 @@ const Login = () => {
                                     </AnimatePresence>
 
                                     {message && (
-                                        <div className="text-center">
-                                            <p className="text-sm text-rose-600">{message}</p>
+                                        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-center">
+                                            <p className="text-sm font-medium text-rose-700">{message}</p>
                                         </div>
                                     )}
 
@@ -217,11 +219,10 @@ const Login = () => {
                                         whileHover={{ y: -2 }}
                                         whileTap={{ scale: 0.99 }}
                                         type="submit"
-                                        className={`w-full rounded-2xl py-4 font-bold text-white shadow-lg transition duration-300 ${
-                                            loading
-                                                ? 'cursor-wait bg-sky-400 shadow-sky-200'
-                                                : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-xl'
-                                        }`}
+                                        className={`w-full rounded-2xl py-4 font-bold text-white shadow-lg transition duration-300 ${loading
+                                            ? 'cursor-wait bg-sky-400 shadow-sky-200'
+                                            : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-xl'
+                                            }`}
                                         disabled={loading}
                                     >
                                         {loading ? 'Logging in...' : 'Login'}
@@ -261,11 +262,10 @@ const Login = () => {
                             exit={{ opacity: 0, y: 20 }}
                             className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
                         >
-                            <div className={`w-full max-w-xs rounded-2xl border px-5 py-3 text-center text-sm font-semibold ${
-                                resultBanner.type === 'success'
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
-                                    : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
-                            }`}>
+                            <div className={`w-full max-w-xs rounded-2xl border px-5 py-3 text-center text-sm font-semibold ${resultBanner.type === 'success'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
+                                : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
+                                }`}>
                                 {resultBanner.text}
                             </div>
                         </motion.div>

@@ -1,23 +1,16 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
+require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
-$student_id = isset($_POST['student_id']) ? intval($_POST['student_id']) : null;
+$authUser = requireAuthenticatedUser('student');
+$student_id = (int)$authUser['user_id'];
 $exercise_id = isset($_POST['exercise_id']) ? intval($_POST['exercise_id']) : null;
 
-if (!$student_id || !$exercise_id) {
+if (!$exercise_id) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Student ID and assessment ID are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Assessment ID is required.']);
     exit();
 }
 

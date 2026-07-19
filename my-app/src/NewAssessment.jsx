@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
 
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import { API_BASE_URL } from './apiBase';
 
 
 
@@ -375,7 +376,7 @@ const NewAssessment = () => {
 
     axios
 
-      .get(`http://localhost/Algebra_Assess_Ai/algebra-api/get_subjects.php?teacher_id=${teacherId}`)
+      .get(`${API_BASE_URL}/get_subjects.php?teacher_id=${teacherId}`)
 
       .then((response) => {
 
@@ -419,7 +420,7 @@ const NewAssessment = () => {
     dispatch({ type: 'SET_RUBRIC_ERROR', payload: '' });
 
     axios
-      .get(`http://localhost/Algebra_Assess_Ai/algebra-api/get_rubric_sets.php?teacher_id=${teacherId}`, {
+      .get(`${API_BASE_URL}/get_rubric_sets.php?teacher_id=${teacherId}`, {
         signal: controller.signal,
       })
       .then((response) => {
@@ -617,7 +618,7 @@ const NewAssessment = () => {
 
       };
 
-      await axios.post('http://localhost/Algebra_Assess_Ai/algebra-api/create_assessment.php', payload);
+      await axios.post(`${API_BASE_URL}/create_assessment.php`, payload);
 
       alert('Assessment created successfully!');
 

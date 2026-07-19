@@ -17,12 +17,14 @@ import TeacherProfile from './TeacherProfile';
 import TeacherSettings from './TeacherSettings';
 import TeacherFeedback from './TeacherFeedback';
 import TeacherReports from './TeacherReports';
+import AdminCatalog from './AdminCatalog';
 import StudentDashboard, { StudentOverview, StudentSubjects } from './StudentDashboard';
 import StudentReports from './StudentReports';
 import StudentProfile from './StudentProfile';
 import SubmitAssessment from './SubmitAssessment';
 import GradeSubmissions from './GradeSubmissions';
 import SubjectDetails from './SubjectDetails';
+import RequireAuth from './RequireAuth';
 import 'mathlive';
 
 const TeacherDashboard = Dashboard;
@@ -38,14 +40,29 @@ function AnimatedRoutes() {
         <Route path="/" element={withTransition(<Landing />)} />
         <Route path="/login" element={withTransition(<Login />)} />
         <Route path="/signup" element={withTransition(<Signup />)} />
-        <Route path="/dashboard" element={<Dashboard />}>
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth allowedRoles={['teacher', 'admin']}>
+              <Dashboard />
+            </RequireAuth>
+          }
+        >
           <Route index element={withTransition(<DashboardHome />)} />
           <Route path="subjects" element={withTransition(<ManageSubjects />)} />
+          <Route path="catalog" element={withTransition(<AdminCatalog />)} />
           <Route path="subjects/:id" element={<SubjectDetails />} />
           <Route path="profile" element={withTransition(<TeacherProfile />)} />
           <Route path="settings" element={withTransition(<TeacherSettings />)} />
         </Route>
-        <Route path="/teacher" element={<TeacherDashboard />}>
+        <Route
+          path="/teacher"
+          element={
+            <RequireAuth allowedRoles={['teacher']}>
+              <TeacherDashboard />
+            </RequireAuth>
+          }
+        >
           <Route index element={withTransition(<TeacherOverview />)} />
           <Route path="assessments">
             <Route index element={withTransition(<ManageAssessments />)} />
@@ -59,7 +76,14 @@ function AnimatedRoutes() {
           <Route path="profile" element={withTransition(<TeacherProfile />)} />
           <Route path="settings" element={withTransition(<TeacherSettings />)} />
         </Route>
-        <Route path="/student" element={<StudentDashboard />}>
+        <Route
+          path="/student"
+          element={
+            <RequireAuth allowedRoles={['student']}>
+              <StudentDashboard />
+            </RequireAuth>
+          }
+        >
           <Route index element={withTransition(<StudentOverview />)} />
           <Route path="subjects" element={withTransition(<StudentSubjects />)} />
           <Route path="subjects/:id" element={withTransition(<StudentSubjects />)} />

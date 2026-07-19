@@ -1,25 +1,18 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
-
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
+require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 ensureRolesSchema($conn);
 ensureUserAccountStatusSchema($conn);
 
+$userTable = resolveExistingTableName($conn, ['Users', 'users']);
 $roleExpression = getUserRoleNameExpression($conn, 'u');
 $roleJoin = getUserRoleJoinClause($conn, 'u');
 
 $data = json_decode(file_get_contents("php://input"), true);
-$email = $data['email'] ?? '';
+$email = trim((string)($data['email'] ?? ''));
 $password = $data['password'] ?? '';
 
 try {
@@ -43,7 +36,7 @@ try {
             crs.course_name AS courseName,
             sec.section_name AS sectionName,
             yl.year_level AS yearLevel
-         FROM users u
+         FROM {$userTable} u
          LEFT JOIN Colleges c ON c.college_id = u.college_id
          LEFT JOIN Course crs ON crs.course_id = u.course_id
          LEFT JOIN Section sec ON sec.section_id = u.section_id
@@ -58,7 +51,25 @@ try {
     $result = $stmt->get_result();
 
     if ($user = $result->fetch_assoc()) {
-        if (password_verify($password, $user['password'])) {
+        $storedPassword = (string)($user['password'] ?? '');
+        $isPasswordValid = password_verify($password, $storedPassword);
+        $needsRehash = false;
+
+        if (!$isPasswordValid && hash_equals($storedPassword, (string)$password)) {
+            // Legacy compatibility for older accounts that may still store plain text passwords.
+            $isPasswordValid = true;
+            $needsRehash = true;
+        }
+
+        if ($isPasswordValid) {
+            if ($needsRehash) {
+                $rehash = password_hash($password, PASSWORD_BCRYPT);
+                $update = $conn->prepare("UPDATE {$userTable} SET password = ? WHERE user_id = ?");
+                $update->bind_param("si", $rehash, $user['user_id']);
+                $update->execute();
+                $update->close();
+            }
+
             $role = $user['role'];
             $finalUser = $user;
             $finalUser['teacher_id'] = $role === 'teacher' ? (int)$user['user_id'] : null;
@@ -68,6 +79,8 @@ try {
             $finalUser['middleName'] = $user['middle_Name'];
             $finalUser['lastName'] = $user['last_Name'];
             unset($finalUser['password']);
+
+            setAuthenticatedUser($finalUser);
 
             echo json_encode(["status" => "success", "user" => $finalUser]);
         } else {

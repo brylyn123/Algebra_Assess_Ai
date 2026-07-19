@@ -5,13 +5,10 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 header("Content-Type: application/json");
 
 require_once 'db_connection.php';
+require_once 'auth.php';
 
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
-if (!$teacher_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher ID is required.']);
-    exit;
-}
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 
 try {
     $totalsStmt = $conn->prepare(

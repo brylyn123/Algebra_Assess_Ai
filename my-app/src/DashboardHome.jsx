@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import { API_BASE_URL } from './apiBase';
 
 const assessmentStatusClasses = {
     draft: 'bg-slate-100 text-slate-700',
@@ -24,7 +25,7 @@ const DashboardHome = () => {
         }
 
         axios
-            .get('http://localhost/Algebra_Assess_Ai/algebra-api/teacher_analytics.php', {
+            .get(`${API_BASE_URL}/teacher_analytics.php`, {
                 params: { teacher_id: teacherId },
             })
             .then((response) => {
@@ -38,7 +39,7 @@ const DashboardHome = () => {
             });
 
         axios
-            .get('http://localhost/Algebra_Assess_Ai/algebra-api/get_assessments.php', {
+            .get(`${API_BASE_URL}/get_assessments.php`, {
                 params: { teacher_id: teacherId },
             })
             .then((response) => {

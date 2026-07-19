@@ -1,6 +1,5 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json");
+require_once 'auth.php';
 include 'db_connect.php';
 require_once 'schema_utils.php';
 
@@ -11,12 +10,8 @@ function ensureArchivedColumn($conn) {
     }
 }
 
-$teacher_id = $_GET['teacher_id'] ?? null;
-
-if (!$teacher_id) {
-    echo json_encode(["status" => "error", "message" => "No teacher ID provided"]);
-    exit;
-}
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 
 try {
     ensureArchivedColumn($conn);

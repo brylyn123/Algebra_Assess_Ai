@@ -1,5 +1,6 @@
 <?php
 require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connection.php';
 require_once 'ai_client.php';
 require_once 'schema_utils.php';
@@ -51,16 +52,18 @@ function extractSubmissionFilesForOcr(array $rawPayload, $fallbackPath = null) {
 
 $data = json_decode(file_get_contents('php://input'), true);
 
-$teacher_id = isset($data['teacher_id']) ? (int)$data['teacher_id'] : 0;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $solution_id = isset($data['solution_id']) ? (int)$data['solution_id'] : 0;
 
-if (!$teacher_id || !$solution_id) {
+if (!$solution_id) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher ID and solution ID are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Solution ID is required.']);
     exit();
 }
 
 try {
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
     $submissionStmt = $conn->prepare(
         "SELECT
             cs.solution_id,
@@ -77,7 +80,7 @@ try {
          INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
          INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
-         LEFT JOIN Users st ON st.user_id = cs.student_user_id
+         LEFT JOIN {$userTable} st ON st.user_id = cs.student_user_id
          WHERE cs.solution_id = ? AND subj.teacher_user_id = ?
          LIMIT 1"
     );

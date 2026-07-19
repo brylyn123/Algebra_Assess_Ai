@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import { API_BASE_URL } from './apiBase';
 
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 const NEW_RUBRIC_STORAGE_KEY = 'teacher:new-rubric-created';
 
 const buildDefaultLevelDefinitions = () => [

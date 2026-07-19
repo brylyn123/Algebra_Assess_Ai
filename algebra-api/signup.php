@@ -30,11 +30,8 @@ $email      = $data['email'] ?? '';
 $password = password_hash($data['password'] ?? '', PASSWORD_BCRYPT); // In production, use password_hash()
 $role       = $data['role'] ?? '';
 $idNumber   = $data['idNumber'] ?? '';
-$college    = trim($data['collegeName'] ?? '');
 $collegeIdFromPayload = isset($data['collegeId']) ? intval($data['collegeId']) : 0;
 $courseId   = isset($data['courseId']) ? intval($data['courseId']) : 0;
-$courseName = trim($data['courseName'] ?? '');
-$courseCode = trim($data['courseCode'] ?? '');
 $sectionId  = isset($data['sectionId']) ? intval($data['sectionId']) : 0;
 $yearId     = isset($data['yearId']) ? intval($data['yearId']) : 0;
 
@@ -57,7 +54,7 @@ try {
     $hasLegacyRoleColumn = schemaColumnExists($conn, $userTable, 'role');
 
     // Check if email exists
-    $check = $conn->prepare("SELECT email FROM users WHERE email = ?");
+    $check = $conn->prepare("SELECT email FROM {$userTable} WHERE email = ?");
     $check->bind_param("s", $email);
     $check->execute();
     if ($check->get_result()->num_rows > 0) {
@@ -78,20 +75,15 @@ try {
         }
 
         $collegeId = (int)$collegeRow['college_id'];
-        $college = trim((string)($collegeRow['college_name'] ?? ''));
-    }
-
-    if ($collegeId === null && $college !== '') {
-        $collegeId = getOrCreateCollegeId($conn, $college);
     }
 
     if ($role === 'teacher') {
         if ($collegeId === null) {
-            throw new Exception("Please choose a college or enter a new one.");
+            throw new Exception("Please select a college assigned by an admin.");
         }
         if ($hasLegacyRoleColumn) {
             $stmtUser = $conn->prepare(
-                "INSERT INTO users (
+                "INSERT INTO {$userTable} (
                     institutional_id,
                     first_name,
                     middle_name,
@@ -121,7 +113,7 @@ try {
             );
         } else {
             $stmtUser = $conn->prepare(
-                "INSERT INTO users (
+                "INSERT INTO {$userTable} (
                     institutional_id,
                     first_name,
                     middle_name,
@@ -149,37 +141,30 @@ try {
             );
         }
     } else {
-        if (($courseId <= 0 && $courseName === '') || $sectionId <= 0 || $yearId <= 0) {
-            throw new Exception("Please choose a course or enter a new one, then select section and year level.");
+        if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
+            throw new Exception("Please select a course assigned by an admin, then choose section and year level.");
         }
 
-        if ($courseId > 0) {
-            $courseCollegeStmt = $conn->prepare("SELECT college_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
-            $courseCollegeStmt->bind_param("i", $courseId);
-            $courseCollegeStmt->execute();
-            $courseCollegeResult = $courseCollegeStmt->get_result();
-            $courseCollegeRow = $courseCollegeResult ? $courseCollegeResult->fetch_assoc() : null;
-            $courseCollegeStmt->close();
+        $courseCollegeStmt = $conn->prepare("SELECT college_id FROM {$courseTable} WHERE course_id = ? LIMIT 1");
+        $courseCollegeStmt->bind_param("i", $courseId);
+        $courseCollegeStmt->execute();
+        $courseCollegeResult = $courseCollegeStmt->get_result();
+        $courseCollegeRow = $courseCollegeResult ? $courseCollegeResult->fetch_assoc() : null;
+        $courseCollegeStmt->close();
 
-            if (!$courseCollegeRow) {
-                throw new Exception("Selected course was not found.");
-            }
-
-            $courseCollegeId = $courseCollegeRow['college_id'] !== null
-                ? (int)$courseCollegeRow['college_id']
-                : null;
-
-            if ($collegeId !== null && $courseCollegeId !== $collegeId) {
-                throw new Exception("Selected course does not belong to the chosen college.");
-            }
-
-            $collegeId = $courseCollegeId;
-        } else {
-            $courseId = getOrCreateCourseId($conn, $courseName, $collegeId, $courseCode);
-            if ($courseId === null) {
-                throw new Exception("Unable to create the selected course.");
-            }
+        if (!$courseCollegeRow) {
+            throw new Exception("Selected course was not found.");
         }
+
+        $courseCollegeId = $courseCollegeRow['college_id'] !== null
+            ? (int)$courseCollegeRow['college_id']
+            : null;
+
+        if ($collegeId !== null && $courseCollegeId !== $collegeId) {
+            throw new Exception("Selected course does not belong to the chosen college.");
+        }
+
+        $collegeId = $courseCollegeId;
 
         $sectionStmt = $conn->prepare("SELECT section_id FROM {$sectionTable} WHERE section_id = ? LIMIT 1");
         $sectionStmt->bind_param("i", $sectionId);
@@ -203,7 +188,7 @@ try {
 
         if ($hasLegacyRoleColumn) {
             $stmtUser = $conn->prepare(
-                "INSERT INTO users (
+                "INSERT INTO {$userTable} (
                     institutional_id,
                     first_name,
                     middle_name,
@@ -236,7 +221,7 @@ try {
             );
         } else {
             $stmtUser = $conn->prepare(
-                "INSERT INTO users (
+                "INSERT INTO {$userTable} (
                     institutional_id,
                     first_name,
                     middle_name,

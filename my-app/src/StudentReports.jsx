@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+import { API_BASE_URL } from './apiBase';
 
 const getDisplayName = (user) => {
   if (!user) return 'Student';
@@ -69,6 +68,7 @@ const StudentReports = () => {
 
       try {
         const response = await fetch(`${API_BASE_URL}/get_student_results.php?student_id=${studentId}`, {
+          credentials: 'include',
           signal,
         });
         const payload = await response.json();

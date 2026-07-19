@@ -15,6 +15,12 @@ const readStoredUsers = () => {
   }
 };
 
+const sanitizeUser = (user) => {
+    if (!user || typeof user !== 'object') return user;
+    const { password, ...safeUser } = user;
+    return safeUser;
+};
+
 export const findLocalUser = (email) => {
   const target = normalizeEmail(email);
   return readStoredUsers().find((user) => normalizeEmail(user.email) === target);
@@ -23,10 +29,12 @@ export const findLocalUser = (email) => {
 export const storeLocalUser = (user) => {
     if (!user?.email) return;
     const normalized = {
-        ...user,
+        ...sanitizeUser(user),
         email: normalizeEmail(user.email),
     };
-    const users = readStoredUsers().filter((entry) => normalizeEmail(entry.email) !== normalized.email);
+    const users = readStoredUsers()
+        .map(sanitizeUser)
+        .filter((entry) => normalizeEmail(entry.email) !== normalized.email);
     users.push(normalized);
     localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
     localStorage.setItem(CURRENT_USER_KEY, normalized.email);

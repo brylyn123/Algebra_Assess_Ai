@@ -1,15 +1,17 @@
 <?php
+require_once 'auth.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $solution_id = isset($data['solution_id']) ? intval($data['solution_id']) : null;
 
-if (!$teacher_id || !$solution_id) {
+if (!$solution_id) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher and submission are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Submission is required.']);
     exit();
 }
 

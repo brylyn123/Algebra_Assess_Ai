@@ -5,6 +5,7 @@ header("Content-Type: application/json");
 
 include 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'auth.php';
 
 function ensureArchivedColumn($conn) {
     $columnCheck = $conn->query("SHOW COLUMNS FROM subject LIKE 'archived'");
@@ -15,11 +16,12 @@ function ensureArchivedColumn($conn) {
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$subject_id = $data['subject_id'] ?? null;
-$teacher_id = $data['teacher_id'] ?? null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
+$subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
 
-if (!$subject_id || !$teacher_id) {
-    echo json_encode(["status" => "error", "message" => "Subject ID and teacher ID are required."]);
+if (!$subject_id) {
+    echo json_encode(["status" => "error", "message" => "Subject ID is required."]);
     exit;
 }
 

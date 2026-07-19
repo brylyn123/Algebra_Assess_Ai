@@ -1,13 +1,9 @@
 <?php
+require_once 'auth.php';
 require_once 'db_connection.php';
 
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
-
-if (!$teacher_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher ID is required.']);
-    exit();
-}
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 
 try {
     $summaryStmt = $conn->prepare(
@@ -75,7 +71,7 @@ try {
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
          WHERE subj.teacher_user_id = ?
          GROUP BY ep.exercise_id, ep.title, ep.difficulty, subj.subject_name
-         ORDER BY ep.date_created DESC, ep.exercise_id DESC"
+         ORDER BY ep.created_at DESC, ep.exercise_id DESC"
     );
     $assessmentStmt->bind_param("i", $teacher_id);
     $assessmentStmt->execute();

@@ -1,25 +1,12 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
+require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
-$student_id = isset($_GET['student_id']) ? intval($_GET['student_id']) : null;
+$authUser = requireAuthenticatedUser('student');
+$student_id = (int)$authUser['user_id'];
 $subject_id = isset($_GET['subject_id']) ? intval($_GET['subject_id']) : null;
-
-if (!$student_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Student ID is required.']);
-    exit();
-}
 
 try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
@@ -37,7 +24,7 @@ try {
             ep.description,
             ep.topic,
             ep.difficulty,
-            ep.date_created,
+            ep.created_at AS date_created,
             s.subject_name,
             s.join_code,
             COALESCE(c.course_code, c.course_name) AS course,
@@ -81,7 +68,7 @@ try {
             ep.description,
             ep.topic,
             ep.difficulty,
-            ep.date_created,
+            ep.created_at,
             s.subject_name,
             s.join_code,
             c.course_code,
@@ -90,7 +77,7 @@ try {
             COALESCE(sem.semester_name, s.semester),
             sy.label,
             s.school_year
-        ORDER BY ep.date_created DESC, ep.exercise_id DESC
+        ORDER BY ep.created_at DESC, ep.exercise_id DESC
     ";
 
     $stmt = $conn->prepare($query);

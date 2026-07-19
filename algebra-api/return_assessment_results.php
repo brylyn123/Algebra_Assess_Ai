@@ -1,15 +1,17 @@
 <?php
+require_once 'auth.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $exercise_id = isset($data['exercise_id']) ? intval($data['exercise_id']) : null;
 
-if (!$teacher_id || !$exercise_id) {
+if (!$exercise_id) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher and assessment are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Assessment is required.']);
     exit();
 }
 

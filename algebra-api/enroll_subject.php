@@ -1,19 +1,12 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
+require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
+$authUser = requireAuthenticatedUser('student');
+$student_id = (int)$authUser['user_id'];
 $data = json_decode(file_get_contents("php://input"), true);
-$student_id = isset($data['student_id']) ? intval($data['student_id']) : null;
 $join_code = isset($data['join_code']) ? trim($data['join_code']) : '';
 
 if (!$student_id || $join_code === '') {

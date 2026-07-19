@@ -1,16 +1,11 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json");
-
-include 'db_connect.php';
+require_once 'cors.php';
 require_once 'schema_utils.php';
+require_once 'auth.php';
+require_once 'db_connect.php';
 
-$teacher_id = $_GET['teacher_id'] ?? null;
-
-if (!$teacher_id) {
-    echo json_encode(["status" => "error", "message" => "Teacher ID is required."]);
-    exit;
-}
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 
 try {
     ensureSubjectLookupColumns($conn);

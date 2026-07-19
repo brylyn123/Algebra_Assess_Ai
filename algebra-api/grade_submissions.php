@@ -1,18 +1,14 @@
 <?php
 require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $subject_filter_raw = $_GET['subject_id'] ?? null;
 $subject_filter_value = null;
 $subject_filter_is_null = false;
-
-if (!$teacher_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher ID is required.']);
-    exit();
-}
 
 ensureAssessmentRubricColumn($conn);
 ensureSubjectLookupColumns($conn);
@@ -21,6 +17,7 @@ $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
 $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
 $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
+$userTable = resolveExistingTableName($conn, ['Users', 'users']);
 
 if ($subject_filter_raw !== null) {
     if ($subject_filter_raw === 'unassigned' || $subject_filter_raw === '0') {
@@ -72,7 +69,7 @@ LEFT JOIN {$sectionTable} sec ON sec.section_id = subj.section_id
 LEFT JOIN {$yearTable} yl ON yl.year_id = subj.year_id
 LEFT JOIN {$semesterTable} sem ON sem.semester_id = subj.semester_id
 LEFT JOIN school_year sy ON sy.school_year_id = subj.school_year_id
-LEFT JOIN Users s ON s.user_id = cs.student_user_id
+LEFT JOIN {$userTable} s ON s.user_id = cs.student_user_id
 ";
 
 $filters = [];

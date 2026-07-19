@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
+import { clearCurrentLocalUserEmail } from './localAuthStore';
+import { API_BASE_URL } from './apiBase';
 
 const iconClassName = 'h-[18px] w-[18px]';
 
@@ -59,6 +61,15 @@ const navIcons = {
       <path d="M19 12a7.6 7.6 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7.8 7.8 0 0 0-1.8-1l-.3-2.6h-4l-.3 2.6a7.8 7.8 0 0 0-1.8 1l-2.4-1-2 3.5 2 1.5a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7.8 7.8 0 0 0 1.8 1l.3 2.6h4l.3-2.6a7.8 7.8 0 0 0 1.8-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  catalog: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
+      <path d="M5.5 7.5A2.5 2.5 0 0 1 8 5h10.5A1.5 1.5 0 0 1 20 6.5v11A1.5 1.5 0 0 1 18.5 19H8a2.5 2.5 0 0 1-2.5-2.5v-9Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 5v14" strokeLinecap="round" />
+      <path d="M11 8.5h5" strokeLinecap="round" />
+      <path d="M11 12h5" strokeLinecap="round" />
+      <path d="M11 15.5h3.5" strokeLinecap="round" />
+    </svg>
+  ),
 };
 
 const quickActions = [
@@ -77,6 +88,7 @@ const Dashboard = () => {
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
   const [teacherName, setTeacherName] = useState('Teacher');
+  const [userRole, setUserRole] = useState('');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   useEffect(() => {
@@ -84,11 +96,21 @@ const Dashboard = () => {
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
       setTeacherName(parsedUser.firstName || 'Teacher');
+      setUserRole(String(parsedUser.role || '').toLowerCase());
     }
   }, []);
 
-  const performLogout = () => {
+  const performLogout = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/logout.php`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    }
     localStorage.removeItem('user');
+    clearCurrentLocalUserEmail();
     setLogoutConfirm(false);
     navigate('/login');
   };
@@ -162,6 +184,10 @@ const Dashboard = () => {
   const isReportsRoute = location.pathname === '/teacher/reports';
   const isSettingsRoute = location.pathname === '/teacher/settings' || location.pathname === '/dashboard/settings';
   const usesLargePanelScroll = isReportsRoute || isSettingsRoute;
+  const sidebarActions = userRole === 'admin'
+    ? [...quickActions, { label: 'Catalog', icon: navIcons.catalog, path: '/dashboard/catalog' }]
+    : quickActions;
+  const homeLabel = userRole === 'admin' ? 'Admin Home' : 'Teacher Home';
 
   return (
     <>
@@ -210,14 +236,14 @@ const Dashboard = () => {
               className="flex cursor-pointer items-center gap-3"
               onClick={() => navigate('/dashboard')}
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
-                {navIcons.home}
-              </div>
-              <div>
-                <p className="text-sm uppercase tracking-[0.2em] text-white/80">AlgebraAssess</p>
-                <p className="text-lg font-bold">Teacher Home</p>
-              </div>
-            </motion.div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
+                  {navIcons.home}
+                </div>
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-white/80">AlgebraAssess</p>
+                  <p className="text-lg font-bold">{homeLabel}</p>
+                </div>
+              </motion.div>
 
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3 rounded-full border border-white/30 bg-white/5 px-4 py-2">
@@ -252,7 +278,7 @@ const Dashboard = () => {
                     Quick Actions
                   </p>
                   <nav className="space-y-1">
-                    {quickActions.map((action) =>
+                    {sidebarActions.map((action) =>
                       renderNavButton({
                         ...action,
                         layoutId: 'teacher-sidebar-active-pill',

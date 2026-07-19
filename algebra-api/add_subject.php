@@ -1,8 +1,5 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
-
+require_once 'auth.php';
 include 'db_connect.php'; // Your XAMPP config
 require_once 'schema_utils.php';
 
@@ -32,7 +29,8 @@ $yearId       = isset($data['year_id']) ? intval($data['year_id']) : 0;
 $sectionId    = isset($data['section_id']) ? intval($data['section_id']) : 0;
 $school_year  = $data['school_year'] ?? '';
 $semester     = $data['semester'] ?? '';
-$teacher_id   = $data['teacher_id'] ?? null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id   = (int)$authUser['user_id'];
 $join_code    = trim($data['join_code'] ?? '');
 
 if (empty($join_code)) {
@@ -48,8 +46,8 @@ if (empty($join_code)) {
 }
 
 // Check if critical data is missing
-if (empty($subject_name) || empty($teacher_id)) {
-    echo json_encode(["status" => "error", "message" => "Subject name or Teacher ID missing."]);
+if (empty($subject_name)) {
+    echo json_encode(["status" => "error", "message" => "Subject name is missing."]);
     exit;
 }
 
@@ -67,7 +65,8 @@ try {
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
 
-    $teacherStmt = $conn->prepare("SELECT college_id FROM Users WHERE user_id = ? LIMIT 1");
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
+    $teacherStmt = $conn->prepare("SELECT college_id FROM {$userTable} WHERE user_id = ? LIMIT 1");
     $teacherStmt->bind_param("i", $teacher_id);
     $teacherStmt->execute();
     $teacherResult = $teacherStmt->get_result();

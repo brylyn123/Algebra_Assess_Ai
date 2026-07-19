@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+import { API_BASE_URL } from './apiBase';
 
 const TeacherFeedback = () => {
   const currentEmail = getCurrentLocalUserEmail();
@@ -74,6 +73,7 @@ const TeacherFeedback = () => {
         const params = new URLSearchParams({ teacher_id: String(teacherId) });
 
         const response = await fetch(`${API_BASE_URL}/get_teacher_feedback.php?${params.toString()}`, {
+          credentials: 'include',
           signal: controller.signal,
         });
         const payload = await response.json();

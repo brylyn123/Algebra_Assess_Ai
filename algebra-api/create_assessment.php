@@ -1,14 +1,12 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
-
+require_once 'auth.php';
 include 'db_connect.php';
 require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
 $rubric_set_id = isset($data['rubric_set_id']) ? intval($data['rubric_set_id']) : null;
 $title = trim($data['title'] ?? '');
@@ -52,7 +50,7 @@ try {
         throw new Exception("Subject not found.");
     }
 
-    if ($teacher_id && (int)$subjectRow['teacher_user_id'] !== $teacher_id) {
+    if ((int)$subjectRow['teacher_user_id'] !== $teacher_id) {
         throw new Exception("Teacher is not assigned to this subject.");
     }
 

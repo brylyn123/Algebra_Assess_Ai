@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+import { API_BASE_URL } from './apiBase';
 
 const TeacherProfile = () => {
   const currentEmail = getCurrentLocalUserEmail();

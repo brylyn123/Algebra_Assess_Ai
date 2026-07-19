@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storeLocalUser } from './localAuthStore';
-
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+import { API_BASE_URL } from './apiBase';
 
 const shakeVariants = {
     idle: { x: 0 },
@@ -75,7 +74,7 @@ const Signup = () => {
         setFormData((prev) => ({
             ...prev,
             collegeId: newRole === 'teacher' ? prev.collegeId : '',
-            collegeName: newRole === 'teacher' ? prev.collegeName : '',
+            collegeName: '',
             courseId: '',
             courseName: '',
             sectionId: '',
@@ -156,8 +155,24 @@ const Signup = () => {
         setMessage('');
         setLoading(true);
 
-        const normalizedCollegeId = formData.collegeId === '__custom__' ? '' : formData.collegeId;
-        const normalizedCourseId = formData.courseId === '__custom__' ? '' : formData.courseId;
+        const normalizedCollegeId = formData.collegeId;
+        const normalizedCourseId = formData.courseId;
+
+        if (role === 'teacher' && registrationOptions.colleges.length === 0) {
+            const err = 'No colleges are available yet. Please ask an admin to add a college first.';
+            setMessage(err);
+            showToast(err, 'error');
+            setLoading(false);
+            return;
+        }
+
+        if (role === 'student' && registrationOptions.courses.length === 0) {
+            const err = 'No courses are available yet. Please ask an admin to add a course first.';
+            setMessage(err);
+            showToast(err, 'error');
+            setLoading(false);
+            return;
+        }
 
         const payload = {
             firstName: formData.firstName,
@@ -168,9 +183,9 @@ const Signup = () => {
             password: formData.password,
             role,
             collegeId: normalizedCollegeId,
-            collegeName: formData.collegeName,
+            collegeName: '',
             courseId: normalizedCourseId,
-            courseName: formData.courseName,
+            courseName: '',
             sectionId: formData.sectionId,
             yearId: formData.yearId,
         };
@@ -181,7 +196,7 @@ const Signup = () => {
         const selectedYear = registrationOptions.years.find((year) => String(year.year_id) === String(formData.yearId));
 
         try {
-            const response = await fetch('http://localhost/Algebra_Assess_Ai/algebra-api/signup.php', {
+            const response = await fetch(`${API_BASE_URL}/signup.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -204,14 +219,13 @@ const Signup = () => {
                     lastName: formData.lastName,
                     idNumber: formData.idNumber,
                     collegeId: normalizedCollegeId,
-                    collegeName: selectedCollege?.college_name ?? formData.collegeName,
+                    collegeName: selectedCollege?.college_name ?? '',
                     courseId: normalizedCourseId,
                     courseName: selectedCourse?.course_name ?? formData.courseName,
                     sectionId: formData.sectionId,
                     sectionName: selectedSection?.section_name ?? '',
                     yearId: formData.yearId,
                     yearLevel: selectedYear?.year_level ?? '',
-                    password: formData.password,
                 });
                 showToast('Account created successfully!', 'success');
                 navigationTimer.current = setTimeout(() => navigate('/login'), 1100);
@@ -234,8 +248,6 @@ const Signup = () => {
         { label: 'I am a Student', value: 'student' },
     ];
     const hasCourseOptions = registrationOptions.courses.length > 0;
-    const useCustomCourse = !hasCourseOptions || formData.courseId === '__custom__';
-    const filteredCourseOptions = registrationOptions.courses;
 
     const inputClassName = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100';
     const selectClassName = `${inputClassName} disabled:cursor-not-allowed disabled:opacity-70`;
@@ -291,8 +303,8 @@ const Signup = () => {
                                             whileTap={{ scale: 0.98 }}
                                             onClick={() => handleRoleChange(option.value)}
                                             className={`relative flex-1 rounded-2xl px-5 py-3 text-sm font-semibold transition ${role === option.value
-                                                    ? 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-200/80'
-                                                    : 'text-slate-500 hover:text-indigo-500'
+                                                ? 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-200/80'
+                                                : 'text-slate-500 hover:text-indigo-500'
                                                 }`}
                                         >
                                             {option.label}
@@ -324,8 +336,8 @@ const Signup = () => {
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -8 }}
                                             className={`mb-4 w-full rounded-2xl border px-5 py-3 text-sm font-semibold ${toast.type === 'success'
-                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
-                                                    : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
+                                                : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
                                                 }`}
                                         >
                                             {toast.text}
@@ -411,7 +423,7 @@ const Signup = () => {
                                                     {registrationOptions.colleges.length > 0 ? (
                                                         <select
                                                             name="collegeId"
-                                                            required={formData.collegeId !== '__custom__'}
+                                                            required
                                                             value={formData.collegeId}
                                                             onChange={handleChange}
                                                             disabled={optionsLoading}
@@ -423,28 +435,19 @@ const Signup = () => {
                                                                     {college.college_name}
                                                                 </option>
                                                             ))}
-                                                            <option value="__custom__">Add new college</option>
                                                         </select>
-                                                    ) : null}
-                                                    {(registrationOptions.colleges.length === 0 || formData.collegeId === '__custom__') && (
-                                                        <div className={registrationOptions.colleges.length > 0 ? 'mt-3' : ''}>
-                                                            <input
-                                                                name="collegeName"
-                                                                value={formData.collegeName}
-                                                                onChange={handleChange}
-                                                                placeholder="Enter college name"
-                                                                required
-                                                                className={inputClassName}
-                                                            />
+                                                    ) : (
+                                                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                                            No colleges are available yet. Please ask an admin to add one before signing up.
                                                         </div>
                                                     )}
                                                 </motion.div>
                                             ) : (
-                                                <motion.div
-                                                    key="studentFields"
-                                                    className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-                                                    initial={{ opacity: 0, y: 8 }}
-                                                    animate={{ opacity: 1, y: 0 }}
+                                                    <motion.div
+                                                        key="studentFields"
+                                                        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+                                                        initial={{ opacity: 0, y: 8 }}
+                                                        animate={{ opacity: 1, y: 0 }}
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
@@ -453,31 +456,22 @@ const Signup = () => {
                                                         {hasCourseOptions ? (
                                                             <select
                                                                 name="courseId"
-                                                                required={!useCustomCourse}
+                                                                required
                                                                 value={formData.courseId}
                                                                 onChange={handleChange}
                                                                 disabled={optionsLoading}
                                                                 className={selectClassName}
                                                             >
                                                                 <option value="" disabled hidden>Select course</option>
-                                                                {filteredCourseOptions.map((course) => (
+                                                                {registrationOptions.courses.map((course) => (
                                                                     <option key={course.course_id} value={course.course_id}>
                                                                         {course.course_name} ({course.course_code})
                                                                     </option>
                                                                 ))}
-                                                                <option value="__custom__">Add new course</option>
                                                             </select>
-                                                        ) : null}
-                                                        {useCustomCourse && (
-                                                            <div className={hasCourseOptions ? 'mt-3' : ''}>
-                                                                <input
-                                                                    name="courseName"
-                                                                    value={formData.courseName}
-                                                                    onChange={handleChange}
-                                                                    placeholder="Enter course name"
-                                                                    required
-                                                                    className={inputClassName}
-                                                                />
+                                                        ) : (
+                                                            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                                                No courses are available yet. Please ask an admin to add one before signing up.
                                                             </div>
                                                         )}
                                                     </div>
@@ -549,8 +543,8 @@ const Signup = () => {
                                         whileTap={{ scale: 0.99 }}
                                         type="submit"
                                         className={`w-full rounded-2xl py-4 font-bold text-white shadow-lg transition duration-300 ${loading
-                                                ? 'cursor-wait bg-sky-400 shadow-sky-200'
-                                                : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-xl'
+                                            ? 'cursor-wait bg-sky-400 shadow-sky-200'
+                                            : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-xl'
                                             }`}
                                         disabled={loading}
                                     >

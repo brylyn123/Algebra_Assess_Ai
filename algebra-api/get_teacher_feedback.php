@@ -1,21 +1,18 @@
 <?php
+require_once 'auth.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $subject_id = isset($_GET['subject_id']) ? intval($_GET['subject_id']) : null;
 $exercise_id = isset($_GET['exercise_id']) ? intval($_GET['exercise_id']) : null;
-
-if (!$teacher_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher ID is required.']);
-    exit();
-}
 
 try {
     ensureScoreAiFeedbackColumn($conn);
     ensureScoreMetricsColumns($conn);
     ensureScoreReturnColumn($conn);
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
 
     $query = "
         SELECT
@@ -46,7 +43,7 @@ try {
         INNER JOIN Captured_Solution cs ON cs.solution_id = sc.solution_id
         INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
         INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
-        LEFT JOIN Users st ON st.user_id = cs.student_user_id
+        LEFT JOIN {$userTable} st ON st.user_id = cs.student_user_id
         LEFT JOIN (
             SELECT exercise_id, COALESCE(SUM(max_score), 0) AS max_score_possible
             FROM exercise_items

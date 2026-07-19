@@ -1,18 +1,10 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
-
+require_once 'auth.php';
 include 'db_connect.php';
 require_once 'schema_utils.php';
 
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
-
-if (!$teacher_id) {
-    http_response_code(400);
-    echo json_encode(["status" => "error", "message" => "Teacher ID is required."]);
-    exit;
-}
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 
 try {
     ensureAssessmentRubricColumn($conn);
@@ -30,7 +22,7 @@ try {
             ep.description,
             ep.topic,
             ep.difficulty,
-            ep.date_created,
+            ep.created_at AS date_created,
             rs.rubric_name,
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
             COALESCE(c.course_code, c.course_name) AS course,
@@ -59,7 +51,7 @@ try {
          LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
          WHERE s.teacher_user_id = ?
-         ORDER BY ep.date_created DESC"
+         ORDER BY ep.created_at DESC"
     );
     $stmt->bind_param("i", $teacher_id);
     $stmt->execute();

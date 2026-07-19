@@ -1,4 +1,5 @@
 <?php
+require_once 'auth.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 
@@ -34,7 +35,8 @@ $extractItemScores = static function (array $payload): array {
     return [];
 };
 
-$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $solution_id = isset($data['solution_id']) ? intval($data['solution_id']) : null;
 $ai_generation = isset($data['ai_generation']) && is_array($data['ai_generation']) ? $data['ai_generation'] : [];
 $score = isset($data['total_score_earned']) ? (float)$data['total_score_earned'] : $extractOverallScore($ai_generation);
@@ -42,9 +44,9 @@ $ai_feedback = trim((string)($data['ai_feedback'] ?? $data['teacher_feedback'] ?
 $item_scores = isset($data['item_scores']) && is_array($data['item_scores']) ? $data['item_scores'] : $extractItemScores($ai_generation);
 $ai_model = trim((string)($data['ai_model'] ?? $ai_generation['model'] ?? ''));
 
-if (!$teacher_id || !$solution_id || $score === null) {
+if (!$solution_id || $score === null) {
     http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher, submission, and score are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Submission and score are required.']);
     exit();
 }
 

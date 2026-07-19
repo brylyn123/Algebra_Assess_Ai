@@ -66,6 +66,7 @@ try {
     ensureScoreMetricsColumns($conn);
     ensureScoreReturnColumn($conn);
     ensureRegistrationLookupData($conn);
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
     $teacherRoleId = getRoleIdByName($conn, 'teacher');
     $studentRoleId = getRoleIdByName($conn, 'student');
 
@@ -83,11 +84,11 @@ try {
     executeSeed($conn, "DELETE FROM rubric_sets");
     executeSeed($conn, "DELETE FROM Enrollment");
     executeSeed($conn, "DELETE FROM Subject");
-    executeSeed($conn, "DELETE FROM Users WHERE email LIKE 'demo.%@algebra.local'");
+    executeSeed($conn, "DELETE FROM {$userTable} WHERE email LIKE 'demo.%@algebra.local'");
 
     $teacherUserId = insertSeed(
         $conn,
-        "INSERT INTO Users (
+        "INSERT INTO {$userTable} (
             institutional_id,
             first_name,
             middle_name,
@@ -122,7 +123,7 @@ try {
     foreach ($studentSeeds as [$institutionalId, $firstName, $middleName, $lastName, $email]) {
         $studentUserId = insertSeed(
             $conn,
-            "INSERT INTO Users (
+            "INSERT INTO {$userTable} (
                 institutional_id,
                 first_name,
                 middle_name,

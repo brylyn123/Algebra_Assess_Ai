@@ -1,17 +1,10 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
+require_once 'cors.php';
+require_once 'auth.php';
+require_once 'db_connect.php';
 
-include 'db_connect.php';
-
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
-
-if (!$teacher_id) {
-    http_response_code(400);
-    echo json_encode(["status" => "error", "message" => "Teacher ID is required."]);
-    exit;
-}
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 
 try {
     $stmt = $conn->prepare(

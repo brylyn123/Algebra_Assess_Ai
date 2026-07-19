@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import { API_BASE_URL } from './apiBase';
 
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
 const DIFFICULTY_ORDER = ['Easy', 'Medium', 'Hard'];
 
 const clampScore = (value) => {
@@ -41,6 +41,7 @@ const TeacherReports = () => {
 
       try {
         const response = await fetch(`${API_BASE_URL}/get_teacher_reports.php?teacher_id=${teacherId}`, {
+          credentials: 'include',
           signal: controller.signal,
         });
         const payload = await response.json();

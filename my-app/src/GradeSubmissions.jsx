@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+import { API_BASE_URL } from './apiBase';
 
 const toAbsoluteFileUrl = (path) => {
   if (!path) return '';
@@ -156,6 +155,7 @@ const GradeSubmissions = () => {
 
       try {
         const response = await fetch(`${API_BASE_URL}/grade_submissions.php?teacher_id=${teacherId}`, {
+          credentials: 'include',
           signal: controller.signal,
         });
         const text = await response.text();

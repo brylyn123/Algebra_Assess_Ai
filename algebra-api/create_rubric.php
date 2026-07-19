@@ -1,14 +1,12 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
-
+require_once 'auth.php';
 include 'db_connect.php';
 require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$teacher_id = isset($data['teacher_id']) ? intval($data['teacher_id']) : null;
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 $rubric_name = trim($data['name'] ?? '');
 $criteria = trim($data['criteria'] ?? '');
 $items = is_array($data['items']) ? $data['items'] : [];
@@ -18,7 +16,7 @@ if (is_array($data['level_definitions']) && count($data['level_definitions']) > 
     $level_definitions = json_encode(array_values($data['level_definitions']));
 }
 
-if (!$teacher_id || !$rubric_name || !$criteria) {
+if (!$rubric_name || !$criteria) {
     http_response_code(400);
     echo json_encode(["status" => "error", "message" => "Missing required rubric information."]);
     exit;

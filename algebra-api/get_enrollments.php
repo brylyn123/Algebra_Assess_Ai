@@ -4,19 +4,17 @@ header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 header("Content-Type: application/json");
 
+require_once 'cors.php';
+require_once 'auth.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
-
-$teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : null;
-if (!$teacher_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Teacher ID is required.']);
-    exit;
-}
+$authUser = requireAuthenticatedUser('teacher');
+$teacher_id = (int)$authUser['user_id'];
 
 try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
     ensureSubjectLookupColumns($conn);
+    $userTable = resolveExistingTableName($conn, ['Users', 'users']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
@@ -42,7 +40,7 @@ try {
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
          LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
-         JOIN Users st ON st.user_id = e.student_user_id
+         JOIN {$userTable} st ON st.user_id = e.student_user_id
          WHERE s.teacher_user_id = ?
          ORDER BY s.subject_name ASC, e.date_enrolled DESC"
     );

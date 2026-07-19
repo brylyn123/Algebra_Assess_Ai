@@ -8,8 +8,7 @@ import {
   getCurrentLocalUserEmail,
 } from './localAuthStore';
 import { getSubjectCardTheme } from './subjectCardThemes';
-
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+import { API_BASE_URL } from './apiBase';
 
 const iconClassName = 'h-[18px] w-[18px]';
 
@@ -150,7 +149,9 @@ const StudentDashboard = () => {
     setSubjectsError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/get_student_subjects.php?student_id=${studentId}`);
+      const response = await fetch(`${API_BASE_URL}/get_student_subjects.php?student_id=${studentId}`, {
+        credentials: 'include',
+      });
       const payload = await response.json();
       if (payload.status !== 'success') {
         throw new Error(payload.message || 'Unable to load subjects.');
@@ -185,6 +186,7 @@ const StudentDashboard = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/enroll_subject.php`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ student_id: studentId, join_code: enrollCode.trim() }),
       });
@@ -202,7 +204,15 @@ const StudentDashboard = () => {
     }
   };
 
-  const performLogout = () => {
+  const performLogout = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/logout.php`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    }
     localStorage.removeItem('user');
     clearCurrentLocalUserEmail();
     setLogoutConfirm(false);
@@ -232,6 +242,7 @@ const StudentDashboard = () => {
 
       try {
         const response = await fetch(`${API_BASE_URL}/get_student_assessments.php?student_id=${studentId}`, {
+          credentials: 'include',
           signal: controller.signal,
         });
         const payload = await response.json();
@@ -744,6 +755,7 @@ export const StudentSubjects = () => {
 
       const response = await fetch(`${API_BASE_URL}/submit_assessment.php`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
       const payload = await response.json();

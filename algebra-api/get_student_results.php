@@ -1,14 +1,10 @@
 <?php
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
+require_once 'auth.php';
 
-$student_id = isset($_GET['student_id']) ? intval($_GET['student_id']) : null;
-
-if (!$student_id) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Student ID is required.']);
-    exit();
-}
+$authUser = requireAuthenticatedUser('student');
+$student_id = (int)$authUser['user_id'];
 
 try {
     ensureScoreAiFeedbackColumn($conn);

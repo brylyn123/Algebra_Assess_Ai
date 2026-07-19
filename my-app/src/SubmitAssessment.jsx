@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
-
-const API_BASE_URL = 'http://localhost/Algebra_Assess_Ai/algebra-api';
+import { API_BASE_URL } from './apiBase';
 
 const formatDateTime = (value) => {
   if (!value) return 'Not submitted yet';
@@ -53,6 +52,7 @@ const SubmitAssessment = () => {
 
       try {
         const response = await fetch(`${API_BASE_URL}/get_student_assessments.php?student_id=${studentId}`, {
+          credentials: 'include',
           signal: controller.signal,
         });
         const payload = await response.json();
@@ -193,6 +193,7 @@ const SubmitAssessment = () => {
 
       const response = await fetch(`${API_BASE_URL}/submit_assessment.php`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
       const payload = await response.json();
