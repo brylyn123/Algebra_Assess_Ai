@@ -7,6 +7,7 @@ import Landing from './landing';
 import Login from './login';
 import Signup from './signup';
 import Dashboard from './dashboard';
+import ProgressBar from './components/ProgressBar';
 import DashboardHome from './DashboardHome';
 import ManageSubjects from './ManageSubjects';
 import ManageAssessments from './ManageAssessments';
@@ -25,6 +26,9 @@ import SubmitAssessment from './SubmitAssessment';
 import GradeSubmissions from './GradeSubmissions';
 import SubjectDetails from './SubjectDetails';
 import RequireAuth from './RequireAuth';
+import ErrorBoundary from './components/ErrorBoundary';
+import NotFound from './components/NotFound';
+import { ToastProvider } from './components/Toast';
 import 'mathlive';
 
 const TeacherDashboard = Dashboard;
@@ -35,8 +39,9 @@ const withTransition = (element) => <PageTransition>{element}</PageTransition>;
 function AnimatedRoutes() {
   const location = useLocation();
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+    <div className="page-stage">
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
         <Route path="/" element={withTransition(<Landing />)} />
         <Route path="/login" element={withTransition(<Login />)} />
         <Route path="/signup" element={withTransition(<Signup />)} />
@@ -91,15 +96,24 @@ function AnimatedRoutes() {
           <Route path="reports" element={withTransition(<StudentReports />)} />
           <Route path="profile" element={withTransition(<StudentProfile />)} />
         </Route>
+        <Route path="*" element={withTransition(<NotFound />)} />
       </Routes>
     </AnimatePresence>
+  </div>
   );
 }
 
 function App() {
   return (
     <Router future={{ v7_relativeSplatPath: true }}>
-      <AnimatedRoutes />
+      <ToastProvider>
+        <ErrorBoundary>
+          {/* persistent background element to prevent white flashes between route changes */}
+          <div className="app-bg" aria-hidden="true" />
+          <ProgressBar />
+          <AnimatedRoutes />
+        </ErrorBoundary>
+      </ToastProvider>
     </Router>
   );
 }

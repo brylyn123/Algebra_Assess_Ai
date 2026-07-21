@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   clearCurrentLocalUserEmail,
   findLocalUser,
@@ -9,6 +10,7 @@ import {
 } from './localAuthStore';
 import { getSubjectCardTheme } from './subjectCardThemes';
 import { API_BASE_URL } from './apiBase';
+import MobileNav from './components/MobileNav';
 
 const iconClassName = 'h-[18px] w-[18px]';
 
@@ -37,6 +39,16 @@ const navIcons = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
       <circle cx="12" cy="8" r="3.5" />
       <path d="M5 19a7 7 0 0 1 14 0" strokeLinecap="round" />
+    </svg>
+  ),
+  collapse: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClassName}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+    </svg>
+  ),
+  expand: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClassName}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
     </svg>
   ),
 };
@@ -102,6 +114,8 @@ const sectionHeaderSubtextClass = 'mt-1 text-sm text-slate-500';
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
+  const [hovering, setHovering] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
     const email = getCurrentLocalUserEmail();
     return email ? findLocalUser(email) : null;
@@ -375,29 +389,35 @@ const StudentDashboard = () => {
         }}
       >
         <header className="sticky top-0 z-50 border-b border-white/15 bg-blue-600 text-white shadow-md">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-            <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate('/student')}>
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20 text-2xl font-bold">A</div>
-              <div>
-                <p className="text-sm uppercase tracking-[0.2em] text-white/80">AlgebraAssess</p>
-                <p className="text-lg font-bold">Student Home</p>
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <MobileNav
+                actions={quickActions.map((a) => ({ label: a.label, icon: a.icon, path: a.path }))}
+                label="Navigation"
+              />
+              <div className="flex cursor-pointer items-center gap-2 sm:gap-3" onClick={() => navigate('/student')}>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-lg font-bold sm:h-10 sm:w-10 sm:rounded-2xl sm:text-2xl">A</div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/80 sm:text-sm">AlgebraAssess</p>
+                  <p className="text-sm font-bold sm:text-lg">Student Home</p>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 rounded-full border border-white/30 bg-white/5 px-4 py-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white font-bold text-blue-600">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="hidden items-center gap-3 rounded-full border border-white/30 bg-white/5 px-3 py-2 sm:flex sm:px-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-blue-600 sm:h-9 sm:w-9">
                   {displayName.charAt(0)}
                 </div>
-                <div className="text-sm text-white">
+                <div className="text-xs text-white sm:text-sm">
                   <p className="font-semibold leading-none">{displayName}</p>
-                  <p className="text-xs text-white/70">Online</p>
+                  <p className="text-[10px] text-white/70 sm:text-xs">Online</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(true)}
-                className="rounded-full border border-white/30 px-4 py-2 text-sm font-semibold transition hover:border-red-500 hover:bg-red-500"
+                className="rounded-full border border-white/30 px-3 py-1.5 text-xs font-semibold transition hover:border-red-500 hover:bg-red-500 sm:px-4 sm:py-2 sm:text-sm"
               >
                 Logout
               </button>
@@ -405,52 +425,87 @@ const StudentDashboard = () => {
           </div>
         </header>
 
-        <main className="mx-auto h-[calc(100vh-74px)] max-w-7xl overflow-hidden px-6 py-6">
-          <div className="relative flex h-[calc(100vh-160px)] min-h-0 gap-8 overflow-hidden">
-            <aside className="hidden h-[calc(100vh-200px)] w-[260px] shrink-0 lg:block">
-              <div className="sticky top-28 h-full space-y-6 overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg">
-                <div>
-                  <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
-                  <nav className="space-y-1">
-                    {quickActions.map((action) => {
-                      const isActive =
-                        action.path === '/student/subjects'
-                          ? location.pathname.startsWith('/student/subjects')
-                          : location.pathname === action.path;
-                      return (
-                        <button
-                          key={action.label}
-                          type="button"
-                          onClick={() => navigate(action.path)}
-                          className={`relative flex h-16 w-full items-center gap-3 overflow-hidden rounded-2xl px-4 text-left text-sm font-bold transition ${
-                            isActive
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                              : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
-                          }`}
-                        >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs font-extrabold">
-                            {action.icon}
-                          </span>
-                          <span className="block flex-1 whitespace-nowrap leading-tight">{action.label}</span>
-                        </button>
-                      );
-                    })}
-                  </nav>
-                </div>
-              </div>
-            </aside>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="relative flex gap-6 overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+            {(() => {
+              const isExpanded = !collapsed || hovering;
+              return (
+                <aside
+                  className="hidden shrink-0 transition-all duration-300 lg:block"
+                  style={{ width: isExpanded ? 260 : 80 }}
+                  onMouseEnter={() => collapsed && setHovering(true)}
+                  onMouseLeave={() => collapsed && setHovering(false)}
+                >
+                  <div
+                    className="scrollbar-hidden sticky top-24 flex flex-col overflow-y-auto rounded-[2rem] border border-slate-100 bg-white py-6 shadow-lg"
+                    style={{ height: 'calc(100vh - 120px)', padding: isExpanded ? undefined : '24px 12px' }}
+                  >
+                    <div className="mb-4 flex justify-end px-2">
+                      <button
+                        type="button"
+                        onClick={() => setCollapsed(!collapsed)}
+                        className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
+                        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                      >
+                        {collapsed ? navIcons.expand : navIcons.collapse}
+                      </button>
+                    </div>
 
-            <section
-              className="min-w-0 flex-1 overflow-hidden"
-              style={{ height: 'calc(100vh - 200px)' }}
-            >
+                    <div className="flex-1">
+                      {isExpanded && (
+                        <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
+                      )}
+                      <nav className="space-y-1">
+                        {quickActions.map((action) => {
+                          const isActive =
+                            action.path === '/student/subjects'
+                              ? location.pathname.startsWith('/student/subjects')
+                              : location.pathname === action.path;
+                          return (
+                            <button
+                              key={action.label}
+                              type="button"
+                              onClick={() => navigate(action.path)}
+                              title={!isExpanded ? action.label : undefined}
+                              className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl ${isExpanded ? 'px-4 py-3' : 'justify-center px-0 py-3'} text-left text-sm font-bold transition ${
+                                isActive
+                                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                  : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
+                              }`}
+                            >
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs font-extrabold">
+                                {action.icon}
+                              </span>
+                              <AnimatePresence>
+                                {isExpanded && (
+                                  <motion.span
+                                    initial={{ opacity: 0, width: 0 }}
+                                    animate={{ opacity: 1, width: 'auto' }}
+                                    exit={{ opacity: 0, width: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="block flex-1 whitespace-nowrap leading-tight overflow-hidden"
+                                  >
+                                    {action.label}
+                                  </motion.span>
+                                )}
+                              </AnimatePresence>
+                            </button>
+                          );
+                        })}
+                      </nav>
+                    </div>
+                  </div>
+                </aside>
+              );
+            })()}
+
+            <section className="min-w-0 flex-1 overflow-hidden">
               <div
-                className={`h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)] ${
-                  isDashboardPage ? 'h-[calc(100vh-200px)] overflow-hidden' : 'min-h-[680px]'
-                }`}
+                className="overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
+                style={{ height: 'calc(100vh - 120px)' }}
               >
-                <div className="h-full min-h-0 overflow-hidden rounded-[1.8rem] bg-[#f5f7fb]">
-                <div className={`${isDashboardPage || isSubjectsPage ? 'h-full overflow-hidden' : 'h-full min-h-0 overflow-y-auto'} space-y-10 px-5 py-6 pb-6 md:space-y-12 md:px-8 md:py-8 md:pb-8`}>
+                <div className="h-full overflow-hidden rounded-[1.8rem] bg-[#f5f7fb]">
+                  <div className={`${isDashboardPage || isSubjectsPage ? 'h-full overflow-hidden' : 'h-full overflow-y-auto'} space-y-10 px-5 py-6 pb-6 md:space-y-12 md:px-8 md:py-8 md:pb-8`}>
                     <Outlet context={outletContext} />
                   </div>
                 </div>
@@ -597,6 +652,23 @@ export const StudentOverview = () => {
                       {assessment.subject_code}
                     </span>
                   )}
+                  {assessment.due_date && (() => {
+                    const now = new Date();
+                    const due = new Date(assessment.due_date);
+                    if (Number.isNaN(due.getTime())) return null;
+                    const diffMs = due.getTime() - now.getTime();
+                    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                    let cls = 'bg-blue-50 text-blue-700 border-blue-200';
+                    let label = `Due in ${diffDays}d`;
+                    if (diffDays < 0) { cls = 'bg-red-50 text-red-700 border-red-200'; label = 'Overdue'; }
+                    else if (diffDays === 0) { cls = 'bg-amber-50 text-amber-700 border-amber-200'; label = 'Due today'; }
+                    else if (diffDays <= 3) { cls = 'bg-orange-50 text-orange-700 border-orange-200'; }
+                    return (
+                      <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${cls}`}>
+                        {label}
+                      </span>
+                    );
+                  })()}
                 </div>
               </article>
             ))
@@ -1074,6 +1146,20 @@ export const StudentSubjects = () => {
                             <span>Difficulty: {assessment.difficulty || 'Medium'}</span>
                             <span>Items: {assessment.item_count ?? 0}</span>
                             {assessment.latest_submission_at && <span>Latest: {formatDateTime(assessment.latest_submission_at)}</span>}
+                            {assessment.due_date && (() => {
+                              const now = new Date();
+                              const due = new Date(assessment.due_date);
+                              if (Number.isNaN(due.getTime())) return null;
+                              const diffMs = due.getTime() - now.getTime();
+                              const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                              let cls = 'text-blue-600';
+                              let label = `Due in ${diffDays}d`;
+                              if (diffDays < 0) { cls = 'text-red-600 font-semibold'; label = 'Overdue'; }
+                              else if (diffDays === 0) { cls = 'text-amber-600 font-semibold'; label = 'Due today'; }
+                              else if (diffDays <= 3) { cls = 'text-orange-600 font-semibold'; }
+                              const formatted = due.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                              return <span className={cls}>{label} ({formatted})</span>;
+                            })()}
                           </div>
 
                         </div>

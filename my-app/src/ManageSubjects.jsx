@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import axios from './axiosClient';
 import { API_BASE_URL } from './apiBase';
 import { loadSubjects, saveSubjects } from './subjectsStore';
-import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import { findLocalUser, getCurrentLocalUserEmail, storeLocalUser } from './localAuthStore';
 import { getSubjectCardTheme } from './subjectCardThemes';
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 
@@ -105,7 +105,29 @@ const ManageSubjects = () => {
     const handleAddSubject = async (e) => {
         e.preventDefault();
 
-        if (!teacherId) {
+        // If teacherId is not available locally, try to recover session from the server
+        let resolvedTeacherId = teacherId;
+        if (!resolvedTeacherId) {
+            try {
+                const sessionResp = await axios.get(`${API_BASE_URL}/session.php`);
+                if (sessionResp?.data?.status === 'success' && sessionResp.data.user) {
+                    // Save minimal server user into local storage so other parts of the app can read it
+                    // Importing storeLocalUser at top is required for this to work
+                    try {
+                        storeLocalUser(sessionResp.data.user);
+                    } catch (err) {
+                        // ignore if storeLocalUser is not available or fails
+                        console.warn('Could not store server session locally', err);
+                    }
+
+                    resolvedTeacherId = sessionResp.data.user.user_id ?? sessionResp.data.user.id ?? resolvedTeacherId;
+                }
+            } catch (err) {
+                console.warn('Session recover failed', err);
+            }
+        }
+
+        if (!resolvedTeacherId) {
             showToast('Teacher ID missing. Please log in again.', 'error');
             return;
         }
@@ -117,35 +139,48 @@ const ManageSubjects = () => {
 
         setIsAdding(true);
 
-        try {
-            const response = await axios.post(`${API_BASE_URL}/add_subject.php`, {
-                subject_name: newSubject.name,
-                course_id: Number(newSubject.courseId),
-                year_id: Number(newSubject.yearId),
-                section_id: Number(newSubject.sectionId),
-                school_year: newSubject.schoolYear,
-                semester: newSubject.semester,
-                teacher_id: teacherId
-            });
+        const payload = {
+            subject_name: newSubject.name,
+            course_id: Number(newSubject.courseId),
+            year_id: Number(newSubject.yearId),
+            section_id: Number(newSubject.sectionId),
+            school_year: newSubject.schoolYear,
+            semester: newSubject.semester,
+            teacher_id: resolvedTeacherId
+        };
 
+        console.log('Adding subject payload:', payload);
+
+        try {
+            const response = await axios.post(`${API_BASE_URL}/add_subject.php`, payload);
             const responseData = response.data || {};
+
+            console.log('Add subject response:', response.status, responseData);
+
             if (responseData.status === 'success') {
                 showToast(`"${newSubject.name}" added!`, 'success', {
-                    joinCode: response.data.join_code ?? 'Not Set'
+                    joinCode: responseData.join_code ?? 'Not Set'
                 });
                 setNewSubject({ name: '', courseId: '', yearId: '', sectionId: '', schoolYear: '', semester: '' });
                 fetchSubjects();
             } else {
                 console.error('Add subject failed', responseData);
-                const statusText = response.statusText || '';
-                const errorMessage =
-                    responseData.message ||
-                    (statusText && statusText.toLowerCase() !== 'ok' ? statusText : 'Error adding subject.');
-                showToast(errorMessage, 'error');
+                const errorMessage = responseData.message || 'Error adding subject.';
+                showToast(errorMessage, 'error', responseData);
             }
         } catch (error) {
-            console.error('Connection Error:', error);
-            showToast('Could not connect to the server.', 'error');
+            console.error('Connection Error adding subject:', error);
+            if (error?.response?.data) {
+                const serverData = error.response.data;
+                if (typeof serverData === 'string') {
+                    showToast(`Server error: ${serverData.substring(0, 200)}`, 'error');
+                } else {
+                    const serverMsg = serverData.message || JSON.stringify(serverData);
+                    showToast(`Server error: ${serverMsg}`, 'error');
+                }
+            } else {
+                showToast('Could not connect to the server.', 'error');
+            }
         } finally {
             setIsAdding(false);
         }

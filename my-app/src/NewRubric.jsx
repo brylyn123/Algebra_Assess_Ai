@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import { useToast } from './components/Toast';
 
 const NEW_RUBRIC_STORAGE_KEY = 'teacher:new-rubric-created';
 
@@ -44,6 +45,7 @@ const MATH_TEMPLATE_ITEMS = [
 const NewRubric = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { toast } = useToast();
     const [newRubric, setNewRubric] = useState({ name: '', criteria: '' });
     const [rubricItems, setRubricItems] = useState([]);
     const [itemDescription, setItemDescription] = useState('');
@@ -153,11 +155,11 @@ const NewRubric = () => {
         const trimmedDescription = itemDescription.trim();
         const numericPoints = Number(itemPoints);
         if (!trimmedDescription) {
-            alert('Please add a description for the rubric item.');
+            toast.warning('Please add a description for the rubric item.');
             return;
         }
         if (!itemPoints || Number.isNaN(numericPoints) || numericPoints <= 0) {
-            alert('Please enter a valid number of max points.');
+            toast.warning('Please enter a valid number of max points.');
             return;
         }
         setRubricItems((prevItems) => [
@@ -180,11 +182,11 @@ const NewRubric = () => {
         const trimmedLabel = levelLabelEntry.trim();
         const numericPoints = Number(levelPointsEntry);
         if (!trimmedLabel) {
-            alert('Provide a label for this level.');
+            toast.warning('Provide a label for this level.');
             return;
         }
         if (!levelPointsEntry || Number.isNaN(numericPoints)) {
-            alert('Enter a numeric point value for the level.');
+            toast.warning('Enter a numeric point value for the level.');
             return;
         }
         setLevelDefinitions((prev) => [
@@ -257,19 +259,19 @@ const NewRubric = () => {
     const handleAddRubric = async (e) => {
         e.preventDefault();
         if (!newRubric.name || !newRubric.criteria) {
-            alert('Please fill out all rubric fields.');
+            toast.warning('Please fill out all rubric fields.');
             return;
         }
         if (rubricItems.length === 0) {
-            alert('Please add at least one rubric item with max points.');
+            toast.warning('Please add at least one rubric item with max points.');
             return;
         }
         if (levelDefinitions.length === 0) {
-            alert('Please configure at least one point level for this rubric.');
+            toast.warning('Please configure at least one point level for this rubric.');
             return;
         }
         if (!teacherId) {
-            alert('Unable to determine the teacher account. Please log in again.');
+            toast.error('Unable to determine the teacher account. Please log in again.');
             return;
         }
 
@@ -309,7 +311,7 @@ const NewRubric = () => {
                 );
             }
 
-            alert(successText);
+            toast.success(successText);
             if (isEditing) {
                 navigate('/teacher/assessments');
                 return;
@@ -323,7 +325,7 @@ const NewRubric = () => {
             resetToDefaults();
         } catch (error) {
             console.error('Failed to save rubric', error);
-            alert(error.message || 'Failed to save rubric. Please try again.');
+            toast.error(error.message || 'Failed to save rubric. Please try again.');
         }
     };
 

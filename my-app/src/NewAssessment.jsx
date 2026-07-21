@@ -7,6 +7,7 @@ import axios from './axiosClient';
 
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import { useToast } from './components/Toast';
 
 
 
@@ -30,6 +31,7 @@ const initialState = {
     topic: '',
     description: '',
     difficulty: 'Medium',
+    dueDate: '',
   },
   testItems: [],
   mathLiveReady: typeof window !== 'undefined' && !!window.MathfieldElement,
@@ -87,6 +89,7 @@ function reducer(state, action) {
 const NewAssessment = () => {
 
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const [mathExpression, setMathExpression] = useState('');
 
@@ -215,7 +218,7 @@ const NewAssessment = () => {
   const handlePreview = () => {
     const mathValue = mathExpression.trim();
     if (!mathValue) {
-      alert('Enter an equation before previewing.');
+      toast.warning('Enter an equation before previewing.');
       return;
     }
     const previewText = mathValue;
@@ -522,7 +525,7 @@ const NewAssessment = () => {
 
     if (!mathValue) {
 
-      alert('Please type an equation before adding.');
+      toast.warning('Please type an equation before adding.');
 
       return;
 
@@ -535,6 +538,8 @@ const NewAssessment = () => {
         question_type: 'handwritten_algebra',
 
         question_content: mathValue,
+
+        max_score: 1.0,
       }
     });
 
@@ -562,7 +567,7 @@ const NewAssessment = () => {
 
     if (!newAssessment.title || !newAssessment.subjectId || !newAssessment.topic) {
 
-      alert('Please fill out all assessment fields.');
+      toast.warning('Please fill out all assessment fields.');
 
       return;
 
@@ -570,7 +575,7 @@ const NewAssessment = () => {
 
     if (!selectedRubric) {
 
-      alert('Please choose a rubric for this assessment.');
+      toast.warning('Please choose a rubric for this assessment.');
 
       return;
 
@@ -578,7 +583,7 @@ const NewAssessment = () => {
 
     if (testItems.length === 0) {
 
-      alert('Please add at least one item for the assessment.');
+      toast.warning('Please add at least one item for the assessment.');
 
       return;
 
@@ -599,6 +604,7 @@ const NewAssessment = () => {
 
         description: newAssessment.description,
         difficulty: newAssessment.difficulty,
+        due_date: newAssessment.dueDate || null,
 
         items: testItems.map((item, index) => ({
 
@@ -608,11 +614,9 @@ const NewAssessment = () => {
 
           question_content: item.question_content,
 
-          score_per_item: 0,
+          model_solution: item.model_solution || '',
 
-          max_score_per_item: 0,
-
-          rubrics: [],
+          max_score: item.max_score || 1.0,
 
         })),
 
@@ -620,7 +624,7 @@ const NewAssessment = () => {
 
       await axios.post(`${API_BASE_URL}/create_assessment.php`, payload);
 
-      alert('Assessment created successfully!');
+      toast.success('Assessment created successfully!');
 
       dispatch({ type: 'RESET_ASSESSMENT_FORM' });
       if (typeof window !== 'undefined') {
@@ -641,7 +645,7 @@ const NewAssessment = () => {
 
       console.error('Failed to create assessment', error);
 
-      alert('We could not save the assessment. Please try again.');
+      toast.error('We could not save the assessment. Please try again.');
 
     }
 
@@ -866,6 +870,20 @@ const NewAssessment = () => {
 
             </div>
 
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Due Date (optional)</label>
+            <input
+              type="datetime-local"
+              name="dueDate"
+              value={newAssessment.dueDate}
+              onChange={handleAssessmentChange}
+              className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              Students will see this deadline. Leave empty if there is no deadline.
+            </p>
           </div>
 
           <div>

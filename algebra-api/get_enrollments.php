@@ -1,9 +1,4 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
-
 require_once 'cors.php';
 require_once 'auth.php';
 require_once 'db_connection.php';
@@ -27,7 +22,7 @@ try {
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
             COALESCE(sem.semester_name, s.semester) AS semester,
-            COALESCE(sy.label, s.school_year) AS school_year,
+            COALESCE(sy.label, '') AS school_year,
             e.enrollment_id,
             st.institutional_id AS student_id,
             e.student_user_id,

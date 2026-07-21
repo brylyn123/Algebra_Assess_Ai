@@ -22,6 +22,26 @@ const ManageAssessments = () => {
         return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     };
 
+    const formatDateTime = (value) => {
+        if (!value) return null;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return parsed.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getDueDateStatus = (dueDate) => {
+        if (!dueDate) return null;
+        const now = new Date();
+        const due = new Date(dueDate);
+        if (Number.isNaN(due.getTime())) return null;
+        const diffMs = due.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) return { label: 'Overdue', color: 'bg-red-50 text-red-700 border-red-200' };
+        if (diffDays === 0) return { label: 'Due Today', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+        if (diffDays <= 3) return { label: `Due in ${diffDays}d`, color: 'bg-orange-50 text-orange-700 border-orange-200' };
+        return { label: `Due in ${diffDays}d`, color: 'bg-blue-50 text-blue-700 border-blue-200' };
+    };
+
     const formatLevelLabel = (level) => {
         const label = String(level?.label ?? '').trim();
         const points = Number(level?.points ?? 0);
@@ -223,6 +243,15 @@ const ManageAssessments = () => {
                                                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
                                                         {formatDate(item.date_created)}
                                                     </span>
+                                                    {item.due_date && (() => {
+                                                        const dueStatus = getDueDateStatus(item.due_date);
+                                                        const formattedDue = formatDateTime(item.due_date);
+                                                        return (
+                                                            <span className={`rounded-full border px-3 py-1 ${dueStatus?.color || 'border-slate-200 bg-white text-slate-500'}`}>
+                                                                {dueStatus?.label || 'Due'} {formattedDue ? `- ${formattedDue}` : ''}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </article>
                                         );

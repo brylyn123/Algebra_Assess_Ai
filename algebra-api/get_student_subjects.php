@@ -26,7 +26,7 @@ try {
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
             COALESCE(sem.semester_name, s.semester) AS semester,
-            COALESCE(sy.label, s.school_year) AS school_year,
+            COALESCE(sy.label, '') AS school_year,
             yl.year_level AS year_level,
             CASE
                 WHEN e.enrollment_id IS NOT NULL THEN 1

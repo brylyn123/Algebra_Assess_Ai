@@ -301,6 +301,12 @@ const SubmitAssessment = () => {
                         <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Items</p>
                         <p className="font-semibold text-slate-900">{selectedAssessment.item_count || 0}</p>
                       </div>
+                      {selectedAssessment.due_date && (
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Due Date</p>
+                          <p className="font-semibold text-slate-900">{new Date(selectedAssessment.due_date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      )}
                     </div>
                     {selectedAssessment.description && (
                       <p>{selectedAssessment.description}</p>
@@ -308,6 +314,19 @@ const SubmitAssessment = () => {
                     <div className="flex flex-wrap gap-3 text-xs text-slate-500">
                       {selectedAssessment.difficulty && <span>Difficulty: {selectedAssessment.difficulty}</span>}
                       {selectedAssessment.subject_meta && <span>{selectedAssessment.subject_meta}</span>}
+                      {selectedAssessment.due_date && (() => {
+                        const now = new Date();
+                        const due = new Date(selectedAssessment.due_date);
+                        if (Number.isNaN(due.getTime())) return null;
+                        const diffMs = due.getTime() - now.getTime();
+                        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                        let cls = 'text-blue-600';
+                        let label = `Due in ${diffDays} day(s)`;
+                        if (diffDays < 0) { cls = 'text-red-600 font-semibold'; label = 'Overdue'; }
+                        else if (diffDays === 0) { cls = 'text-amber-600 font-semibold'; label = 'Due today'; }
+                        else if (diffDays <= 3) { cls = 'text-orange-600 font-semibold'; }
+                        return <span className={cls}>{label}</span>;
+                      })()}
                       <span>
                         {selectedAssessment.already_submitted
                           ? `Last submitted: ${formatDateTime(selectedAssessment.latest_submission_at)}`

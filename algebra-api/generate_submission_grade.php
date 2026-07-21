@@ -55,6 +55,7 @@ $data = json_decode(file_get_contents('php://input'), true);
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
 $solution_id = isset($data['solution_id']) ? (int)$data['solution_id'] : 0;
+$ocrTextOverride = isset($data['ocr_text_override']) ? trim((string)$data['ocr_text_override']) : '';
 
 if (!$solution_id) {
     http_response_code(400);
@@ -138,19 +139,12 @@ try {
     $processingStmt->execute();
     $processingStmt->close();
 
-    if ($ocrText === '') {
-        if (count($savedFiles) === 0) {
-            throw new Exception('No uploaded files were found for OCR.');
-        }
-
-        $ocrResult = extractOcrTextFromSavedFiles($savedFiles);
-        $ocrText = trim((string)($ocrResult['ocr_text'] ?? ''));
-
+    if ($ocrTextOverride !== '') {
+        $ocrText = $ocrTextOverride;
         $existingRawPayload['ocr'] = [
-            'status' => $ocrText !== '' ? 'completed' : 'empty',
-            'model' => $ocrResult['model'] ?? null,
+            'status' => 'completed',
+            'source' => 'manual_override',
             'generated_at' => gmdate('c'),
-            'files' => $ocrResult['files'] ?? [],
         ];
 
         $ocrTextOrNull = $ocrText !== '' ? $ocrText : null;
@@ -163,7 +157,7 @@ try {
         $ocrUpdateStmt->bind_param('ssi', $ocrTextOrNull, $ocrUpdateJson, $solution_id);
         $ocrUpdateStmt->execute();
         $ocrUpdateStmt->close();
-    } else {
+    } elseif ($ocrText !== '') {
         $existingRawPayload['ocr'] = array_merge(
             is_array($existingRawPayload['ocr'] ?? null) ? $existingRawPayload['ocr'] : [],
             [
@@ -173,8 +167,14 @@ try {
         );
     }
 
-    if ($ocrText === '') {
-        throw new Exception('OCR could not extract readable text from this submission.');
+    if ($ocrText === '' && $ocrTextOverride === '') {
+        http_response_code(422);
+        echo json_encode([
+            'status' => 'error',
+            'code' => 'ocr_failed',
+            'message' => 'No extracted text available. Please type or paste the student\'s answer manually.',
+        ]);
+        exit();
     }
 
     $submission['ocr_text'] = $ocrText;
@@ -210,8 +210,18 @@ try {
         'ai_generation' => $aiGeneration,
     ]);
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    $msg = $e->getMessage();
+    if (stripos($msg, 'tesseract') !== false || stripos($msg, 'ocr') !== false) {
+        http_response_code(422);
+        echo json_encode([
+            'status' => 'error',
+            'code' => 'ocr_failed',
+            'message' => 'OCR could not extract readable text from this submission. Please type or paste the student\'s answer manually.',
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => $msg]);
+    }
 }
 
 $conn->close();

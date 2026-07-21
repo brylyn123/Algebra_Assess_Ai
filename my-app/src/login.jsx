@@ -21,6 +21,7 @@ const Login = () => {
     const [toast, setToast] = useState(null);
     const [loading, setLoading] = useState(false);
     const [resultBanner, setResultBanner] = useState(null);
+    const [errors, setErrors] = useState({});
     const toastTimer = useRef(null);
 
     useEffect(() => {
@@ -33,7 +34,27 @@ const Login = () => {
     }, [location]);
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+        if (errors[name]) {
+            setErrors({ ...errors, [name]: '' });
+        }
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+        if (!formData.email.trim()) {
+            newErrors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+        if (!formData.password) {
+            newErrors.password = 'Password is required';
+        } else if (formData.password.length < 6) {
+            newErrors.password = 'Password must be at least 6 characters';
+        }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const showToast = (text, type = 'success') => {
@@ -58,6 +79,11 @@ const Login = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMessage('');
+
+        if (!validateForm()) {
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -177,8 +203,11 @@ const Login = () => {
                                             value={formData.email}
                                             onChange={handleChange}
                                             placeholder="name@email.com"
-                                            className="auth-input"
+                                            className={`auth-input ${errors.email ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : ''}`}
                                         />
+                                        {errors.email && (
+                                            <p className="mt-1.5 ml-1 text-xs font-medium text-rose-600">{errors.email}</p>
+                                        )}
                                     </div>
 
                                     <div>
@@ -189,8 +218,11 @@ const Login = () => {
                                             value={formData.password}
                                             onChange={handleChange}
                                             placeholder="Enter your password"
-                                            className="auth-input"
+                                            className={`auth-input ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : ''}`}
                                         />
+                                        {errors.password && (
+                                            <p className="mt-1.5 ml-1 text-xs font-medium text-rose-600">{errors.password}</p>
+                                        )}
                                     </div>
 
                                     <AnimatePresence>

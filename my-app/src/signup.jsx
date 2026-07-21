@@ -42,6 +42,7 @@ const Signup = () => {
     const [message, setMessage] = useState('');
     const [toast, setToast] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [errors, setErrors] = useState({});
     const [registrationOptions, setRegistrationOptions] = useState({
         colleges: [],
         courses: [],
@@ -60,7 +61,39 @@ const Signup = () => {
     }, []);
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+        if (errors[name]) {
+            setErrors({ ...errors, [name]: '' });
+        }
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+        if (!formData.firstName.trim()) {
+            newErrors.firstName = 'First name is required';
+        }
+        if (!formData.lastName.trim()) {
+            newErrors.lastName = 'Last name is required';
+        }
+        if (!formData.idNumber.trim()) {
+            newErrors.idNumber = 'ID number is required';
+        }
+        if (!formData.email.trim()) {
+            newErrors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+        if (!formData.password) {
+            newErrors.password = 'Password is required';
+        } else if (formData.password.length < 6) {
+            newErrors.password = 'Password must be at least 6 characters';
+        }
+        if (role === 'student' && !formData.courseId) {
+            newErrors.courseId = 'Please select a course';
+        }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const showToast = (text, type = 'success') => {
@@ -153,6 +186,12 @@ const Signup = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMessage('');
+
+        if (!validateForm()) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
 
         const normalizedCollegeId = formData.collegeId;
@@ -364,8 +403,11 @@ const Signup = () => {
                                                 name="firstName"
                                                 required
                                                 onChange={handleChange}
-                                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                                className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.firstName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                             />
+                                            {errors.firstName && (
+                                                <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.firstName}</p>
+                                            )}
                                         </div>
                                         <div>
                                             <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Middle Name</label>
@@ -381,8 +423,11 @@ const Signup = () => {
                                                 name="lastName"
                                                 required
                                                 onChange={handleChange}
-                                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                                className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.lastName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                             />
+                                            {errors.lastName && (
+                                                <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.lastName}</p>
+                                            )}
                                         </div>
                                     </div>
 
@@ -405,8 +450,11 @@ const Signup = () => {
                                             name="idNumber"
                                             required
                                             onChange={handleChange}
-                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.idNumber ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
+                                        {errors.idNumber && (
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.idNumber}</p>
+                                        )}
                                     </div>
 
                                     <div className="min-h-[88px]">
@@ -523,8 +571,11 @@ const Signup = () => {
                                             name="email"
                                             required
                                             onChange={handleChange}
-                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.email ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
+                                        {errors.email && (
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.email}</p>
+                                        )}
                                     </div>
 
                                     <div>
@@ -534,8 +585,11 @@ const Signup = () => {
                                             name="password"
                                             required
                                             onChange={handleChange}
-                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                            className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
+                                        {errors.password && (
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.password}</p>
+                                        )}
                                     </div>
 
                                     <motion.button

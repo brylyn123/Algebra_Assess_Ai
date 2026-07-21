@@ -38,12 +38,10 @@ export const useTeacherRecords = () => {
             setStatusMessage('');
             try {
                 const [assessmentRes, rubricRes] = await Promise.all([
-                axios.get(`${baseUrl}/get_assessments.php`, {
-                        params: { teacher_id: teacherId },
+                    axios.get(`${baseUrl}/get_assessments.php`, {
                         signal: controller.signal,
                     }),
                     axios.get(`${baseUrl}/get_rubric_sets.php`, {
-                        params: { teacher_id: teacherId },
                         signal: controller.signal,
                     }),
                 ]);
@@ -86,7 +84,7 @@ export const useTeacherRecords = () => {
             try {
                 await axios.post(
                     `${baseUrl}/delete_assessment.php`,
-                    { teacher_id: teacherId, exercise_id: exerciseId },
+                    { exercise_id: exerciseId },
                     { headers: { 'Content-Type': 'application/json' } }
                 );
                 refreshRecords();
@@ -107,7 +105,7 @@ export const useTeacherRecords = () => {
             try {
                 await axios.post(
                     `${baseUrl}/delete_rubric_set.php`,
-                    { teacher_id: teacherId, rubric_set_id: rubricSetId },
+                    { rubric_set_id: rubricSetId },
                     { headers: { 'Content-Type': 'application/json' } }
                 );
                 refreshRecords();

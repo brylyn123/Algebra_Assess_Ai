@@ -23,7 +23,7 @@ try {
             s.course_id,
             s.section_id,
             s.year_id,
-            COALESCE(sy.label, s.school_year) AS school_year,
+            COALESCE(sy.label, '') AS school_year,
             COALESCE(sem.semester_name, s.semester) AS semester,
             s.join_code,
             s.archived,

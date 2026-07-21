@@ -4,9 +4,10 @@ include 'db_connect.php'; // Your XAMPP config
 require_once 'schema_utils.php';
 
 function ensureArchivedColumn($conn) {
-    $columnCheck = $conn->query("SHOW COLUMNS FROM subject LIKE 'archived'");
+    $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
+    $columnCheck = $conn->query("SHOW COLUMNS FROM {$subjectTable} LIKE 'archived'");
     if ($columnCheck && $columnCheck->num_rows === 0) {
-        $conn->query("ALTER TABLE subject ADD COLUMN archived TINYINT(1) NOT NULL DEFAULT 0");
+        $conn->query("ALTER TABLE {$subjectTable} ADD COLUMN archived TINYINT(1) NOT NULL DEFAULT 0");
     }
 }
 
@@ -34,9 +35,10 @@ $teacher_id   = (int)$authUser['user_id'];
 $join_code    = trim($data['join_code'] ?? '');
 
 if (empty($join_code)) {
+    $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
     do {
         $join_code = generateJoinCode();
-        $checkStmt = $conn->prepare("SELECT 1 FROM subject WHERE join_code = ? LIMIT 1");
+        $checkStmt = $conn->prepare("SELECT 1 FROM {$subjectTable} WHERE join_code = ? LIMIT 1");
         $checkStmt->bind_param("s", $join_code);
         $checkStmt->execute();
         $checkStmt->store_result();
@@ -51,16 +53,17 @@ if (empty($subject_name)) {
     exit;
 }
 
-ensureArchivedColumn($conn);
-ensureSubjectLookupColumns($conn);
-ensureSemesterSchema($conn);
-$school_year = trim((string)$school_year);
-$schoolYearId = getOrCreateSchoolYearId($conn, $school_year);
-$semester = trim((string)$semester);
-$semesterId = getOrCreateSemesterId($conn, $semester);
-
 // 3. Prepared Statement
 try {
+    ensureArchivedColumn($conn);
+    ensureSubjectLookupColumns($conn);
+    ensureSemesterSchema($conn);
+    $school_year = trim((string)$school_year);
+    $schoolYearId = getOrCreateSchoolYearId($conn, $school_year);
+    $semester = trim((string)$semester);
+    $semesterId = getOrCreateSemesterId($conn, $semester);
+
+    $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
@@ -128,7 +131,7 @@ try {
     }
 
     $stmt = $conn->prepare(
-        "INSERT INTO subject (
+        "INSERT INTO {$subjectTable} (
             subject_name,
             course_id,
             section_id,

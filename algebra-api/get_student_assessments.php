@@ -12,6 +12,7 @@ try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
     ensureSubjectLookupColumns($conn);
     ensureScoreReturnColumn($conn);
+    ensureAssessmentDueDate($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
@@ -24,13 +25,14 @@ try {
             ep.description,
             ep.topic,
             ep.difficulty,
+            ep.due_date,
             ep.created_at AS date_created,
             s.subject_name,
             s.join_code,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
             COALESCE(sem.semester_name, s.semester) AS semester,
-            COALESCE(sy.label, s.school_year) AS school_year,
+            COALESCE(sy.label, '') AS school_year,
             COUNT(DISTINCT ei.item_id) AS item_count,
             COUNT(DISTINCT cs.solution_id) AS submission_count,
             COUNT(DISTINCT CASE WHEN sc.returned_at IS NOT NULL THEN sc.score_id END) AS graded_count,
@@ -68,6 +70,7 @@ try {
             ep.description,
             ep.topic,
             ep.difficulty,
+            ep.due_date,
             ep.created_at,
             s.subject_name,
             s.join_code,
@@ -75,8 +78,7 @@ try {
             c.course_name,
             sec.section_name,
             COALESCE(sem.semester_name, s.semester),
-            sy.label,
-            s.school_year
+            sy.label
         ORDER BY ep.created_at DESC, ep.exercise_id DESC
     ";
 
@@ -101,6 +103,7 @@ try {
             'description' => $row['description'],
             'topic' => $row['topic'],
             'difficulty' => $row['difficulty'] ?? 'Medium',
+            'due_date' => $row['due_date'] ?? null,
             'date_created' => $row['date_created'],
             'subject_name' => $row['subject_name'],
             'subject_code' => $row['join_code'],

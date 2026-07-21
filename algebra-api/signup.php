@@ -1,16 +1,5 @@
 <?php
-// 1. CORS Headers - MUST BE AT THE VERY TOP
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
-
-// 2. Handle the "Preflight" OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
+require_once 'cors.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 

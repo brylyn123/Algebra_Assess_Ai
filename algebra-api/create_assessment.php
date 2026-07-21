@@ -13,6 +13,7 @@ $title = trim($data['title'] ?? '');
 $description = trim($data['description'] ?? '');
 $topic = trim($data['topic'] ?? '');
 $difficulty = trim($data['difficulty'] ?? 'Medium');
+$due_date = !empty($data['due_date']) ? trim($data['due_date']) : null;
 $items = is_array($data['items']) ? $data['items'] : [];
 $startedTransaction = false;
 
@@ -55,6 +56,7 @@ try {
     }
 
     ensureAssessmentRubricColumn($conn);
+    ensureAssessmentDueDate($conn);
 
     $rubricStmt = $conn->prepare(
         "SELECT rubric_set_id
@@ -76,10 +78,11 @@ try {
     $startedTransaction = true;
 
     $exerciseStmt = $conn->prepare(
-        "INSERT INTO exercises_problem (subject_id, rubric_set_id, title, description, topic, difficulty)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO exercises_problem (subject_id, rubric_set_id, title, description, topic, difficulty, due_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
-    $exerciseStmt->bind_param("iissss", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty);
+    $dueDateParam = $due_date !== null ? $due_date : null;
+    $exerciseStmt->bind_param("iisssss", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty, $dueDateParam);
     $exerciseStmt->execute();
     $exerciseId = $conn->insert_id;
     $exerciseStmt->close();

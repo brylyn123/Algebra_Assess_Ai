@@ -1,7 +1,5 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
+require_once 'cors.php';
 
 include 'db_connect.php';
 require_once 'schema_utils.php';
@@ -14,6 +12,7 @@ try {
     ensureSubjectLookupColumns($conn);
     ensureSchoolYearSchema($conn);
     ensureSemesterSchema($conn);
+    $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
     $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
@@ -31,19 +30,19 @@ try {
                            WHERE label IS NOT NULL AND label <> ''
                            ORDER BY value DESC",
         'years' => "SELECT DISTINCT yl.year_level AS value
-                    FROM subject s
+                    FROM {$subjectTable} s
                     LEFT JOIN {$yearTable} yl ON yl.year_id = s.year_id
                     WHERE s.teacher_user_id = ?
                     HAVING value IS NOT NULL AND value <> ''
                     ORDER BY value",
         'sections' => "SELECT DISTINCT sec.section_name AS value
-                       FROM subject s
+                       FROM {$subjectTable} s
                        LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
                        WHERE s.teacher_user_id = ?
                        HAVING value IS NOT NULL AND value <> ''
                        ORDER BY value",
         'semesters' => "SELECT DISTINCT COALESCE(sem.semester_name, s.semester) AS value
-                        FROM subject s
+                        FROM {$subjectTable} s
                         LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
                         WHERE s.teacher_user_id = ?
                         HAVING value IS NOT NULL AND value <> ''

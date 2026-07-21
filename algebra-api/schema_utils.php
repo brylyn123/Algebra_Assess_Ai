@@ -928,40 +928,60 @@ function ensureSchoolYearSchema(mysqli $conn): void {
     }
     $seedStmt->close();
 
+    $hasLegacySchoolYear = schemaColumnExists($conn, 'Subject', 'school_year');
+    if (!$hasLegacySchoolYear) {
+        $hasSemesterCol = schemaColumnExists($conn, 'Subject', 'semester');
+        $afterClause = $hasSemesterCol ? 'AFTER semester' : 'AFTER semester_id';
+        if (!$conn->query("ALTER TABLE Subject ADD COLUMN school_year VARCHAR(64) NULL $afterClause")) {
+            throw new Exception('Unable to add Subject.school_year: ' . $conn->error);
+        }
+    }
+
+    $hasLegacySemester = schemaColumnExists($conn, 'Subject', 'semester');
+    if (!$hasLegacySemester) {
+        if (!$conn->query("ALTER TABLE Subject ADD COLUMN semester VARCHAR(64) NULL AFTER semester_id")) {
+            throw new Exception('Unable to add Subject.semester: ' . $conn->error);
+        }
+    }
+
     $schoolYearIdResult = $conn->query("SHOW COLUMNS FROM Subject LIKE 'school_year_id'");
     $hasSchoolYearId = $schoolYearIdResult && $schoolYearIdResult->num_rows > 0;
     if ($schoolYearIdResult) {
         $schoolYearIdResult->free();
     }
 
-    if (!$hasSchoolYearId && !$conn->query("ALTER TABLE Subject ADD COLUMN school_year_id INT NULL AFTER school_year")) {
+    $addSchoolYearIdClause = $hasLegacySchoolYear ? 'AFTER school_year' : 'AFTER semester_id';
+
+    if (!$hasSchoolYearId && !$conn->query("ALTER TABLE Subject ADD COLUMN school_year_id INT NULL $addSchoolYearIdClause")) {
         throw new Exception('Unable to add Subject.school_year_id: ' . $conn->error);
     }
 
-    if (
-        !$conn->query(
-            "INSERT INTO school_year (label)
-             SELECT DISTINCT TRIM(school_year)
-             FROM Subject
-             WHERE school_year IS NOT NULL
-               AND TRIM(school_year) <> ''
-             ON DUPLICATE KEY UPDATE label = VALUES(label)"
-        )
-    ) {
-        throw new Exception('Unable to backfill school_year records: ' . $conn->error);
-    }
+    if ($hasLegacySchoolYear) {
+        if (
+            !$conn->query(
+                "INSERT INTO school_year (label)
+                 SELECT DISTINCT TRIM(school_year)
+                 FROM Subject
+                 WHERE school_year IS NOT NULL
+                   AND TRIM(school_year) <> ''
+                 ON DUPLICATE KEY UPDATE label = VALUES(label)"
+            )
+        ) {
+            throw new Exception('Unable to backfill school_year records: ' . $conn->error);
+        }
 
-    if (
-        !$conn->query(
-            "UPDATE Subject s
-             INNER JOIN school_year sy ON sy.label = TRIM(s.school_year)
-             SET s.school_year_id = sy.school_year_id
-             WHERE s.school_year_id IS NULL
-               AND s.school_year IS NOT NULL
-               AND TRIM(s.school_year) <> ''"
-        )
-    ) {
-        throw new Exception('Unable to link Subject.school_year_id: ' . $conn->error);
+        if (
+            !$conn->query(
+                "UPDATE Subject s
+                 INNER JOIN school_year sy ON sy.label = TRIM(s.school_year)
+                 SET s.school_year_id = sy.school_year_id
+                 WHERE s.school_year_id IS NULL
+                   AND s.school_year IS NOT NULL
+                   AND TRIM(s.school_year) <> ''"
+            )
+        ) {
+            throw new Exception('Unable to link Subject.school_year_id: ' . $conn->error);
+        }
     }
 
     $indexResult = $conn->query("SHOW INDEX FROM Subject WHERE Key_name = 'idx_subject_school_year_id'");
@@ -1341,4 +1361,20 @@ function backfillStudentCollegeIds(mysqli $conn): array {
     ];
 
     return $summary;
+}
+
+function ensureAssessmentDueDate(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    $hasCol = schemaColumnExists($conn, 'Exercises_Problem', 'due_date');
+    if (!$hasCol) {
+        $conn->query("ALTER TABLE Exercises_Problem ADD COLUMN due_date DATETIME NULL AFTER difficulty");
+    }
+
+    $hasStatus = schemaColumnExists($conn, 'Exercises_Problem', 'is_published');
+    if (!$hasStatus) {
+        $conn->query("ALTER TABLE Exercises_Problem ADD COLUMN is_published TINYINT(1) NOT NULL DEFAULT 1 AFTER due_date");
+    }
 }

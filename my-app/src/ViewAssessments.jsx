@@ -131,6 +131,24 @@ const ViewAssessments = ({ compact = false }) => {
                                             <span>Difficulty: {assessment.difficulty || 'Medium'}</span>
                                             <span>Items: {assessment.item_count ?? assessment.items?.length ?? 0}</span>
                                             <span>Created: {formatDate(assessment.date_created)}</span>
+                                            {assessment.due_date && (() => {
+                                                const now = new Date();
+                                                const due = new Date(assessment.due_date);
+                                                if (Number.isNaN(due.getTime())) return null;
+                                                const diffMs = due.getTime() - now.getTime();
+                                                const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                                                let cls = 'bg-blue-50 text-blue-700';
+                                                let label = `Due in ${diffDays}d`;
+                                                if (diffDays < 0) { cls = 'bg-red-50 text-red-700'; label = 'Overdue'; }
+                                                else if (diffDays === 0) { cls = 'bg-amber-50 text-amber-700'; label = 'Due today'; }
+                                                else if (diffDays <= 3) { cls = 'bg-orange-50 text-orange-700'; }
+                                                const formatted = due.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                                return (
+                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
+                                                        {label} - {formatted}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                     </article>
                                 ))

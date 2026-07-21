@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
 import { clearCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import MobileNav from './components/MobileNav';
 
 const iconClassName = 'h-[18px] w-[18px]';
 
@@ -70,15 +71,25 @@ const navIcons = {
       <path d="M11 15.5h3.5" strokeLinecap="round" />
     </svg>
   ),
+  collapse: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClassName}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+    </svg>
+  ),
+  expand: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={iconClassName}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+    </svg>
+  ),
 };
 
 const quickActions = [
   { label: 'Home', icon: navIcons.home, path: '/dashboard' },
-  { label: 'Manage Subjects', icon: navIcons.subjects, path: '/dashboard/subjects' },
-  { label: 'Manage Assessments', icon: navIcons.assessments, path: '/teacher/assessments' },
-  { label: 'Generate Score', icon: navIcons.submissions, path: '/teacher/grade-submissions' },
-  { label: 'Results & Feedback', icon: navIcons.feedback, path: '/teacher/feedback' },
-  { label: 'View Reports', icon: navIcons.reports, path: '/teacher/reports' },
+  { label: 'Subjects', icon: navIcons.subjects, path: '/dashboard/subjects' },
+  { label: 'Assessments', icon: navIcons.assessments, path: '/teacher/assessments' },
+  { label: 'Grade Submissions', icon: navIcons.submissions, path: '/teacher/grade-submissions', badge: true },
+  { label: 'Feedback', icon: navIcons.feedback, path: '/teacher/feedback' },
+  { label: 'Reports', icon: navIcons.reports, path: '/teacher/reports' },
 ];
 
 const navSpring = { type: 'spring', stiffness: 360, damping: 30 };
@@ -90,6 +101,8 @@ const Dashboard = () => {
   const [teacherName, setTeacherName] = useState('Teacher');
   const [userRole, setUserRole] = useState('');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [hovering, setHovering] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -115,7 +128,9 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  const renderNavButton = ({ label, icon, path, layoutId, activeClassName }) => {
+  const isExpanded = !collapsed || hovering;
+
+  const renderNavButton = ({ label, icon, path, layoutId, activeClassName, badge }) => {
     const isActive =
       location.pathname === path ||
       (path !== '/dashboard' && location.pathname.startsWith(`${path}/`)) ||
@@ -129,9 +144,10 @@ const Dashboard = () => {
         whileHover={prefersReducedMotion ? undefined : { x: 4, scale: 1.01 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+        className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl ${isExpanded ? 'px-4 py-3' : 'justify-center px-0 py-3'} text-left text-sm font-bold transition ${
           isActive ? activeClassName : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
         }`}
+        title={!isExpanded ? label : undefined}
       >
         {isActive && (
           <motion.span
@@ -140,10 +156,32 @@ const Dashboard = () => {
             transition={navSpring}
           />
         )}
-        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15">
+        <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-current/10 bg-white/15">
           {icon}
+          {badge && !isExpanded && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
+              !
+            </span>
+          )}
         </span>
-        <span className="relative z-10 block flex-1 whitespace-nowrap leading-tight">{label}</span>
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.2 }}
+              className="relative z-10 block flex-1 whitespace-nowrap leading-tight overflow-hidden"
+            >
+              {label}
+              {badge && (
+                <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white">
+                  3
+                </span>
+              )}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </motion.button>
     );
   };
@@ -159,9 +197,10 @@ const Dashboard = () => {
         whileHover={prefersReducedMotion ? undefined : { x: 4 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+        className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl ${isExpanded ? 'px-4 py-3' : 'justify-center px-0 py-3'} text-left text-sm font-bold transition ${
           isActive ? 'text-white shadow-lg shadow-blue-100' : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
         }`}
+        title={!isExpanded ? label : undefined}
       >
         {isActive && (
           <motion.span
@@ -170,10 +209,22 @@ const Dashboard = () => {
             transition={navSpring}
           />
         )}
-        <span className="relative z-10 flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15">
+        <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-current/10 bg-white/15">
           {icon}
         </span>
-        <span className="relative z-10 block flex-1 whitespace-nowrap leading-tight">{label}</span>
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.2 }}
+              className="relative z-10 block flex-1 whitespace-nowrap leading-tight overflow-hidden"
+            >
+              {label}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </motion.button>
     );
   };
@@ -230,35 +281,45 @@ const Dashboard = () => {
         }}
       >
         <header className="sticky top-0 z-50 border-b border-white/15 bg-blue-600 text-white shadow-md">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-            <motion.div
-              whileHover={prefersReducedMotion ? undefined : { x: 2 }}
-              className="flex cursor-pointer items-center gap-3"
-              onClick={() => navigate('/dashboard')}
-            >
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <MobileNav
+                actions={sidebarActions.map((a) => ({ label: a.label, icon: a.icon, path: a.path }))}
+                accountActions={[
+                  { label: 'Profile', icon: navIcons.profile, path: profilePath },
+                  { label: 'Settings', icon: navIcons.settings, path: settingsPath },
+                ]}
+                label="Quick Actions"
+              />
+              <motion.div
+                whileHover={prefersReducedMotion ? undefined : { x: 2 }}
+                className="flex cursor-pointer items-center gap-2 sm:gap-3"
+                onClick={() => navigate('/dashboard')}
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 sm:h-10 sm:w-10 sm:rounded-2xl">
                   {navIcons.home}
                 </div>
                 <div>
-                  <p className="text-sm uppercase tracking-[0.2em] text-white/80">AlgebraAssess</p>
-                  <p className="text-lg font-bold">{homeLabel}</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/80 sm:text-sm">AlgebraAssess</p>
+                  <p className="text-sm font-bold sm:text-lg">{homeLabel}</p>
                 </div>
               </motion.div>
+            </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 rounded-full border border-white/30 bg-white/5 px-4 py-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white font-bold text-blue-600">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="hidden items-center gap-3 rounded-full border border-white/30 bg-white/5 px-3 py-2 sm:flex sm:px-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-blue-600 sm:h-9 sm:w-9">
                   {teacherName.charAt(0)}
                 </div>
-                <div className="text-sm">
+                <div className="text-xs sm:text-sm">
                   <p className="leading-none font-semibold text-white">{teacherName}</p>
-                  <p className="text-xs text-white/70">Online</p>
+                  <p className="text-[10px] text-white/70 sm:text-xs">Online</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(true)}
-                className="rounded-full border border-white/30 px-4 py-2 text-sm font-semibold transition hover:border-red-500 hover:bg-red-500"
+                className="rounded-full border border-white/30 px-3 py-1.5 text-xs font-semibold transition hover:border-red-500 hover:bg-red-500 sm:px-4 sm:py-2 sm:text-sm"
               >
                 Logout
               </button>
@@ -266,17 +327,37 @@ const Dashboard = () => {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-6 py-10">
-          <div className="relative flex h-[calc(100vh-160px)] min-h-0 gap-8 overflow-hidden">
-            <aside className="hidden w-[260px] shrink-0 lg:block">
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="relative flex gap-6 overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+            <aside
+              className="hidden shrink-0 transition-all duration-300 lg:block"
+              style={{ width: isExpanded ? 260 : 80 }}
+              onMouseEnter={() => collapsed && setHovering(true)}
+              onMouseLeave={() => collapsed && setHovering(false)}
+            >
               <motion.div
                 layout
-                className="sticky top-28 h-full space-y-6 overflow-y-auto rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg"
+                transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] }}
+                className="scrollbar-hidden sticky top-24 flex flex-col overflow-y-auto rounded-[2rem] border border-slate-100 bg-white py-6 shadow-lg"
+                style={{ height: 'calc(100vh - 120px)', padding: isExpanded ? undefined : '24px 12px' }}
               >
-                <div>
-                  <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Quick Actions
-                  </p>
+                <div className="mb-4 flex justify-end px-2">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed(!collapsed)}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
+                    title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  >
+                    {collapsed ? navIcons.expand : navIcons.collapse}
+                  </button>
+                </div>
+
+                <div className="flex-1">
+                  {isExpanded && (
+                    <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      Quick Actions
+                    </p>
+                  )}
                   <nav className="space-y-1">
                     {sidebarActions.map((action) =>
                       renderNavButton({
@@ -289,9 +370,11 @@ const Dashboard = () => {
                 </div>
 
                 <div className="border-t border-slate-100 pt-6">
-                  <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Account Settings
-                  </p>
+                  {isExpanded && (
+                    <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      Account
+                    </p>
+                  )}
                   <div className="space-y-1">
                     {renderAccountButton({ label: 'Profile', icon: navIcons.profile, path: profilePath })}
                     {renderAccountButton({ label: 'Settings', icon: navIcons.settings, path: settingsPath })}
@@ -309,10 +392,11 @@ const Dashboard = () => {
                     ease: [0.22, 1, 0.36, 1],
                   },
                 }}
-                className="h-full min-h-0 overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
+                className="overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
+                style={{ height: 'calc(100vh - 120px)' }}
               >
                 <div
-                  className={`h-full min-h-0 rounded-[1.8rem] bg-[#f5f7fb] ${
+                  className={`h-full rounded-[1.8rem] bg-[#f5f7fb] ${
                     usesLargePanelScroll ? 'teacher-scrollbar overflow-y-auto' : 'overflow-hidden'
                   }`}
                   style={usesLargePanelScroll ? { scrollbarGutter: 'stable' } : undefined}

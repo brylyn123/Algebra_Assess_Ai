@@ -1,13 +1,10 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json");
+require_once 'cors.php';
 
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'CLI';
 
 if ($requestMethod === 'OPTIONS') {
-    http_response_code(200);
+    http_response_code(204);
     exit();
 }
 

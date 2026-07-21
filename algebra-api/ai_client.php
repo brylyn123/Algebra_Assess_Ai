@@ -61,7 +61,9 @@ function buildDeepSeekGradePrompt(array $submission): string
         "Rubric Criteria: " . ($rubricText !== '' ? $rubricText : 'Not provided'),
         "Rubric AI Instructions: " . ($rubricInstructions !== '' ? $rubricInstructions : 'Not provided'),
         "Assessment Items:\n" . implode("\n\n", $itemLines),
-        "OCR Text of Student Submission:\n" . trim((string)$submission['ocr_text']),
+        !empty($submission['ocr_text'])
+            ? "OCR Text of Student Submission:\n" . trim((string)$submission['ocr_text'])
+            : "Read the student's handwritten work from the attached image(s) and grade accordingly.",
     ]);
 }
 
@@ -74,7 +76,7 @@ function generateDeepSeekGrade(array $submission): array
     }
 
     if (empty($submission['ocr_text'])) {
-        throw new Exception('No OCR text is available for this submission yet. Add OCR extraction before AI grading, or store extracted text in Captured_Solution.ocr_text.');
+        throw new Exception('No text available for grading.');
     }
 
     $endpoint = rtrim((string)$config['base_url'], '/') . '/chat/completions';

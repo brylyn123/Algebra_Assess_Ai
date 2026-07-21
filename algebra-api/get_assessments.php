@@ -8,6 +8,7 @@ $teacher_id = (int)$authUser['user_id'];
 
 try {
     ensureAssessmentRubricColumn($conn);
+    ensureAssessmentDueDate($conn);
     ensureSubjectLookupColumns($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
@@ -22,13 +23,14 @@ try {
             ep.description,
             ep.topic,
             ep.difficulty,
+            ep.due_date,
             ep.created_at AS date_created,
             rs.rubric_name,
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
             COALESCE(sem.semester_name, s.semester) AS semester,
-            COALESCE(sy.label, s.school_year) AS school_year,
+            COALESCE(sy.label, '') AS school_year,
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -76,6 +78,7 @@ try {
             "description" => $row["description"],
             "topic" => $row["topic"],
             "difficulty" => $row["difficulty"] ?? 'Medium',
+            "due_date" => $row["due_date"] ?? null,
             "subject" => $row["subject_name"],
             "subject_meta" => implode(" - ", $subjectMeta),
             "date_created" => $row["date_created"],
