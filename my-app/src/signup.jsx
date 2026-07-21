@@ -288,7 +288,7 @@ const Signup = () => {
     ];
     const hasCourseOptions = registrationOptions.courses.length > 0;
 
-    const inputClassName = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100';
+    const inputClassName = 'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100';
     const selectClassName = `${inputClassName} disabled:cursor-not-allowed disabled:opacity-70`;
 
     return (
@@ -304,45 +304,45 @@ const Signup = () => {
                 <div className="absolute left-[8%] top-20 -z-10 h-48 w-48 rounded-full bg-white/35 blur-3xl" />
                 <div className="absolute right-[10%] top-24 -z-10 h-56 w-56 rounded-full bg-indigo-100/30 blur-3xl" />
 
-                <header className="sticky top-0 z-20 bg-blue-600 text-white shadow-md">
-                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
+                <header className="sticky top-0 z-20 bg-blue-500 text-white shadow-sm">
+                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 lg:px-10">
                         <div
                             onClick={() => navigate('/')}
-                            className="flex cursor-pointer items-center gap-3"
+                            className="flex cursor-pointer items-center gap-2"
                             role="button"
                             aria-label="Go back to landing page"
                         >
-                            <div className="rounded-2xl bg-white/20 p-2.5 text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <div className="rounded-lg bg-white/20 p-1.5 text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
                             <div>
-                                <p className="text-lg font-black tracking-tight text-white">AlgebraAssess</p>
+                                <p className="text-xs font-black tracking-tight text-white">AlgebraAssess</p>
                             </div>
                         </div>
                         <Link
                             to="/"
-                            className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-white/85 transition hover:bg-white/10 hover:text-white"
+                            className="rounded-full border border-white/20 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-white/80 transition hover:bg-white/10 hover:text-white"
                         >
                             Back to Landing
                         </Link>
                     </div>
                 </header>
 
-                <main className="mx-auto flex min-h-[calc(100vh-88px)] max-w-7xl items-center justify-center px-6 py-10 lg:px-10">
-                    <motion.section initial="hidden" animate="show" variants={pageVariants} className="relative w-full max-w-md">
-                        <div className="rounded-[2rem] border border-white/70 bg-white/88 p-5 shadow-[0_20px_60px_rgba(148,163,184,0.18)] backdrop-blur-xl sm:p-6">
-                            <div className="rounded-[1.7rem] border border-slate-100 bg-slate-50/90 p-6 sm:p-8">
-                                <div className="mb-6 flex rounded-2xl border border-slate-200 bg-white p-1 shadow-inner">
+                <main className="mx-auto flex min-h-[calc(100vh-56px)] max-w-7xl items-center justify-center px-6 py-6 lg:px-10">
+                    <motion.section initial="hidden" animate="show" variants={pageVariants} className="relative w-full max-w-sm">
+                        <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm backdrop-blur-xl">
+                            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+                                <div className="mb-4 flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-inner">
                                     {roleOptions.map((option) => (
                                         <motion.button
                                             key={option.value}
                                             type="button"
                                             whileTap={{ scale: 0.98 }}
                                             onClick={() => handleRoleChange(option.value)}
-                                            className={`relative flex-1 rounded-2xl px-5 py-3 text-sm font-semibold transition ${role === option.value
-                                                ? 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-200/80'
+                                            className={`relative flex-1 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition ${role === option.value
+                                                ? 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 text-white shadow-md shadow-sky-200/80'
                                                 : 'text-slate-500 hover:text-indigo-500'
                                                 }`}
                                         >
@@ -351,15 +351,15 @@ const Signup = () => {
                                     ))}
                                 </div>
 
-                                <div className="mb-7 text-center">
-                                    <div className="relative mb-3 h-10">
+                                <div className="mb-5 text-center">
+                                    <div className="relative mb-2 h-7">
                                         <AnimatePresence initial={false} mode="wait">
                                             <motion.h1
                                                 key={role}
-                                                className="absolute inset-0 text-3xl font-black text-slate-900"
-                                                initial={{ opacity: 0, y: 10 }}
+                                                className="absolute inset-0 text-lg font-black text-slate-900"
+                                                initial={{ opacity: 0, y: 8 }}
                                                 animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
+                                                exit={{ opacity: 0, y: -8 }}
                                                 transition={{ duration: 0.24 }}
                                             >
                                                 {role === 'teacher' ? 'Teacher Sign Up' : 'Student Sign Up'}
@@ -374,9 +374,9 @@ const Signup = () => {
                                             initial={{ opacity: 0, y: 8 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -8 }}
-                                            className={`mb-4 w-full rounded-2xl border px-5 py-3 text-sm font-semibold ${toast.type === 'success'
-                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 shadow-lg shadow-emerald-200/70'
-                                                : 'border-rose-200 bg-rose-50 text-rose-700 shadow-lg shadow-rose-200/70'
+                                            className={`mb-3 w-full rounded-xl border px-3 py-2 text-[11px] font-semibold ${toast.type === 'success'
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                                : 'border-rose-200 bg-rose-50 text-rose-700'
                                                 }`}
                                         >
                                             {toast.text}
@@ -386,7 +386,7 @@ const Signup = () => {
 
                                 {message && (
                                     <motion.div
-                                        className="mb-6 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-600"
+                                        className="mb-4 rounded-xl border border-rose-100 bg-rose-50 p-3 text-[11px] font-medium text-rose-600"
                                         variants={shakeVariants}
                                         initial="idle"
                                         animate="error"
@@ -395,48 +395,48 @@ const Signup = () => {
                                     </motion.div>
                                 )}
 
-                                <form onSubmit={handleSubmit} className="space-y-4">
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <form onSubmit={handleSubmit} className="space-y-2.5">
+                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                                         <div>
-                                            <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">First Name</label>
+                                            <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">First Name</label>
                                             <input
                                                 name="firstName"
                                                 required
                                                 onChange={handleChange}
-                                                className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.firstName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                                className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.firstName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                             />
                                             {errors.firstName && (
-                                                <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.firstName}</p>
+                                                <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.firstName}</p>
                                             )}
                                         </div>
                                         <div>
-                                            <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Middle Name</label>
+                                            <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Middle Name</label>
                                             <input
                                                 name="middleName"
                                                 onChange={handleChange}
-                                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Last Name</label>
+                                            <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Last Name</label>
                                             <input
                                                 name="lastName"
                                                 required
                                                 onChange={handleChange}
-                                                className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.lastName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                                className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.lastName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                             />
                                             {errors.lastName && (
-                                                <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.lastName}</p>
+                                                <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.lastName}</p>
                                             )}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <div className="relative mb-2 h-3">
+                                        <div className="relative mb-1 h-3">
                                             <AnimatePresence initial={false} mode="wait">
                                                 <motion.label
                                                     key={role}
-                                                    className="absolute inset-0 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500"
+                                                    className="absolute inset-0 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500"
                                                     initial={{ opacity: 0 }}
                                                     animate={{ opacity: 1 }}
                                                     exit={{ opacity: 0 }}
@@ -450,14 +450,14 @@ const Signup = () => {
                                             name="idNumber"
                                             required
                                             onChange={handleChange}
-                                            className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.idNumber ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                            className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.idNumber ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
                                         {errors.idNumber && (
-                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.idNumber}</p>
+                                            <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.idNumber}</p>
                                         )}
                                     </div>
 
-                                    <div className="min-h-[88px]">
+                                    <div className="min-h-[72px]">
                                         <AnimatePresence mode="wait" initial={false}>
                                             {role === 'teacher' ? (
                                                 <motion.div
@@ -467,7 +467,7 @@ const Signup = () => {
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
-                                                    <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">College</label>
+                                                    <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">College</label>
                                                     {registrationOptions.colleges.length > 0 ? (
                                                         <select
                                                             name="collegeId"
@@ -485,7 +485,7 @@ const Signup = () => {
                                                             ))}
                                                         </select>
                                                     ) : (
-                                                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
                                                             No colleges are available yet. Please ask an admin to add one before signing up.
                                                         </div>
                                                     )}
@@ -500,7 +500,7 @@ const Signup = () => {
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
                                                     <div className="sm:col-span-2">
-                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Course</label>
+                                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Course</label>
                                                         {hasCourseOptions ? (
                                                             <select
                                                                 name="courseId"
@@ -518,13 +518,13 @@ const Signup = () => {
                                                                 ))}
                                                             </select>
                                                         ) : (
-                                                            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
                                                                 No courses are available yet. Please ask an admin to add one before signing up.
                                                             </div>
                                                         )}
                                                     </div>
                                                     <div>
-                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Year Level</label>
+                                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Year Level</label>
                                                         <select
                                                             name="yearId"
                                                             required
@@ -542,7 +542,7 @@ const Signup = () => {
                                                         </select>
                                                     </div>
                                                     <div>
-                                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Section</label>
+                                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Section</label>
                                                         <select
                                                             name="sectionId"
                                                             required
@@ -565,40 +565,40 @@ const Signup = () => {
                                     </div>
 
                                     <div>
-                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Email address</label>
+                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Email address</label>
                                         <input
                                             type="email"
                                             name="email"
                                             required
                                             onChange={handleChange}
-                                            className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.email ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                            className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.email ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
                                         {errors.email && (
-                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.email}</p>
+                                            <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.email}</p>
                                         )}
                                     </div>
 
                                     <div>
-                                        <label className="mb-2 ml-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Password</label>
+                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Password</label>
                                         <input
                                             type="password"
                                             name="password"
                                             required
                                             onChange={handleChange}
-                                            className={`w-full rounded-2xl border bg-white px-4 py-3 text-slate-700 font-medium outline-none transition ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                            className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
                                         {errors.password && (
-                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.password}</p>
+                                            <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.password}</p>
                                         )}
                                     </div>
 
                                     <motion.button
-                                        whileHover={{ y: -2 }}
+                                        whileHover={{ y: -1 }}
                                         whileTap={{ scale: 0.99 }}
                                         type="submit"
-                                        className={`w-full rounded-2xl py-4 font-bold text-white shadow-lg transition duration-300 ${loading
+                                        className={`w-full rounded-xl py-2.5 text-xs font-bold text-white shadow-md transition duration-300 ${loading
                                             ? 'cursor-wait bg-sky-400 shadow-sky-200'
-                                            : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-xl'
+                                            : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-lg'
                                             }`}
                                         disabled={loading}
                                     >
@@ -606,8 +606,8 @@ const Signup = () => {
                                     </motion.button>
                                 </form>
 
-                                <div className="mt-7 text-center">
-                                    <p className="text-sm font-medium text-slate-500">
+                                <div className="mt-4 text-center">
+                                    <p className="text-[11px] font-medium text-slate-500">
                                         Already have an account?
                                         <button onClick={() => navigate('/login')} className="ml-1 font-bold text-indigo-500 transition hover:text-indigo-600">
                                             Login

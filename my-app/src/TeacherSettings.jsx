@@ -77,52 +77,52 @@ const TeacherSettings = () => {
   };
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto px-4 py-4 md:px-6 md:py-5">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-8">
-      <section className="page-hero-card p-8">
-        <div className="flex flex-col gap-3">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">App Settings</p>
-          <h1 className="text-3xl font-bold text-slate-900">Classroom Controls</h1>
+    <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-4 py-3 md:px-6 md:py-4">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-4">
+      <section className="page-hero-card p-5">
+        <div className="flex flex-col gap-2">
+          <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">App Settings</p>
+          <h1 className="text-xl font-bold text-slate-900">Classroom Controls</h1>
           <p className="text-sm text-slate-500">
             Customize AlgebraAssess so your workflow matches your grading rhythm.
           </p>
         </div>
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="teacher-float-card px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Logged in as</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="teacher-float-card px-3 py-2.5">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Logged in as</p>
             <p className="text-sm font-semibold text-slate-900">{fullName}</p>
             <p className="text-xs text-slate-500">{storedTeacher?.email ?? 'teacher@example.com'}</p>
           </div>
-          <div className="teacher-float-card px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Default view</p>
-            <div className="mt-2 flex gap-2 flex-wrap">
+          <div className="teacher-float-card px-3 py-2.5">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Default view</p>
+            <div className="mt-1.5 flex gap-1.5 flex-wrap">
               {['subjects', 'submissions', 'reports'].map((entry) => (
                 <button
                   key={entry}
                   type="button"
                   onClick={() => setDefaultView(entry)}
-                  className={`rounded-full px-4 py-2 text-xs font-semibold transition ${entry === defaultView ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700'}`}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${entry === defaultView ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700'}`}
                 >
                   {entry.charAt(0).toUpperCase() + entry.slice(1)}
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-slate-500 mt-2">Choose the page you want to land on after login.</p>
+            <p className="text-[10px] text-slate-500 mt-1">Choose the page you want to land on after login.</p>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <article className="teacher-float-card space-y-4 p-6">
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="teacher-float-card space-y-3 p-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Notifications</p>
-            <h2 className="text-xl font-bold text-slate-900">Teacher alerts</h2>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Notifications</p>
+            <h2 className="text-base font-bold text-slate-900">Teacher alerts</h2>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {toggles.map((toggle) => (
               <div
                 key={toggle.key}
-                className="teacher-float-card flex items-center justify-between px-4 py-3"
+                className="teacher-float-card flex items-center justify-between px-3 py-2.5"
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{toggle.label}</p>
@@ -142,17 +142,17 @@ const TeacherSettings = () => {
             ))}
           </div>
         </article>
-        <article className="teacher-float-card space-y-4 p-6">
+        <article className="teacher-float-card space-y-3 p-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Workflow controls</p>
-            <h2 className="text-xl font-bold text-slate-900">Review preferences</h2>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Workflow controls</p>
+            <h2 className="text-base font-bold text-slate-900">Review preferences</h2>
           </div>
-          <div className="space-y-3">
-            <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Time zone</label>
+          <div className="space-y-2">
+            <label className="block text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Time zone</label>
             <select
               value={timeZone}
               onChange={(e) => setTimeZone(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700"
             >
               <option>Asia/Manila</option>
               <option>Asia/Singapore</option>
@@ -162,7 +162,7 @@ const TeacherSettings = () => {
             {workflowToggles.map((toggle) => (
               <div
                 key={toggle.key}
-                className="teacher-float-card flex items-center justify-between px-4 py-3"
+                className="teacher-float-card flex items-center justify-between px-3 py-2.5"
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{toggle.label}</p>
@@ -180,7 +180,7 @@ const TeacherSettings = () => {
                 </label>
               </div>
             ))}
-            <p className="text-[11px] text-slate-500">Settings are saved locally and synced with your account.</p>
+            <p className="text-[10px] text-slate-500">Settings are saved locally and synced with your account.</p>
           </div>
         </article>
       </section>

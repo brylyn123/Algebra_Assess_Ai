@@ -8,11 +8,12 @@ import {
   getLocalUserEventName,
   getCurrentLocalUserEmail,
 } from './localAuthStore';
+import { Skeleton, SkeletonWelcome, SkeletonStatRow, SkeletonSection } from './components/Skeleton';
 import { getSubjectCardTheme } from './subjectCardThemes';
 import { API_BASE_URL } from './apiBase';
 import MobileNav from './components/MobileNav';
 
-const iconClassName = 'h-[18px] w-[18px]';
+const iconClassName = 'h-4 w-4';
 
 const navIcons = {
   home: (
@@ -102,11 +103,8 @@ const formatDateTime = (value) => {
 
 const compactListCardClass =
   'w-full rounded-[1.15rem] border border-slate-100 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(241,248,255,0.94))] px-4 py-3 text-left shadow-sm transition hover:border-blue-200 hover:bg-[linear-gradient(135deg,rgba(255,255,255,1),rgba(231,242,255,0.98))]';
-const compactListTitleClass = 'text-base font-semibold text-slate-900';
-const compactListMetaClass = 'mt-3 flex flex-wrap gap-3 text-xs text-slate-500';
-const compactListActionClass =
-  'rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md';
-const compactListBadgeClass = 'rounded-full px-3 py-1 text-xs font-semibold shadow-sm';
+
+
 const sectionHeaderEyebrowClass = 'text-[11px] uppercase tracking-[0.35em] text-slate-400';
 const sectionHeaderTitleClass = 'text-2xl font-semibold text-slate-900';
 const sectionHeaderSubtextClass = 'mt-1 text-sm text-slate-500';
@@ -130,6 +128,8 @@ const StudentDashboard = () => {
   const [enrollCode, setEnrollCode] = useState('');
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollMessage, setEnrollMessage] = useState('');
+  const [enrollSuccess, setEnrollSuccess] = useState(false);
+  const [showJoinCard, setShowJoinCard] = useState(true);
   const [availableAssessments, setAvailableAssessments] = useState([]);
   const [loadingAssessments, setLoadingAssessments] = useState(false);
   const [assessmentsError, setAssessmentsError] = useState('');
@@ -151,6 +151,11 @@ const StudentDashboard = () => {
       window.removeEventListener('storage', syncCurrentUser);
     };
   }, []);
+
+  useEffect(() => {
+    setCollapsed(true);
+    setHovering(false);
+  }, [location.pathname]);
 
   const fetchSubjects = useCallback(async () => {
     if (!studentId) {
@@ -186,16 +191,19 @@ const StudentDashboard = () => {
 
     if (!studentId) {
       setEnrollMessage('Please log in to enroll.');
+      setEnrollSuccess(false);
       return;
     }
 
     if (!enrollCode.trim()) {
       setEnrollMessage('Enter the enrollment code provided by your teacher.');
+      setEnrollSuccess(false);
       return;
     }
 
     setEnrollLoading(true);
     setEnrollMessage('');
+    setEnrollSuccess(false);
 
     try {
       const response = await fetch(`${API_BASE_URL}/enroll_subject.php`, {
@@ -208,15 +216,27 @@ const StudentDashboard = () => {
       if (payload.status !== 'success') {
         throw new Error(payload.message || 'Unable to enroll.');
       }
-      setEnrollMessage(payload.message || 'Enrollment successful! Your subjects list has been updated.');
+      setEnrollMessage(payload.message || 'Enrollment successful! Subject has been added.');
+      setEnrollSuccess(true);
       setEnrollCode('');
       await fetchSubjects();
     } catch (error) {
       setEnrollMessage(error.message || 'Unable to enroll.');
+      setEnrollSuccess(false);
     } finally {
       setEnrollLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!enrollSuccess || !enrollMessage) return;
+    const timer = setTimeout(() => {
+      setEnrollMessage('');
+      setEnrollSuccess(false);
+      setShowJoinCard(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [enrollSuccess, enrollMessage]);
 
   const performLogout = async () => {
     try {
@@ -321,6 +341,10 @@ const StudentDashboard = () => {
       setEnrollCode,
       enrollLoading,
       enrollMessage,
+      enrollSuccess,
+      setEnrollSuccess,
+      showJoinCard,
+      setShowJoinCard,
       handleEnroll,
     }),
     [
@@ -336,12 +360,11 @@ const StudentDashboard = () => {
       enrollCode,
       enrollLoading,
       enrollMessage,
+      enrollSuccess,
+      showJoinCard,
       handleEnroll,
     ]
   );
-
-  const isDashboardPage = location.pathname === '/student';
-  const isSubjectsPage = location.pathname.startsWith('/student/subjects');
 
   useEffect(() => {
     document.body.style.overflowY = 'hidden';
@@ -388,36 +411,36 @@ const StudentDashboard = () => {
           backgroundColor: '#e0edff',
         }}
       >
-        <header className="sticky top-0 z-50 border-b border-white/15 bg-blue-600 text-white shadow-md">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
-            <div className="flex items-center gap-2 sm:gap-3">
+        <header className="sticky top-0 z-50 border-b border-slate-200/50 bg-blue-500 text-white shadow-sm">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-1.5 sm:px-6">
+            <div className="flex items-center gap-1.5">
               <MobileNav
                 actions={quickActions.map((a) => ({ label: a.label, icon: a.icon, path: a.path }))}
                 label="Navigation"
               />
-              <div className="flex cursor-pointer items-center gap-2 sm:gap-3" onClick={() => navigate('/student')}>
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-lg font-bold sm:h-10 sm:w-10 sm:rounded-2xl sm:text-2xl">A</div>
+              <div className="flex cursor-pointer items-center gap-1.5" onClick={() => navigate('/student')}>
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/20 text-xs font-bold">A</div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/80 sm:text-sm">AlgebraAssess</p>
-                  <p className="text-sm font-bold sm:text-lg">Student Home</p>
+                  <p className="text-[8px] uppercase tracking-[0.2em] text-white/70">AlgebraAssess</p>
+                  <p className="text-[11px] font-bold sm:text-xs">Student Home</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="hidden items-center gap-3 rounded-full border border-white/30 bg-white/5 px-3 py-2 sm:flex sm:px-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-blue-600 sm:h-9 sm:w-9">
+            <div className="flex items-center gap-1.5">
+              <div className="hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2.5 py-1 sm:flex">
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold text-blue-600">
                   {displayName.charAt(0)}
                 </div>
-                <div className="text-xs text-white sm:text-sm">
-                  <p className="font-semibold leading-none">{displayName}</p>
-                  <p className="text-[10px] text-white/70 sm:text-xs">Online</p>
+                <div className="text-[10px] leading-tight">
+                  <p className="font-semibold text-white">{displayName}</p>
+                  <p className="text-white/60">Online</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(true)}
-                className="rounded-full border border-white/30 px-3 py-1.5 text-xs font-semibold transition hover:border-red-500 hover:bg-red-500 sm:px-4 sm:py-2 sm:text-sm"
+                className="rounded-full border border-white/20 px-2.5 py-1 text-[10px] font-semibold transition hover:border-red-400 hover:bg-red-500"
               >
                 Logout
               </button>
@@ -425,26 +448,30 @@ const StudentDashboard = () => {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="relative flex gap-6 overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
-            {(() => {
-              const isExpanded = !collapsed || hovering;
-              return (
+        <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          {(() => {
+            const isExpanded = !collapsed || hovering;
+            return (
+              <div
+                className="flex overflow-hidden rounded-[2rem] border border-slate-100 bg-slate-50 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)]"
+                style={{ height: 'calc(100vh - 68px)' }}
+              >
+                {/* Sidebar - inside the main panel */}
                 <aside
                   className="hidden shrink-0 transition-all duration-300 lg:block"
-                  style={{ width: isExpanded ? 260 : 80 }}
+                  style={{ width: isExpanded ? 220 : 72 }}
                   onMouseEnter={() => collapsed && setHovering(true)}
                   onMouseLeave={() => collapsed && setHovering(false)}
                 >
                   <div
-                    className="scrollbar-hidden sticky top-24 flex flex-col overflow-y-auto rounded-[2rem] border border-slate-100 bg-white py-6 shadow-lg"
-                    style={{ height: 'calc(100vh - 120px)', padding: isExpanded ? undefined : '24px 12px' }}
+                    className="teacher-scrollbar flex h-full flex-col overflow-y-auto py-4"
+                    style={{ background: 'linear-gradient(180deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)', padding: isExpanded ? '16px 12px' : '16px 10px' }}
                   >
-                    <div className="mb-4 flex justify-end px-2">
+                    <div className="mb-3 flex justify-end">
                       <button
                         type="button"
                         onClick={() => setCollapsed(!collapsed)}
-                        className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-200 transition hover:bg-white/20 hover:text-white"
                         title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                       >
                         {collapsed ? navIcons.expand : navIcons.collapse}
@@ -453,9 +480,9 @@ const StudentDashboard = () => {
 
                     <div className="flex-1">
                       {isExpanded && (
-                        <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
+                        <p className="mb-3 ml-2 text-[9px] font-bold uppercase tracking-widest text-blue-200">Menu</p>
                       )}
-                      <nav className="space-y-1">
+                      <nav className="space-y-0.5">
                         {quickActions.map((action) => {
                           const isActive =
                             action.path === '/student/subjects'
@@ -467,13 +494,16 @@ const StudentDashboard = () => {
                               type="button"
                               onClick={() => navigate(action.path)}
                               title={!isExpanded ? action.label : undefined}
-                              className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl ${isExpanded ? 'px-4 py-3' : 'justify-center px-0 py-3'} text-left text-sm font-bold transition ${
+                              className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${
                                 isActive
-                                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                                  : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
+                                  ? 'text-blue-700 shadow-lg shadow-blue-800/30'
+                                  : 'text-blue-100 hover:bg-white/15 hover:text-white'
                               }`}
                             >
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs font-extrabold">
+                              {isActive && (
+                                <span className="absolute inset-0 rounded-xl bg-white/90 shadow-sm" />
+                              )}
+                              <span className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-extrabold ${isActive ? 'bg-blue-500 text-white' : 'bg-white/20'}`}>
                                 {action.icon}
                               </span>
                               <AnimatePresence>
@@ -483,7 +513,7 @@ const StudentDashboard = () => {
                                     animate={{ opacity: 1, width: 'auto' }}
                                     exit={{ opacity: 0, width: 0 }}
                                     transition={{ duration: 0.2 }}
-                                    className="block flex-1 whitespace-nowrap leading-tight overflow-hidden"
+                                    className="relative z-10 block flex-1 leading-tight"
                                   >
                                     {action.label}
                                   </motion.span>
@@ -496,22 +526,18 @@ const StudentDashboard = () => {
                     </div>
                   </div>
                 </aside>
-              );
-            })()}
 
-            <section className="min-w-0 flex-1 overflow-hidden">
-              <div
-                className="overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
-                style={{ height: 'calc(100vh - 120px)' }}
-              >
-                <div className="h-full overflow-hidden rounded-[1.8rem] bg-[#f5f7fb]">
-                  <div className={`${isDashboardPage || isSubjectsPage ? 'h-full overflow-hidden' : 'h-full overflow-y-auto'} space-y-10 px-5 py-6 pb-6 md:space-y-12 md:px-8 md:py-8 md:pb-8`}>
-                    <Outlet context={outletContext} />
+                {/* Content area - inside the same panel */}
+                <div className="min-w-0 flex-1 overflow-hidden rounded-r-[2rem] bg-slate-100/80">
+                  <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto teacher-scrollbar space-y-4 px-4 py-4 md:space-y-6 md:px-6 md:py-6">
+                      <Outlet context={outletContext} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </section>
-          </div>
+            );
+          })()}
         </main>
       </div>
     </>
@@ -526,157 +552,132 @@ export const StudentOverview = () => {
     dashboardStats = {},
     pendingAssessments = [],
   } = useOutletContext() ?? {};
-  const overviewCards = [
-    {
-      key: 'enrolledSubjects',
-      label: 'Enrolled subjects',
-      description: 'Classes currently active',
-      color: 'teacher-stat-card-blue',
-      icon: 'SB',
-    },
-    {
-      key: 'completedAssessments',
-      label: 'Completed assessments',
-      description: 'Finished submissions',
-      color: 'teacher-stat-card-emerald',
-      icon: 'OK',
-    },
-    {
-      key: 'averageScore',
-      label: 'Average score',
-      description: 'Returned results so far',
-      color: 'teacher-stat-card-amber',
-      icon: 'AV',
-    },
+
+  const stats = [
+    { key: 'enrolledSubjects', label: 'Subjects', icon: '📚', color: 'from-blue-400 to-blue-600' },
+    { key: 'completedAssessments', label: 'Completed', icon: '✅', color: 'from-emerald-400 to-emerald-600' },
+    { key: 'averageScore', label: 'Avg Score', icon: '📊', color: 'from-amber-400 to-orange-500' },
   ];
 
+  const isLoading = loadingAssessments && pendingAssessments.length === 0;
+
   return (
-    <>
-      <section className="mb-6 flex flex-col gap-4 pb-3 lg:flex-row lg:items-end lg:justify-between md:mb-8 md:pb-4">
-        <div className="pt-2 md:pt-3">
-          <h1 className="teacher-heading">Welcome back, Student!</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-500">
-            Here is your learning snapshot for today, plus the assessments that still need your submission.
+    <div className="space-y-4">
+      {isLoading ? (
+        <>
+          <SkeletonWelcome />
+          <SkeletonStatRow />
+          <SkeletonSection rows={3} />
+        </>
+      ) : (
+      <>
+      {/* Welcome Banner */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-4 text-white shadow-lg shadow-purple-500/20">
+        <div className="relative z-10">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-100">Welcome back</p>
+          <h1 className="mt-0.5 text-lg font-bold">Student!</h1>
+          <p className="mt-1 max-w-md text-xs text-purple-100">
+            Check your pending assessments and track your progress.
           </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate('/student/subjects')}
-          className="teacher-primary-btn"
-        >
-          View My Subjects
-        </button>
-      </section>
-
-      <section className="mb-6 grid grid-cols-1 gap-12 px-1 pt-2 sm:grid-cols-2 sm:px-2 xl:grid-cols-3 xl:gap-14 md:mb-8 md:pt-4">
-        {overviewCards.map((widget) => (
-          <div
-            key={widget.key}
-            className={`teacher-stat-card ${widget.color} min-h-[144px] p-5 shadow-[0_24px_60px_rgba(59,130,246,0.22)]`}
+          <button
+            onClick={() => navigate('/student/subjects')}
+            className="mt-2 rounded-full bg-white px-3 py-1.5 text-[10px] font-semibold text-purple-600 shadow-md transition hover:shadow-lg"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">Overview</p>
-                <p className="mt-4 text-4xl font-black leading-none text-white lg:text-5xl">
-                  {dashboardStats[widget.key] ?? '-'}
-                </p>
-              </div>
-              <div className="teacher-stat-icon">{widget.icon}</div>
-            </div>
-            <div className="mt-6">
-              <p className="text-lg font-bold text-white lg:text-xl">{widget.label}</p>
-              <p className="mt-2 max-w-[18rem] text-sm text-white/80">{widget.description}</p>
-            </div>
-          </div>
-        ))}
-      </section>
+            View My Subjects →
+          </button>
+        </div>
+        <div className="absolute right-4 top-4 text-5xl opacity-20">🎓</div>
+      </div>
 
-      <section className="mb-6 md:mb-8">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xl font-bold text-slate-900">Ongoing Assessments</p>
-            <p className="mt-1 text-sm text-slate-500">
-              These assessments are waiting for your submission.
-            </p>
-          </div>
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+      {/* Stats Row */}
+      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+        <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Overview</p>
+        <div className="grid grid-cols-3 gap-2">
+          {stats.map((stat) => (
+            <div
+              key={stat.key}
+              className="flex items-center gap-2 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+            >
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-sm text-white shadow-sm`}>
+                {stat.icon}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
+                <p className="text-base font-bold text-slate-900">{dashboardStats[stat.key] ?? '-'}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pending Assessments */}
+      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+        <div className="flex items-center justify-between">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Pending Assessments</p>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
             {dashboardStats.pendingAssessments ?? 0} pending
           </span>
         </div>
-
-        <div className="teacher-scrollbar mt-5 max-h-[calc(100vh-520px)] space-y-5 overflow-y-auto pr-4 pb-24 sm:max-h-[calc(100vh-500px)]">
+        <div className="mt-2 space-y-1.5">
           {loadingAssessments ? (
-            <p className="text-sm text-slate-500">Loading assessments...</p>
+            <div className="space-y-1.5">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5">
+                  <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+                  <div className="flex-1">
+                    <Skeleton className="mb-1 h-3 w-3/4 rounded-md" />
+                    <Skeleton className="h-2.5 w-1/2 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : assessmentsError ? (
-            <p className="text-sm text-rose-600">{assessmentsError}</p>
+            <p className="text-[11px] text-rose-600">{assessmentsError}</p>
           ) : pendingAssessments.length === 0 ? (
-            <div className="teacher-float-card px-6 py-6 text-sm text-slate-500">
-              <p className="text-lg font-semibold text-slate-900">No assessments for now</p>
-              <p className="mt-2 text-sm text-slate-500">All works caught up.</p>
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
+              <p className="text-[11px] text-slate-500">No assessments for now</p>
+              <p className="mt-0.5 text-[9px] text-slate-400">All works caught up!</p>
             </div>
           ) : (
-            pendingAssessments.map((assessment) => (
-              <article
+            pendingAssessments.slice(0, 3).map((assessment) => (
+              <div
                 key={assessment.exercise_id}
-                className="relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)]"
+                className="flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
               >
-                <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                      {assessment.subject_name || 'Assessment'}
-                    </p>
-                    <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{assessment.title}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {(assessment.subject_name || 'Unassigned Subject')} - {(assessment.topic || 'No topic')}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
-                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                      {assessment.item_count ?? 0} item(s)
-                    </p>
-                    <span className="mt-1 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-700">
-                      Pending
-                    </span>
-                  </div>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-[10px] font-bold text-white">
+                  {(assessment.subject_name || 'A').charAt(0)}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                    Difficulty: {assessment.difficulty || 'Medium'}
-                  </span>
-                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                    Items: {assessment.item_count ?? 0}
-                  </span>
-                  {assessment.subject_code && (
-                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                      {assessment.subject_code}
-                    </span>
-                  )}
-                  {assessment.due_date && (() => {
-                    const now = new Date();
-                    const due = new Date(assessment.due_date);
-                    if (Number.isNaN(due.getTime())) return null;
-                    const diffMs = due.getTime() - now.getTime();
-                    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                    let cls = 'bg-blue-50 text-blue-700 border-blue-200';
-                    let label = `Due in ${diffDays}d`;
-                    if (diffDays < 0) { cls = 'bg-red-50 text-red-700 border-red-200'; label = 'Overdue'; }
-                    else if (diffDays === 0) { cls = 'bg-amber-50 text-amber-700 border-amber-200'; label = 'Due today'; }
-                    else if (diffDays <= 3) { cls = 'bg-orange-50 text-orange-700 border-orange-200'; }
-                    return (
-                      <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${cls}`}>
-                        {label}
-                      </span>
-                    );
-                  })()}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-slate-900">{assessment.title}</p>
+                  <p className="text-[10px] text-slate-500">
+                    {assessment.difficulty || 'Medium'} · {assessment.item_count ?? 0} items
+                  </p>
                 </div>
-              </article>
+                {assessment.due_date && (() => {
+                  const now = new Date();
+                  const due = new Date(assessment.due_date);
+                  if (Number.isNaN(due.getTime())) return null;
+                  const diffMs = due.getTime() - now.getTime();
+                  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                  let cls = 'bg-blue-50 text-blue-600';
+                  let label = `${diffDays}d left`;
+                  if (diffDays < 0) { cls = 'bg-red-50 text-red-600'; label = 'Overdue'; }
+                  else if (diffDays === 0) { cls = 'bg-amber-50 text-amber-600'; label = 'Today'; }
+                  else if (diffDays <= 3) { cls = 'bg-orange-50 text-orange-600'; }
+                  return (
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
+                      {label}
+                    </span>
+                  );
+                })()}
+              </div>
             ))
           )}
         </div>
-      </section>
-
-    </>
+      </div>
+      </>
+      )}
+    </div>
   );
 };
 
@@ -695,6 +696,10 @@ export const StudentSubjects = () => {
     setEnrollCode = () => {},
     enrollLoading = false,
     enrollMessage = '',
+    enrollSuccess = false,
+    setEnrollSuccess = () => {},
+    showJoinCard = true,
+    setShowJoinCard = () => {},
     handleEnroll = () => {},
   } = useOutletContext() ?? {};
   const currentEmail = getCurrentLocalUserEmail();
@@ -867,66 +872,135 @@ export const StudentSubjects = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
-      <section className="mb-6 space-y-4 md:mb-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-col gap-2">
+      {!isSubjectAssessmentPage && (
+      <section className="mb-2 space-y-2">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-1">
             <p className={sectionHeaderEyebrowClass}>
-              {isSubjectAssessmentPage ? 'Assessments' : 'Subjects'}
+              Subjects
             </p>
-            <h1 className="text-[1.95rem] font-black tracking-tight text-slate-950 md:text-[2.35rem]">
-              {isSubjectAssessmentPage ? selectedSubject?.subject_name || 'Assessments' : 'My Subjects'}
+            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.85rem]">
+              My Subjects
             </h1>
-            <p className="max-w-2xl text-base leading-8 text-slate-500">
-              {isSubjectAssessmentPage
-                ? 'Browse every assessment in this subject, open any activity to review the questions, and upload your work when you are ready.'
-                : 'Keep track of your enrolled classes, revisit archived subjects, and join a new subject with your teacher’s code.'}
+            <p className="max-w-2xl text-xs leading-6 text-slate-500">
+              Keep track of your enrolled classes, revisit archived subjects, and join a new subject with your teacher's code.
             </p>
           </div>
+        </div>
+      </section>
+      )}
 
-          {!isSubjectAssessmentPage && (
-            <div className="w-full max-w-md">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Join Subject</p>
-                <p className="mt-1 text-sm text-slate-500">Enter the class code from your teacher to add a subject to your dashboard.</p>
+      {!isSubjectAssessmentPage && (
+      <section className="space-y-2">
+        {showJoinCard ? (
+        <div className="rounded-[1.25rem] border border-slate-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]">
+          {enrollSuccess && enrollMessage ? (
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
               </div>
-              <form onSubmit={handleEnroll} className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-emerald-800">Subject Joined!</p>
+                <p className="mt-0.5 text-xs text-emerald-600">{enrollMessage}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEnrollMessage('');
+                  setEnrollSuccess(false);
+                  setShowJoinCard(false);
+                }}
+                className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Join Subject</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Enter the class code from your teacher to add a subject.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowJoinCard(false)}
+                  className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <form onSubmit={handleEnroll} className="flex w-full gap-2">
                 <input
                   value={enrollCode}
-                  onChange={(event) => setEnrollCode(event.target.value)}
-                  placeholder="Paste teacher's join code"
-                  className="teacher-input h-12 flex-1 bg-white"
+                  onChange={(event) => {
+                    setEnrollCode(event.target.value);
+                    if (enrollMessage) {
+                      setEnrollMessage('');
+                      setEnrollSuccess(false);
+                    }
+                  }}
+                  placeholder="Paste join code"
+                  className="teacher-input h-9 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                 />
                 <button
                   type="submit"
                   disabled={enrollLoading}
-                  className="teacher-primary-btn h-12 whitespace-nowrap disabled:cursor-wait disabled:bg-blue-300"
+                  className="teacher-primary-btn h-9 whitespace-nowrap rounded-xl px-4 text-xs font-semibold disabled:cursor-wait disabled:bg-blue-300"
                 >
-                  {enrollLoading ? 'Enrolling...' : 'Join Subject'}
+                  {enrollLoading ? 'Joining...' : 'Join'}
                 </button>
               </form>
-              {enrollMessage && <p className="mt-3 text-xs font-medium text-slate-600">{enrollMessage}</p>}
-            </div>
+              {enrollMessage && !enrollSuccess && (
+                <p className="text-[11px] font-medium text-rose-600">{enrollMessage}</p>
+              )}
+            </>
           )}
         </div>
+        ) : (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowJoinCard(true);
+              setEnrollMessage('');
+              setEnrollSuccess(false);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Join Subject
+          </button>
+        </div>
+        )}
       </section>
+      )}
 
-      <section className="flex min-h-0 flex-1 flex-col space-y-6 overflow-hidden">
+      <section className="flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
         {!isSubjectAssessmentPage && (
           <>
-            <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xl font-bold text-slate-900">Subject Library</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Move between active classes and archived records from one place.
+                <p className="text-sm font-bold text-slate-900">Subject Library</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Active classes and archived records.
                 </p>
               </div>
-              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
                 <button
                   type="button"
                   onClick={() => setShowArchivedSubjects(false)}
-                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${
                     !showArchivedSubjects
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
                       : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
@@ -935,9 +1009,9 @@ export const StudentSubjects = () => {
                 <button
                   type="button"
                   onClick={() => setShowArchivedSubjects(true)}
-                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${
                     showArchivedSubjects
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
                       : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
@@ -946,17 +1020,17 @@ export const StudentSubjects = () => {
               </div>
             </div>
 
-            <div className="teacher-scrollbar mx-auto grid h-full max-h-[calc(100vh-340px)] min-h-0 flex-1 w-full max-w-5xl gap-4 overflow-y-scroll pr-3 pb-56 md:max-h-[calc(100vh-320px)] md:pb-64">
+            <div className="teacher-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto pr-2 pb-4 sm:grid-cols-2 lg:grid-cols-3">
             {loadingSubjects ? (
               <p className="text-sm text-slate-500">Loading subjects...</p>
             ) : subjectsError ? (
               <p className="text-sm text-rose-600">{subjectsError}</p>
             ) : visibleSubjects.length === 0 ? (
-              <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                <p className="text-lg font-semibold text-slate-900">
+              <div className="col-span-full rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                <p className="text-sm font-semibold text-slate-900">
                   {showArchivedSubjects ? 'No archived subjects yet' : 'No subjects yet'}
                 </p>
-                <p className="mt-2 text-sm text-slate-500">
+                <p className="mt-1 text-xs text-slate-500">
                   {showArchivedSubjects
                     ? 'Archived subjects will appear here once one of your enrolled classes is archived by your teacher.'
                     : 'Use the join subject form above to unlock your classes.'}
@@ -975,74 +1049,54 @@ export const StudentSubjects = () => {
                         navigate(`/student/subjects/${subject.subject_id}`);
                       }
                     }}
-                    className={`relative flex min-h-[176px] w-full overflow-hidden rounded-[1.5rem] border border-slate-900/10 p-4 text-left shadow-[0_14px_32px_rgba(148,163,184,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] md:p-5 ${subjectTheme.surfaceClass}`}
+                    className={`group relative flex flex-col overflow-hidden rounded-[0.85rem] border border-slate-200/60 p-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.03),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_1px_2px_rgba(0,0,0,0.05),0_6px_16px_rgba(0,0,0,0.05)] ${subjectTheme.surfaceClass}`}
                   >
-                    <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${subjectTheme.accentClass}`} />
-                    <div className="flex w-full gap-4">
+                    <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${subjectTheme.accentClass}`} />
+
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">
                           {subject.subject_code || 'Subject'}
                         </p>
-                        <p className="mt-2 truncate text-[1.1rem] font-black text-slate-900">{subject.subject_name}</p>
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 truncate text-sm font-bold text-slate-900">{subject.subject_name}</p>
+                        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
                           {subject.course || 'Course'} • {subject.year || 'Year'} • {subject.section_name || subject.section || 'Section'}
                         </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {subject.year && (
-                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                              {subject.year}
-                            </span>
-                          )}
-                          {(subject.section_name || subject.section) && (
-                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                              {subject.section_name || subject.section}
-                            </span>
-                          )}
-                          {subject.school_year && (
-                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                              {subject.school_year}
-                            </span>
-                          )}
-                          {subject.semester && (
-                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                              {subject.semester}
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm ${
-                            showArchivedSubjects
-                              ? 'border-amber-200 bg-amber-50 text-amber-700'
-                              : 'border-blue-200 bg-white text-blue-700'
-                          }`}>
-                            {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'}
-                          </span>
-                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold shadow-sm ${
-                            showArchivedSubjects
-                              ? 'border-amber-200 bg-amber-50 text-amber-700'
-                              : 'border-cyan-200 bg-white text-cyan-700'
-                          }`}>
-                            {showArchivedSubjects ? 'Archived' : 'Active'}
-                          </span>
-                        </div>
                       </div>
 
-                      <div className="flex w-[132px] shrink-0 flex-col justify-between gap-4">
-                        <div className="ml-auto w-full max-w-[108px] rounded-[1.35rem] border border-white/80 bg-white/90 px-3 py-3 text-center shadow-sm">
-                          <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                            ID {subject.subject_id}
-                          </p>
-                          <span className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                            showArchivedSubjects ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            {showArchivedSubjects ? 'Archived' : 'Active'}
-                          </span>
-                        </div>
-
-                        <span className="inline-flex items-center justify-center rounded-full border border-blue-200 bg-white px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-blue-700 shadow-sm">
-                          {showArchivedSubjects ? 'View Subject' : 'Open Assessments'}
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                          showArchivedSubjects ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {showArchivedSubjects ? 'Archived' : 'Active'}
                         </span>
                       </div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold shadow-sm ${
+                        showArchivedSubjects
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                          : 'border-blue-200 bg-white text-blue-700'
+                      }`}>
+                        {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'}
+                      </span>
+                      {subject.school_year && (
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
+                          {subject.school_year}
+                        </span>
+                      )}
+                      {subject.semester && (
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
+                          {subject.semester}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-auto pt-2">
+                      <span className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200/60 bg-slate-50 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500 transition group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:text-blue-600">
+                        {showArchivedSubjects ? 'View Subject' : 'Open Assessments'}
+                      </span>
                     </div>
                   </button>
                 );
@@ -1053,49 +1107,49 @@ export const StudentSubjects = () => {
         )}
 
         {isSubjectAssessmentPage && (
-          <div className="flex min-h-0 flex-1 flex-col space-y-5 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => navigate('/student/subjects')}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100"
               >
-                Back to Subjects
+                ← Back to Subjects
               </button>
               {selectedSubject && (
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700">
                   {subjectAssessmentCount} assessment{subjectAssessmentCount === 1 ? '' : 's'}
                 </span>
               )}
             </div>
 
             {!selectedSubject ? (
-              <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                <p className="text-lg font-semibold text-slate-900">Subject not found</p>
-                <p className="mt-2 text-sm text-slate-500">This subject is not in your enrolled list.</p>
+              <div className="rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                <p className="text-sm font-semibold text-slate-900">Subject not found</p>
+                <p className="mt-1 text-xs text-slate-500">This subject is not in your enrolled list.</p>
               </div>
             ) : (
               <>
                 {loadingAssessments ? (
-                  <p className="text-sm text-slate-500">Loading assessments...</p>
+                  <p className="text-xs text-slate-500">Loading assessments...</p>
                 ) : selectedSubject.archived ? (
-                  <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-6 py-10 text-center">
-                    <p className="text-lg font-semibold text-slate-900">This subject is archived</p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      You can still review it from your archived list, but new assessment submissions are no longer available.
+                  <div className="rounded-[1rem] border border-amber-200 bg-amber-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                    <p className="text-sm font-semibold text-slate-900">This subject is archived</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      You can still review it, but new submissions are no longer available.
                     </p>
                   </div>
                 ) : assessmentsError ? (
-                  <p className="text-sm text-rose-600">{assessmentsError}</p>
+                  <p className="text-xs text-rose-600">{assessmentsError}</p>
                 ) : subjectAssessments.length === 0 ? (
-                  <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                    <p className="text-lg font-semibold text-slate-900">No assessments for this subject yet</p>
-                    <p className="mt-2 text-sm text-slate-500">
+                  <div className="rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                    <p className="text-sm font-semibold text-slate-900">No assessments yet</p>
+                    <p className="mt-1 text-xs text-slate-500">
                       Your teacher has not published any activities in this subject yet.
                     </p>
                   </div>
                 ) : (
-                  <div className="teacher-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+                  <div className="teacher-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
                     {subjectAssessments.map((assessment) => {
                       const isSelected = String(assessment.exercise_id) === String(selectedAssessmentId);
                       const isSubmitted = Boolean(assessment.already_submitted || assessment.submission_status);
@@ -1109,23 +1163,23 @@ export const StudentSubjects = () => {
                         <div
                           key={assessment.exercise_id}
                           onClick={() => setSelectedAssessmentId(String(assessment.exercise_id))}
-                          className={`relative overflow-hidden rounded-[1.15rem] border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                          className={`relative overflow-hidden rounded-[0.85rem] border px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_4px_14px_rgba(0,0,0,0.05)] ${
                             isSelected
-                              ? `${subjectTheme.surfaceClass} border-blue-300 shadow-[0_18px_50px_rgba(59,130,246,0.14)]`
+                              ? `${subjectTheme.surfaceClass} border-blue-300 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(59,130,246,0.1)]`
                               : `${subjectTheme.surfaceClass} border-slate-100`
                           }`}
                         >
-                          <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${subjectTheme.accentClass}`} />
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div>
-                              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                          <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${subjectTheme.accentClass}`} />
+                          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[9px] uppercase tracking-[0.3em] text-slate-400">
                                 {assessment.subject_name} {assessment.subject_code ? `(${assessment.subject_code})` : ''}
                               </p>
-                              <h3 className={compactListTitleClass}>{assessment.title}</h3>
-                              <p className="mt-1 text-sm text-slate-500">{assessment.description || 'No description provided.'}</p>
+                              <h3 className="mt-0.5 truncate text-sm font-bold text-slate-900">{assessment.title}</h3>
+                              <p className="mt-0.5 text-[11px] leading-snug text-slate-500 line-clamp-2">{assessment.description || 'No description provided.'}</p>
                             </div>
-                            <div className="flex flex-col items-start gap-2 lg:items-end">
-                              <span className={`${compactListBadgeClass} ${statusClass}`}>
+                            <div className="flex shrink-0 flex-row items-center gap-2 lg:flex-col lg:items-end">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold ${statusClass}`}>
                                 {statusLabel}
                               </span>
                               <button
@@ -1134,14 +1188,14 @@ export const StudentSubjects = () => {
                                   event.stopPropagation();
                                   setSelectedAssessmentId(String(assessment.exercise_id));
                                 }}
-                                className={compactListActionClass}
+                                className="inline-flex items-center rounded-lg border border-blue-200 bg-white px-3 py-1 text-[9px] font-semibold text-blue-700 transition hover:bg-blue-50 hover:border-blue-300"
                               >
                                 {assessment.already_submitted ? 'View' : 'Submit / View'}
                               </button>
                             </div>
                           </div>
 
-                          <div className={compactListMetaClass}>
+                          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-400">
                             <span>Topic: {assessment.topic || '-'}</span>
                             <span>Difficulty: {assessment.difficulty || 'Medium'}</span>
                             <span>Items: {assessment.item_count ?? 0}</span>
@@ -1206,7 +1260,7 @@ export const StudentSubjects = () => {
                         </div>
                       </div>
 
-                      <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50 px-6 py-4">
+                      <div className="flex-1 min-h-0 overflow-y-auto teacher-scrollbar bg-slate-50 px-6 py-4">
                         {selectedAssessmentItems.length > 0 ? (
                           <div className="space-y-3">
                             {selectedAssessmentItems.map((item, index) => {

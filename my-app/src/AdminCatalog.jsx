@@ -156,25 +156,25 @@ const AdminCatalog = () => {
   }, [catalog.colleges]);
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto px-4 py-4 md:px-6 md:py-5">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
-        <section className="page-hero-card p-6 md:p-8">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin Catalog</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Colleges and Courses</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-500">
+     <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-4 py-3 md:px-6 md:py-4">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-4">
+        <section className="page-hero-card p-5">
+          <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">Admin Catalog</p>
+          <h1 className="text-xl font-bold text-slate-900">Colleges and Courses</h1>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Keep the official college and course list here. Signup forms only read from this catalog.
           </p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <div className="teacher-float-card px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Colleges</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{activeCollegeCount}</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="teacher-float-card px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-[0.28em] text-slate-400">Colleges</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">{activeCollegeCount}</p>
             </div>
-            <div className="teacher-float-card px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Courses</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{activeCourseCount}</p>
+            <div className="teacher-float-card px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-[0.28em] text-slate-400">Courses</p>
+              <p className="mt-1 text-xl font-bold text-slate-900">{activeCourseCount}</p>
             </div>
-            <div className="teacher-float-card px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Status</p>
+            <div className="teacher-float-card px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-[0.28em] text-slate-400">Status</p>
               <p className="mt-1 text-sm font-semibold text-slate-700">Managed by admin only</p>
             </div>
           </div>
@@ -200,35 +200,35 @@ const AdminCatalog = () => {
           </div>
         )}
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <article className="teacher-float-card space-y-4 p-6">
+        <section className="grid gap-4 lg:grid-cols-2">
+          <article className="teacher-float-card space-y-3 p-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Add College</p>
-              <h2 className="text-xl font-bold text-slate-900">Create a new college</h2>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Add College</p>
+              <h2 className="text-base font-bold text-slate-900">Create a new college</h2>
             </div>
-            <form className="space-y-4" onSubmit={handleCreateCollege}>
+            <form className="space-y-3" onSubmit={handleCreateCollege}>
               <input
                 type="text"
                 value={collegeName}
                 onChange={(e) => setCollegeName(e.target.value)}
                 placeholder="College name"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
               />
               <button
                 type="submit"
                 disabled={loading || saving}
-                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {saving ? 'Saving...' : 'Add College'}
               </button>
             </form>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-2 pt-1">
               {catalog.colleges.map((college) => (
-                <div key={college.college_id} className="teacher-float-card flex items-center justify-between px-4 py-3">
+                <div key={college.college_id} className="teacher-float-card flex items-center justify-between gap-3 px-3 py-2.5">
                   <div>
-                    <p className="font-semibold text-slate-900">{college.college_name}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-slate-900">{college.college_name}</p>
+                    <p className="text-[10px] text-slate-500">
                       {Number(college.is_active) === 1 ? 'Active' : 'Inactive'}
                     </p>
                   </div>
@@ -236,7 +236,7 @@ const AdminCatalog = () => {
                     type="button"
                     onClick={() => toggleCollege(college)}
                     disabled={saving}
-                    className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {Number(college.is_active) === 1 ? 'Disable' : 'Enable'}
                   </button>
@@ -245,30 +245,30 @@ const AdminCatalog = () => {
             </div>
           </article>
 
-          <article className="teacher-float-card space-y-4 p-6">
+          <article className="teacher-float-card space-y-3 p-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Add Course</p>
-              <h2 className="text-xl font-bold text-slate-900">Create a new course</h2>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Add Course</p>
+              <h2 className="text-base font-bold text-slate-900">Create a new course</h2>
             </div>
-            <form className="space-y-4" onSubmit={handleCreateCourse}>
+            <form className="space-y-3" onSubmit={handleCreateCourse}>
               <input
                 type="text"
                 value={courseForm.name}
                 onChange={(e) => setCourseForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Course name"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
               />
               <input
                 type="text"
                 value={courseForm.courseCode}
                 onChange={(e) => setCourseForm((prev) => ({ ...prev, courseCode: e.target.value }))}
                 placeholder="Course code (optional)"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
               />
               <select
                 value={courseForm.collegeId}
                 onChange={(e) => setCourseForm((prev) => ({ ...prev, collegeId: e.target.value }))}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
               >
                 <option value="" disabled hidden>Select college</option>
                 {catalog.colleges.map((college) => (
@@ -280,24 +280,24 @@ const AdminCatalog = () => {
               <button
                 type="submit"
                 disabled={loading || saving}
-                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {saving ? 'Saving...' : 'Add Course'}
               </button>
             </form>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-2 pt-1">
               {catalog.courses.map((course) => (
-                <div key={course.course_id} className="teacher-float-card flex items-center justify-between gap-4 px-4 py-3">
+                <div key={course.course_id} className="teacher-float-card flex items-center justify-between gap-3 px-3 py-2.5">
                   <div>
-                    <p className="font-semibold text-slate-900">
+                    <p className="text-sm font-semibold text-slate-900">
                       {course.course_name}{' '}
-                      <span className="text-xs font-medium text-slate-400">
+                      <span className="text-[10px] font-medium text-slate-400">
                         {course.course_code ? `(${course.course_code})` : ''}
                       </span>
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {collegeLookup.get(String(course.college_id)) || 'No college assigned'} -{' '}
+                    <p className="text-[10px] text-slate-500">
+                      {collegeLookup.get(String(course.college_id)) || 'No college'} -{' '}
                       {Number(course.is_active) === 1 ? 'Active' : 'Inactive'}
                     </p>
                   </div>
@@ -305,7 +305,7 @@ const AdminCatalog = () => {
                     type="button"
                     onClick={() => toggleCourse(course)}
                     disabled={saving}
-                    className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {Number(course.is_active) === 1 ? 'Disable' : 'Enable'}
                   </button>

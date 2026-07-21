@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import { SkeletonWelcome, SkeletonStatRow, SkeletonSection, SkeletonQuickActions, SkeletonStatusCards } from './components/Skeleton';
 
 const assessmentStatusClasses = {
     draft: 'bg-slate-100 text-slate-700',
@@ -10,11 +11,43 @@ const assessmentStatusClasses = {
     graded: 'bg-emerald-100 text-emerald-700',
 };
 
+const quickActions = [
+    {
+        label: 'New Assessment',
+        description: 'Create a quiz or exam',
+        icon: '📝',
+        path: '/teacher/assessments/new',
+        color: 'bg-gradient-to-br from-blue-500 to-blue-600',
+    },
+    {
+        label: 'New Rubric',
+        description: 'Build grading criteria',
+        icon: '📊',
+        path: '/teacher/assessments/new-rubric',
+        color: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
+    },
+    {
+        label: 'Grade Work',
+        description: 'Review submissions',
+        icon: '✅',
+        path: '/teacher/grade-submissions',
+        color: 'bg-gradient-to-br from-amber-500 to-orange-500',
+    },
+    {
+        label: 'View Reports',
+        description: 'Track performance',
+        icon: '📈',
+        path: '/teacher/reports',
+        color: 'bg-gradient-to-br from-violet-500 to-purple-600',
+    },
+];
+
 const DashboardHome = () => {
     const navigate = useNavigate();
     const currentEmail = getCurrentLocalUserEmail();
     const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
     const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
+    const teacherName = storedTeacher?.firstName ?? 'Teacher';
 
     const [analytics, setAnalytics] = useState(null);
     const [recentAssessments, setRecentAssessments] = useState([]);
@@ -57,130 +90,223 @@ const DashboardHome = () => {
         return [
             {
                 id: 1,
-                label: 'Total submissions',
+                label: 'Total',
                 value: totals.total_submissions ?? 0,
-                description: 'Across all subjects',
-                color: 'teacher-stat-card-blue',
-                icon: 'SB',
+                icon: '📋',
+                color: 'from-blue-400 to-blue-600',
             },
             {
                 id: 2,
-                label: 'Pending review',
+                label: 'Pending',
                 value: totals.needs_review ?? totals.pending_submissions ?? 0,
-                description: 'Immediate action items',
-                color: 'teacher-stat-card-amber',
-                icon: 'RV',
+                icon: '⏳',
+                color: 'from-amber-400 to-orange-500',
             },
             {
                 id: 3,
                 label: 'Graded',
                 value: totals.graded_submissions ?? 0,
-                description: 'Finished this session',
-                color: 'teacher-stat-card-emerald',
-                icon: 'OK',
+                icon: '✓',
+                color: 'from-emerald-400 to-emerald-600',
             },
         ];
     }, [analytics]);
 
+    const isLoading = analytics === null;
+
     return (
-        <div className="flex h-full min-h-0 flex-col gap-10 overflow-hidden px-4 py-4 md:px-6 md:py-5">
-            <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 pb-3 lg:flex-row lg:items-end lg:justify-between md:pb-4">
-                <div className="pt-2 md:pt-3">
-                    <h1 className="teacher-heading">Welcome back, Teacher!</h1>
-                    <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                        Here is your activity snapshot for today, plus the most recently created assessments in your workspace.
-                    </p>
-                </div>
-                <button
-                    onClick={() => navigate('/teacher/grade-submissions')}
-                    className="teacher-primary-btn"
-                >
-                    Review Submissions
-                </button>
-            </div>
-
-            <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-12 px-1 pt-5 sm:grid-cols-2 sm:px-2 xl:grid-cols-3 xl:gap-14">
-                {stats.map((stat) => (
-                    <article
-                        key={stat.id}
-                        className={`teacher-stat-card ${stat.color} min-h-[144px] p-5 shadow-[0_24px_60px_rgba(59,130,246,0.22)]`}
-                    >
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">Overview</p>
-                                <p className="mt-4 text-4xl font-black leading-none lg:text-5xl">{stat.value}</p>
+        <div className="h-full overflow-y-auto teacher-scrollbar px-4 py-4">
+            <div className="mx-auto max-w-[1400px] space-y-4">
+                {isLoading ? (
+                    <>
+                        <SkeletonWelcome />
+                        <SkeletonStatRow />
+                        <div className="grid gap-4 lg:grid-cols-3">
+                            <div className="lg:col-span-2">
+                                <SkeletonSection rows={3} />
                             </div>
-                            <div className="teacher-stat-icon">{stat.icon}</div>
+                            <div>
+                                <SkeletonQuickActions />
+                            </div>
                         </div>
-
-                        <div className="mt-6">
-                            <p className="text-lg font-bold text-white lg:text-xl">{stat.label}</p>
-                            <p className="mt-2 max-w-[18rem] text-sm text-white/80">{stat.description}</p>
-                        </div>
-                    </article>
-                ))}
-            </div>
-
-            <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col overflow-hidden px-1 pt-0 sm:px-2 sm:pt-1">
-                <section className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
-                    <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <p className="text-xl font-bold text-slate-900">Recent Assessments</p>
-                            <p className="text-sm text-slate-500">The latest assessments you created, ready to receive submissions.</p>
-                        </div>
+                        <SkeletonStatusCards />
+                    </>
+                ) : (
+                <>
+                {/* Welcome Banner */}
+                <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 p-4 text-white shadow-lg shadow-blue-500/20">
+                    <div className="relative z-10">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100">Welcome back</p>
+                        <h1 className="mt-0.5 text-lg font-bold">{teacherName}!</h1>
+                        <p className="mt-1 max-w-md text-xs text-blue-100">
+                            Here's your activity snapshot for today. Ready to review submissions?
+                        </p>
                         <button
-                            type="button"
-                            onClick={() => navigate('/teacher/assessments/view')}
-                            className="teacher-secondary-btn !px-4 !py-2"
+                            onClick={() => navigate('/teacher/grade-submissions')}
+                            className="mt-2 rounded-full bg-white px-3 py-1.5 text-[10px] font-semibold text-blue-600 shadow-md transition hover:shadow-lg"
                         >
-                            View all
+                            Review Submissions →
                         </button>
                     </div>
+                    <div className="absolute right-4 top-4 text-5xl opacity-20">📚</div>
+                </div>
 
-                    <div className="teacher-scrollbar min-h-0 h-[calc(100vh-520px)] space-y-5 overflow-y-auto pr-4 pb-32 sm:h-[calc(100vh-500px)] sm:pb-40">
-                        {recentAssessments.length === 0 ? (
-                            <p className="teacher-float-card px-6 py-6 text-sm text-slate-500">
-                                No assessments created yet. Start by building one from Manage Assessments.
-                            </p>
-                        ) : (
-                            recentAssessments.map((assessment) => {
-                                const status = (assessment.assessment_status || assessment.status || 'Draft').toLowerCase();
-                                return (
-                                    <article
-                                        key={assessment.exercise_id}
-                                        className={`relative w-full overflow-hidden rounded-[1.3rem] border border-slate-900/10 bg-slate-100/70 p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)]`}
-                                    >
-                                        <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                            <div className="min-w-0">
-                                                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                                                    {assessment.subject || 'Assessment'}
-                                                </p>
-                                                <p className="mt-1.5 truncate text-[1.02rem] font-bold text-slate-900">{assessment.title}</p>
-                                                <p className="mt-1 text-xs text-slate-500">
-                                                    {assessment.subject || 'Unassigned Subject'} - {assessment.topic || 'No topic'}
-                                                </p>
-                                            </div>
-
-                                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-center text-xs text-slate-500 shadow-sm">
-                                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                                                    {assessment.item_count ?? assessment.items?.length ?? 0} item(s)
-                                                </p>
-                                                <span
-                                                    className={`mt-1 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${
-                                                        assessmentStatusClasses[status] ?? 'bg-slate-100 text-slate-600'
-                                                    }`}
-                                                >
-                                                    {assessment.assessment_status || assessment.status || 'Draft'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                </article>
-                            );
-                        })
-                    )}
+                {/* Stats Row */}
+                <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                    <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Overview</p>
+                    <div className="grid grid-cols-3 gap-2">
+                        {stats.map((stat) => (
+                            <div
+                                key={stat.id}
+                                className="flex items-center gap-2 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                            >
+                                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-sm text-white shadow-sm`}>
+                                    {stat.icon}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
+                                    <p className="text-base font-bold text-slate-900">{stat.value}</p>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                </section>
+                </div>
+
+                {/* Main Content Grid */}
+                <div className="grid gap-4 lg:grid-cols-3">
+                    {/* Recent Assessments - Takes 2 columns */}
+                    <div className="lg:col-span-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Recent Assessments</p>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/teacher/assessments/view')}
+                                className="text-[10px] font-semibold text-blue-600 hover:text-blue-700"
+                            >
+                                View all →
+                            </button>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                            {recentAssessments.length === 0 ? (
+                                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
+                                    <p className="text-xs text-slate-500">No assessments yet</p>
+                                    <p className="mt-1 text-[10px] text-slate-400">Create one from Manage Assessments</p>
+                                </div>
+                            ) : (
+                                recentAssessments.map((assessment) => {
+                                    const status = (assessment.assessment_status || assessment.status || 'draft').toLowerCase();
+                                    const statusColors = {
+                                        draft: 'bg-slate-100 text-slate-600',
+                                        pending: 'bg-amber-100 text-amber-700',
+                                        graded: 'bg-emerald-100 text-emerald-700',
+                                    };
+                                    return (
+                                        <div
+                                            key={assessment.exercise_id}
+                                            className="flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                                        >
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-[10px] font-bold text-white">
+                                                {(assessment.subject || 'A').charAt(0)}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-xs font-semibold text-slate-900">{assessment.title}</p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    {assessment.subject || 'No subject'} · {assessment.item_count ?? 0} items
+                                                </p>
+                                            </div>
+                                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${statusColors[status] || statusColors.draft}`}>
+                                                {assessment.assessment_status || assessment.status || 'Draft'}
+                                            </span>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Quick Actions - Takes 1 column */}
+                    <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
+                            {quickActions.map((action) => (
+                                <button
+                                    key={action.label}
+                                    type="button"
+                                    onClick={() => navigate(action.path)}
+                                    className="group flex flex-col items-center rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                                >
+                                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${action.color} text-sm text-white shadow-sm transition group-hover:scale-105`}>
+                                        {action.icon}
+                                    </div>
+                                    <p className="mt-1.5 text-[9px] font-semibold text-slate-700">{action.label}</p>
+                                    <p className="text-[8px] text-slate-400">{action.description}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom Row - Status Cards */}
+                <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                    <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Status</p>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                        {/* Subjects */}
+                        <div className="rounded-lg bg-slate-50 p-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[10px] font-bold text-slate-700">My Subjects</h3>
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[9px] font-bold text-blue-600">
+                                    {analytics?.total_subjects ?? '-'}
+                                </span>
+                            </div>
+                            <p className="mt-1.5 text-[10px] text-slate-500">Active classes you're teaching</p>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/teacher/subjects')}
+                                className="mt-2 w-full rounded-md bg-blue-50 py-1 text-[9px] font-semibold text-blue-600 transition hover:bg-blue-100"
+                            >
+                                View All
+                            </button>
+                        </div>
+
+                        {/* Grading Queue */}
+                        <div className="rounded-lg bg-slate-50 p-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[10px] font-bold text-slate-700">Grading Queue</h3>
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[9px] font-bold text-amber-600">
+                                    {analytics?.needs_review ?? analytics?.pending_submissions ?? 0}
+                                </span>
+                            </div>
+                            <p className="mt-1.5 text-[10px] text-slate-500">Submissions awaiting your review</p>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/teacher/grade-submissions')}
+                                className="mt-2 w-full rounded-md bg-amber-50 py-1 text-[9px] font-semibold text-amber-600 transition hover:bg-amber-100"
+                            >
+                                Start Grading
+                            </button>
+                        </div>
+
+                        {/* Reports */}
+                        <div className="rounded-lg bg-slate-50 p-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[10px] font-bold text-slate-700">Performance</h3>
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[9px] font-bold text-emerald-600">
+                                    {analytics?.graded_submissions ?? 0}
+                                </span>
+                            </div>
+                            <p className="mt-1.5 text-[10px] text-slate-500">Graded work completed</p>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/teacher/reports')}
+                                className="mt-2 w-full rounded-md bg-emerald-50 py-1 text-[9px] font-semibold text-emerald-600 transition hover:bg-emerald-100"
+                            >
+                                View Reports
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                </>
+                )}
             </div>
         </div>
     );

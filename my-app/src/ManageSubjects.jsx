@@ -572,31 +572,20 @@ const ManageSubjects = () => {
                     </div>
                 </div>
             )}
-            <div className="sticky top-0 mx-auto flex h-[calc(100vh-210px)] w-full max-w-[1400px] min-h-0 flex-col space-y-4 overflow-hidden px-4 pt-4 sm:px-6 md:px-8 md:pt-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col gap-3 overflow-hidden px-4 pt-3 sm:px-6 md:px-8">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <p className="teacher-eyebrow">Subjects</p>
-                        <h2 className="teacher-heading text-[1.7rem] md:text-[2rem]">View Subjects</h2>
-                        <p className="mt-2 text-sm text-slate-500">
+                        <h2 className="teacher-heading">View Subjects</h2>
+                        <p className="mt-1 text-sm text-slate-500">
                             Browse your classes and jump into enrollment details quickly.
                         </p>
                     </div>
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setShowArchivedSubjects(false)}
-                        className={`rounded-full px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
-                                !showArchivedSubjects
-                                    ? 'bg-blue-600 text-white shadow-blue-200'
-                                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
-                            }`}
-                        >
-                            View Subjects
-                        </button>
+                    <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
                             onClick={() => setShowAddSubjectForm(true)}
-                            className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
                         >
                             Add Subject
                         </button>
@@ -628,88 +617,76 @@ const ManageSubjects = () => {
                     </button>
                 </div>
 
-                <div className="teacher-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-2 pb-10">
+                <div className="teacher-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-2 pb-4">
                     {visibleSubjectList.length > 0 ? (
                         visibleSubjectList.map((subject) => {
                             const theme = getSubjectCardTheme(subject);
 
                             return (
-                                <article
+                                <div
                                     key={subject.id}
-                                    className={`relative overflow-hidden rounded-[1.3rem] border p-3.5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm ${theme.surfaceClass}`}
+                                    className={`teacher-float-card p-3 ${theme.surfaceClass}`}
                                 >
-                                    <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${theme.accentClass}`} />
-                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                        <div className="min-w-0">
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                                    <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${theme.accentClass}`} />
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
                                                 {subject.course || 'Subject'}
                                             </p>
-                                            <h3 className="mt-1.5 text-[1.02rem] font-bold text-slate-900">{subject.name}</h3>
-                                            <p className="mt-1 text-xs text-slate-500">
+                                            <p className="mt-0.5 text-sm font-bold text-slate-900">{subject.name}</p>
+                                            <p className="text-xs text-slate-500">
                                                 {subject.course} - {subject.year} - {subject.section}
                                             </p>
-                                            <div className="mt-2.5 flex flex-wrap gap-2">
-                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                    {subject.year}
-                                                </span>
-                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                    Section {subject.section}
-                                                </span>
-                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                    SY {subject.schoolYear}
-                                                </span>
-                                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">
-                                                    {subject.semester}
-                                                </span>
-                                            </div>
                                         </div>
-
-                                        <div className={`rounded-2xl border px-3 py-2.5 text-center text-xs shadow-sm ${theme.chipClass}`}>
-                                            <p className="text-xs uppercase tracking-[0.25em] text-slate-400">ID {subject.id}</p>
-                                            <p className="mt-1 font-medium text-slate-600">{subject.archived ? 'Archived' : 'Active'}</p>
+                                        <div className="flex shrink-0 flex-col items-end gap-1">
+                                            <span className="inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                                ID {subject.id}
+                                            </span>
+                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${theme.badgeClass}`}>
+                                                {subject.archived ? 'Archived' : 'Active'}
+                                            </span>
                                         </div>
                                     </div>
-
-                                    <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2.5">
-                                        <div className="flex flex-wrap gap-2">
-                                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm ${theme.badgeClass}`}>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-slate-600">
+                                            {subject.year} · Sec {subject.section}
+                                        </span>
+                                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-slate-600">
+                                            SY {subject.schoolYear}
+                                        </span>
+                                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] text-slate-600">
+                                            {subject.semester}
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 flex items-center justify-between gap-2">
+                                        <div className="flex flex-wrap gap-1.5">
+                                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-semibold ${theme.badgeClass}`}>
                                                 {subject.studentCount ?? 0} students
                                             </span>
-                                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm ${theme.badgeClass}`}>
-                                                {subject.activeAssessments ?? 0} pending
-                                            </span>
-                                            {subject.archived && (
-                                                <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-600 shadow-sm">
-                                                    Archived
-                                                </span>
-                                            )}
                                         </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    fetchEnrollments();
-                                                    setSelectedSubject(subject);
-                                                }}
-                                                className="rounded-full border border-blue-200 bg-white px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
-                                            >
-                                                View enrolled
-                                            </button>
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                fetchEnrollments();
+                                                setSelectedSubject(subject);
+                                            }}
+                                            className="rounded-full border border-blue-200 bg-white px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
+                                        >
+                                            View enrolled
+                                        </button>
                                     </div>
-                                </article>
+                                </div>
                             );
                         })
                     ) : (
-                        <p className="rounded-[1.6rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center text-sm text-slate-400">
+                        <p className="teacher-float-card px-4 py-4 text-center text-sm text-slate-400">
                             {subjectListEmptyMessage}
                         </p>
                     )}
 
                     {archivedSubjects.length > 0 && !showArchivedSubjects && (
-                        <p className="pt-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                            {archivedSubjects.length} archived subject(s) hidden. Archived subjects keep their history safe.
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                            {archivedSubjects.length} archived subject(s) hidden.
                         </p>
                     )}
                 </div>
@@ -911,32 +888,32 @@ const ManageSubjects = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="grid gap-3 md:grid-cols-3">
-                            <div className="teacher-stat-card teacher-stat-card-blue min-h-[108px] p-3.5">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="teacher-stat-card teacher-stat-card-blue">
                                 <div>
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Enrolled</p>
-                                    <p className="mt-2 text-3xl font-black leading-none text-white">{enrolledList.length}</p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80">Enrolled</p>
+                                    <p className="mt-1 text-2xl font-black leading-none text-white">{enrolledList.length}</p>
                                 </div>
-                                <div className="mt-3">
-                                    <p className="text-sm font-bold text-white">Students currently in this subject</p>
+                                <div className="mt-2">
+                                    <p className="text-xs font-bold text-white">Students currently in this subject</p>
                                 </div>
                             </div>
-                            <div className="teacher-stat-card teacher-stat-card-amber min-h-[108px] p-3.5">
+                            <div className="teacher-stat-card teacher-stat-card-amber">
                                 <div>
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Pending Assessments</p>
-                                    <p className="mt-2 text-3xl font-black leading-none text-white">{selectedSubjectAssessmentStats.pending}</p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80">Pending</p>
+                                    <p className="mt-1 text-2xl font-black leading-none text-white">{selectedSubjectAssessmentStats.pending}</p>
                                 </div>
-                                <div className="mt-3">
-                                    <p className="text-sm font-bold text-white">Assessments waiting for review</p>
+                                <div className="mt-2">
+                                    <p className="text-xs font-bold text-white">Awaiting review</p>
                                 </div>
                             </div>
-                            <div className="teacher-stat-card teacher-stat-card-emerald min-h-[108px] p-3.5">
+                            <div className="teacher-stat-card teacher-stat-card-emerald">
                                 <div>
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">Graded Assessments</p>
-                                    <p className="mt-2 text-3xl font-black leading-none text-white">{selectedSubjectAssessmentStats.graded}</p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80">Graded</p>
+                                    <p className="mt-1 text-2xl font-black leading-none text-white">{selectedSubjectAssessmentStats.graded}</p>
                                 </div>
-                                <div className="mt-3">
-                                    <p className="text-sm font-bold text-white">Assessments already graded</p>
+                                <div className="mt-2">
+                                    <p className="text-xs font-bold text-white">Already graded</p>
                                 </div>
                             </div>
                         </div>

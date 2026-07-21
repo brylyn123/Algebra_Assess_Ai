@@ -51,7 +51,7 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                 <p className="mt-4 text-sm text-rose-600">{statusMessage}</p>
             ) : (
                 <div
-                    className="mt-4 space-y-4 overflow-y-auto pr-1"
+                    className="mt-4 space-y-4 overflow-y-auto teacher-scrollbar pr-1"
                     style={{ maxHeight }}
                 >
                     <div className="space-y-2">

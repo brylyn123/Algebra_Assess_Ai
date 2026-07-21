@@ -5,7 +5,7 @@ import { clearCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import MobileNav from './components/MobileNav';
 
-const iconClassName = 'h-[18px] w-[18px]';
+const iconClassName = 'h-4 w-4';
 
 const navIcons = {
   home: (
@@ -113,6 +113,11 @@ const Dashboard = () => {
     }
   }, []);
 
+  useEffect(() => {
+    setCollapsed(true);
+    setHovering(false);
+  }, [location.pathname]);
+
   const performLogout = async () => {
     try {
       await fetch(`${API_BASE_URL}/logout.php`, {
@@ -144,19 +149,19 @@ const Dashboard = () => {
         whileHover={prefersReducedMotion ? undefined : { x: 4, scale: 1.01 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl ${isExpanded ? 'px-4 py-3' : 'justify-center px-0 py-3'} text-left text-sm font-bold transition ${
-          isActive ? activeClassName : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
+        className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${
+          isActive ? activeClassName : 'text-blue-100 hover:bg-white/15 hover:text-white'
         }`}
         title={!isExpanded ? label : undefined}
       >
         {isActive && (
           <motion.span
             layoutId={layoutId}
-            className="absolute inset-0 rounded-2xl bg-blue-600"
+            className="absolute inset-0 rounded-xl bg-white/90 shadow-sm"
             transition={navSpring}
           />
         )}
-        <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-current/10 bg-white/15">
+        <span className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${isActive ? 'bg-blue-500 text-white' : 'bg-white/20'}`}>
           {icon}
           {badge && !isExpanded && (
             <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
@@ -171,7 +176,7 @@ const Dashboard = () => {
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.2 }}
-              className="relative z-10 block flex-1 whitespace-nowrap leading-tight overflow-hidden"
+              className="relative z-10 block flex-1 leading-tight"
             >
               {label}
               {badge && (
@@ -197,19 +202,19 @@ const Dashboard = () => {
         whileHover={prefersReducedMotion ? undefined : { x: 4 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className={`relative flex w-full items-center gap-3 overflow-hidden rounded-2xl ${isExpanded ? 'px-4 py-3' : 'justify-center px-0 py-3'} text-left text-sm font-bold transition ${
-          isActive ? 'text-white shadow-lg shadow-blue-100' : 'text-slate-500 hover:bg-white/80 hover:text-blue-600'
+        className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${
+          isActive ? 'text-blue-700 shadow-lg shadow-blue-800/30' : 'text-blue-100 hover:bg-white/15 hover:text-white'
         }`}
         title={!isExpanded ? label : undefined}
       >
         {isActive && (
           <motion.span
             layoutId="teacher-account-active-pill"
-            className="absolute inset-0 rounded-2xl bg-blue-600"
+            className="absolute inset-0 rounded-xl bg-white/90 shadow-sm"
             transition={navSpring}
           />
         )}
-        <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-current/10 bg-white/15">
+        <span className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${isActive ? 'bg-blue-500 text-white' : 'bg-white/20'}`}>
           {icon}
         </span>
         <AnimatePresence>
@@ -219,7 +224,7 @@ const Dashboard = () => {
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.2 }}
-              className="relative z-10 block flex-1 whitespace-nowrap leading-tight overflow-hidden"
+              className="relative z-10 block flex-1 leading-tight"
             >
               {label}
             </motion.span>
@@ -280,9 +285,9 @@ const Dashboard = () => {
           backgroundColor: '#e0edff',
         }}
       >
-        <header className="sticky top-0 z-50 border-b border-white/15 bg-blue-600 text-white shadow-md">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
-            <div className="flex items-center gap-2 sm:gap-3">
+        <header className="sticky top-0 z-50 border-b border-slate-200/50 bg-blue-500 text-white shadow-sm">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-1.5 sm:px-6">
+            <div className="flex items-center gap-1.5">
               <MobileNav
                 actions={sidebarActions.map((a) => ({ label: a.label, icon: a.icon, path: a.path }))}
                 accountActions={[
@@ -293,33 +298,33 @@ const Dashboard = () => {
               />
               <motion.div
                 whileHover={prefersReducedMotion ? undefined : { x: 2 }}
-                className="flex cursor-pointer items-center gap-2 sm:gap-3"
+                className="flex cursor-pointer items-center gap-1.5"
                 onClick={() => navigate('/dashboard')}
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 sm:h-10 sm:w-10 sm:rounded-2xl">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/20">
                   {navIcons.home}
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/80 sm:text-sm">AlgebraAssess</p>
-                  <p className="text-sm font-bold sm:text-lg">{homeLabel}</p>
+                  <p className="text-[8px] uppercase tracking-[0.2em] text-white/70">AlgebraAssess</p>
+                  <p className="text-[11px] font-bold sm:text-xs">{homeLabel}</p>
                 </div>
               </motion.div>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="hidden items-center gap-3 rounded-full border border-white/30 bg-white/5 px-3 py-2 sm:flex sm:px-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-blue-600 sm:h-9 sm:w-9">
+            <div className="flex items-center gap-1.5">
+              <div className="hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2.5 py-1 sm:flex">
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold text-blue-600">
                   {teacherName.charAt(0)}
                 </div>
-                <div className="text-xs sm:text-sm">
-                  <p className="leading-none font-semibold text-white">{teacherName}</p>
-                  <p className="text-[10px] text-white/70 sm:text-xs">Online</p>
+                <div className="text-[10px] leading-tight">
+                  <p className="font-semibold text-white">{teacherName}</p>
+                  <p className="text-white/60">Online</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(true)}
-                className="rounded-full border border-white/30 px-3 py-1.5 text-xs font-semibold transition hover:border-red-500 hover:bg-red-500 sm:px-4 sm:py-2 sm:text-sm"
+                className="rounded-full border border-white/20 px-2.5 py-1 text-[10px] font-semibold transition hover:border-red-400 hover:bg-red-500"
               >
                 Logout
               </button>
@@ -327,25 +332,27 @@ const Dashboard = () => {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="relative flex gap-6 overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+        <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div
+            className="flex overflow-hidden rounded-[2rem] border border-slate-100 bg-slate-50 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)]"
+            style={{ height: 'calc(100vh - 68px)' }}
+          >
+            {/* Sidebar - inside the main panel */}
             <aside
               className="hidden shrink-0 transition-all duration-300 lg:block"
-              style={{ width: isExpanded ? 260 : 80 }}
+              style={{ width: isExpanded ? 220 : 72 }}
               onMouseEnter={() => collapsed && setHovering(true)}
               onMouseLeave={() => collapsed && setHovering(false)}
             >
-              <motion.div
-                layout
-                transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] }}
-                className="scrollbar-hidden sticky top-24 flex flex-col overflow-y-auto rounded-[2rem] border border-slate-100 bg-white py-6 shadow-lg"
-                style={{ height: 'calc(100vh - 120px)', padding: isExpanded ? undefined : '24px 12px' }}
+              <div
+                className="teacher-scrollbar flex h-full flex-col overflow-y-auto py-4"
+                style={{ background: 'linear-gradient(180deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)', padding: isExpanded ? '16px 12px' : '16px 10px' }}
               >
-                <div className="mb-4 flex justify-end px-2">
+                <div className="mb-3 flex justify-end">
                   <button
                     type="button"
                     onClick={() => setCollapsed(!collapsed)}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-200 transition hover:bg-white/20 hover:text-white"
                     title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                   >
                     {collapsed ? navIcons.expand : navIcons.collapse}
@@ -354,57 +361,46 @@ const Dashboard = () => {
 
                 <div className="flex-1">
                   {isExpanded && (
-                    <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                      Quick Actions
+                    <p className="mb-3 ml-2 text-[9px] font-bold uppercase tracking-widest text-blue-200">
+                      Menu
                     </p>
                   )}
-                  <nav className="space-y-1">
+                  <nav className="space-y-0.5">
                     {sidebarActions.map((action) =>
                       renderNavButton({
                         ...action,
                         layoutId: 'teacher-sidebar-active-pill',
-                        activeClassName: 'text-white shadow-lg shadow-blue-100',
+                        activeClassName: 'text-blue-700 shadow-lg shadow-blue-800/30',
                       })
                     )}
                   </nav>
                 </div>
 
-                <div className="border-t border-slate-100 pt-6">
+                <div className="border-t border-white/20 pt-4">
                   {isExpanded && (
-                    <p className="mb-4 ml-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    <p className="mb-3 ml-2 text-[9px] font-bold uppercase tracking-widest text-blue-200">
                       Account
                     </p>
                   )}
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {renderAccountButton({ label: 'Profile', icon: navIcons.profile, path: profilePath })}
                     {renderAccountButton({ label: 'Settings', icon: navIcons.settings, path: settingsPath })}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </aside>
 
-            <section className="min-w-0 flex-1 overflow-hidden">
-              <motion.div
-                layout
-                transition={{
-                  layout: {
-                    duration: prefersReducedMotion ? 0 : 0.24,
-                    ease: [0.22, 1, 0.36, 1],
-                  },
-                }}
-                className="overflow-hidden rounded-[2rem] border border-[#d9dfeb] bg-[#eef2f7] p-1 shadow-[0_24px_70px_rgba(59,130,246,0.08)]"
-                style={{ height: 'calc(100vh - 120px)' }}
+            {/* Content area - inside the same panel */}
+            <div className="min-w-0 flex-1 overflow-hidden rounded-r-[2rem] bg-slate-100/80">
+              <div
+                className={`h-full ${
+                  usesLargePanelScroll ? 'teacher-scrollbar overflow-y-auto' : 'overflow-hidden'
+                }`}
+                style={usesLargePanelScroll ? { scrollbarGutter: 'stable' } : undefined}
               >
-                <div
-                  className={`h-full rounded-[1.8rem] bg-[#f5f7fb] ${
-                    usesLargePanelScroll ? 'teacher-scrollbar overflow-y-auto' : 'overflow-hidden'
-                  }`}
-                  style={usesLargePanelScroll ? { scrollbarGutter: 'stable' } : undefined}
-                >
-                  <Outlet context={{ teacherName }} />
-                </div>
-              </motion.div>
-            </section>
+                <Outlet context={{ teacherName }} />
+              </div>
+            </div>
           </div>
         </main>
       </div>

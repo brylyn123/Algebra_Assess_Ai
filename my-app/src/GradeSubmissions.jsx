@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 
@@ -155,6 +156,13 @@ const GradeSubmissions = () => {
   const [pageMessage, setPageMessage] = useState('');
   const [manualOcrText, setManualOcrText] = useState('');
   const [ocrFailed, setOcrFailed] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.exerciseId) {
+      setSelectedAssessment(String(location.state.exerciseId));
+    }
+  }, [location.state]);
 
   useEffect(() => {
     let isMounted = true;
@@ -832,8 +840,8 @@ const GradeSubmissions = () => {
   }, [batchSubmissionIds, submissions]);
 
   return (
-    <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
-      <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col gap-5 pb-6">
+    <div className="h-full min-h-0 overflow-hidden px-4 py-3 md:px-6 md:py-4">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col gap-4">
         <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="teacher-eyebrow">Grading</p>
@@ -862,8 +870,8 @@ const GradeSubmissions = () => {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden lg:flex-row">
-          <div className="flex min-w-0 flex-col gap-4 lg:w-[360px] lg:shrink-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
+          <div className="flex min-w-0 flex-col gap-3 lg:w-[340px] lg:shrink-0">
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
                 Select Assessment
@@ -913,7 +921,7 @@ const GradeSubmissions = () => {
               </div>
               {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
 
-              <div className="scrollbar-hidden min-h-0 flex-1 space-y-2 overflow-y-auto pb-2">
+              <div className="teacher-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pb-2">
                 {visibleSubmissions.length === 0 && !loading && (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 px-5 py-8 text-center">
                     <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
@@ -1043,7 +1051,7 @@ const GradeSubmissions = () => {
                       </div>
                     </div>
                   )}
-                  <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                   <div className="teacher-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
                     {batchCompleted ? (
                       <div className="flex flex-col items-center justify-center py-12 text-center">
                         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">

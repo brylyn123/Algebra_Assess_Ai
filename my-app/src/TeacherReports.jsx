@@ -181,42 +181,42 @@ const TeacherReports = () => {
   }, [activeChart, difficultyOptions]);
 
   return (
-    <div className="px-4 py-4 md:px-6 md:py-5">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-10 pb-10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-2">
+    <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-4 py-3 md:px-6 md:py-4">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
             <p className="teacher-eyebrow">Reports</p>
             <h1 className="teacher-heading">View Reports</h1>
             <p className="text-sm text-slate-500">
               Track grading activity by subject and by assessment once scores are saved from the grading queue.
             </p>
           </div>
-          <div className="teacher-status-pill bg-slate-100 text-slate-700">
+          <div className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
             {loading ? 'Updating...' : 'Report Snapshot Ready'}
           </div>
         </div>
 
         {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
 
-        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {statCards.map((card) => (
-            <div key={card.label} className="teacher-list-card p-6">
-              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${card.accent}`}>
+            <div key={card.label} className="teacher-list-card p-3">
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${card.accent}`}>
                 {card.label}
               </span>
-              <p className="mt-5 text-4xl font-black text-slate-900">{loading ? '...' : card.value}</p>
+              <p className="mt-2 text-2xl font-black text-slate-900">{loading ? '...' : card.value}</p>
             </div>
           ))}
         </div>
 
-        <section className="space-y-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-4">
-              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+        <section className="space-y-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-3">
+              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
                 <button
                   type="button"
                   onClick={() => setActiveChart('subjects')}
-                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     activeChart === 'subjects'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                       : 'text-slate-500 hover:text-slate-900'
@@ -227,7 +227,7 @@ const TeacherReports = () => {
                 <button
                   type="button"
                   onClick={() => setActiveChart('assessments')}
-                  className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     activeChart === 'assessments'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                       : 'text-slate-500 hover:text-slate-900'
@@ -238,10 +238,10 @@ const TeacherReports = () => {
               </div>
 
               <div>
-                <p className="text-xl font-semibold text-slate-900">
+                <p className="text-base font-semibold text-slate-900">
                   {activeChart === 'subjects' ? 'Subject Performance' : 'Assessment Performance'}
                 </p>
-                <p className="text-sm text-slate-500">
+                <p className="text-xs text-slate-500">
                   {activeChart === 'subjects'
                     ? 'Average score and grading progress per subject.'
                     : 'Average score and grading progress for each assessment.'}
@@ -249,38 +249,38 @@ const TeacherReports = () => {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:w-[420px]">
-              <div className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible</p>
-                <p className="mt-2 text-2xl font-black text-slate-900">{chartSummary.visibleCount}</p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:w-[380px]">
+              <div className="rounded-[1.15rem] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible</p>
+                <p className="mt-1 text-xl font-black text-slate-900">{chartSummary.visibleCount}</p>
               </div>
-              <div className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible Avg</p>
-                <p className="mt-2 text-2xl font-black text-blue-700">{chartSummary.average}</p>
+              <div className="rounded-[1.15rem] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible Avg</p>
+                <p className="mt-1 text-xl font-black text-blue-700">{chartSummary.average}</p>
               </div>
-              <div className="rounded-[1.35rem] border border-emerald-200 bg-emerald-50/80 px-4 py-3 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-700">Top</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{topPerformer?.label ?? 'No scored data yet'}</p>
+              <div className="rounded-[1.15rem] border border-emerald-200 bg-emerald-50/80 px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Top</p>
+                <p className="mt-1 text-xs font-semibold text-slate-900">{topPerformer?.label ?? 'No scored data yet'}</p>
               </div>
-              <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50/80 px-4 py-3 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-amber-700">Needs Attention</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{needsAttention?.label ?? 'No scored data yet'}</p>
+              <div className="rounded-[1.15rem] border border-amber-200 bg-amber-50/80 px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-amber-700">Needs Attention</p>
+                <p className="mt-1 text-xs font-semibold text-slate-900">{needsAttention?.label ?? 'No scored data yet'}</p>
               </div>
             </div>
           </div>
 
           {activeChart === 'assessments' && (
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Difficulty</p>
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Difficulty</p>
+              <div className="flex flex-wrap gap-1">
                 {difficultyOptions.map((difficulty) => (
                   <button
                     key={difficulty}
                     type="button"
                     onClick={() => setSelectedDifficulty(difficulty)}
-                    className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                    className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${
                       selectedDifficulty === difficulty
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
                         : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
                     }`}
                   >
@@ -291,8 +291,8 @@ const TeacherReports = () => {
             </div>
           )}
 
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-            <div className="hidden grid-cols-[180px,minmax(0,1fr)] gap-4 border-b border-slate-100 px-2 pb-3 text-[11px] font-semibold text-slate-400 md:grid">
+          <div className="rounded-[1.15rem] border border-slate-200 bg-white px-3 py-3 shadow-sm">
+            <div className="hidden grid-cols-[160px,minmax(0,1fr)] gap-4 border-b border-slate-100 px-2 pb-2 text-[10px] font-semibold text-slate-400 md:grid">
               <div />
               <div className="grid grid-cols-5">
                 <span className="text-left">0</span>
@@ -303,63 +303,58 @@ const TeacherReports = () => {
               </div>
             </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <div className="min-w-[760px] space-y-4 pb-6">
+            <div className="mt-3 overflow-x-auto">
+              <div className="min-w-[600px] space-y-3 pb-4">
                 {!loading && activeChartData.length === 0 ? (
-                  <div className="rounded-[1.3rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  <div className="rounded-[1rem] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                     No {activeChart} report data yet.
                   </div>
                 ) : (
-                  (activeChart === 'assessments' ? visibleAssessmentGroups : [{ difficulty: '', entries: activeChartData }]).map((group) => (
-                    <div key={group.difficulty || 'all'} className="space-y-4">
-                      {group.entries.map((entry) => {
-                        const score = clampScore(entry.score);
-                        return (
-                          <div key={entry.id} className="grid gap-2 rounded-[1.25rem] border border-slate-100 bg-slate-50/70 p-3 md:grid-cols-[180px,minmax(0,1fr)] md:gap-4">
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-sky-500">
-                                {entry.typeLabel}
-                              </p>
-                              <p className="mt-1 text-[0.96rem] font-bold leading-snug text-slate-900">
-                                {entry.label}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {entry.submissionsText}
-                              </p>
-                              {entry.subtitle && (
-                                <p className="mt-1 text-xs text-slate-400">
-                                  {entry.subtitle}
-                                </p>
-                              )}
-                            </div>
+                    (activeChart === 'assessments' ? visibleAssessmentGroups : [{ difficulty: '', entries: activeChartData }]).map((group) => (
+                        <div key={group.difficulty || 'all'} className="space-y-2">
+                          {group.entries.map((entry) => {
+                            const score = clampScore(entry.score);
+                            return (
+                              <div key={entry.id} className="grid gap-2 rounded-[1rem] border border-slate-100 bg-slate-50/70 p-2.5 md:grid-cols-[160px,minmax(0,1fr)] md:gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-sky-500">
+                                    {entry.typeLabel}
+                                  </p>
+                                  <p className="mt-0.5 text-sm font-bold leading-snug text-slate-900">
+                                    {entry.label}
+                                  </p>
+                                  <p className="text-xs text-slate-500">
+                                    {entry.submissionsText}
+                                  </p>
+                                </div>
 
-                            <div className="space-y-2.5">
-                              <div className="h-10 overflow-hidden rounded-[1rem] bg-slate-100">
-                                <div
-                                  className="flex h-full min-w-[5rem] items-center rounded-[1rem] bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-3 shadow-[0_12px_22px_rgba(59,130,246,0.2)]"
-                                  style={{ width: `${score}%` }}
-                                >
-                                  <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-800 shadow-sm">
-                                    {entry.scoreText}
-                                  </span>
+                                <div className="space-y-2">
+                                  <div className="h-8 overflow-hidden rounded-[0.85rem] bg-slate-100">
+                                    <div
+                                      className="flex h-full min-w-[4rem] items-center rounded-[0.85rem] bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-2.5 shadow-[0_8px_16px_rgba(59,130,246,0.15)]"
+                                      style={{ width: `${score}%` }}
+                                    >
+                                      <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-800 shadow-sm">
+                                        {entry.scoreText}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-1">
+                                    {entry.metaPills.map((pill) => (
+                                      <span
+                                        key={`${entry.id}-${pill}`}
+                                        className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600"
+                                      >
+                                        {pill}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
-
-                              <div className="flex flex-wrap gap-1.5">
-                                {entry.metaPills.map((pill) => (
-                                  <span
-                                    key={`${entry.id}-${pill}`}
-                                    className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm"
-                                  >
-                                    {pill}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                            );
+                          })}
+                        </div>
                   ))
                 )}
 

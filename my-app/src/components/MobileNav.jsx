@@ -40,14 +40,15 @@ export default function MobileNav({ actions = [], accountActions = [], label = '
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-              className="fixed inset-y-0 left-0 z-[9999] w-[280px] bg-white p-6 shadow-2xl lg:hidden"
+              className="fixed inset-y-0 left-0 z-[9999] w-[280px] p-6 shadow-2xl lg:hidden"
+              style={{ background: 'linear-gradient(180deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)' }}
             >
               <div className="mb-6 flex items-center justify-between">
-                <p className="text-sm font-bold uppercase tracking-widest text-slate-400">{label}</p>
+                <p className="text-sm font-bold uppercase tracking-widest text-blue-200">{label}</p>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-blue-200 transition hover:bg-white/20 hover:text-white"
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
                     <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
@@ -65,24 +66,27 @@ export default function MobileNav({ actions = [], accountActions = [], label = '
                       key={action.label}
                       type="button"
                       onClick={() => handleNav(action.path)}
-                      className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                          className={`relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
                         isActive
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                          : 'text-slate-500 hover:bg-slate-50 hover:text-blue-600'
+                          ? 'text-blue-700 shadow-lg shadow-blue-800/30'
+                          : 'text-blue-100 hover:bg-white/15 hover:text-white'
                       }`}
                     >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs">
+                      {isActive && (
+                        <span className="absolute inset-0 rounded-xl bg-white/90 shadow-sm" />
+                      )}
+                      <span className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-lg text-[10px] ${isActive ? 'bg-blue-500 text-white' : 'bg-white/20'}`}>
                         {action.icon}
                       </span>
-                      <span>{action.label}</span>
+                      <span className="relative z-10">{action.label}</span>
                     </button>
                   );
                 })}
               </nav>
 
               {accountActions.length > 0 && (
-                <div className="mt-6 border-t border-slate-100 pt-6">
-                  <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Account</p>
+                <div className="mt-6 border-t border-white/20 pt-6">
+                  <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-blue-200">Account</p>
                   <div className="space-y-1">
                     {accountActions.map((action) => {
                       const isActive = location.pathname === action.path;
@@ -91,16 +95,19 @@ export default function MobileNav({ actions = [], accountActions = [], label = '
                           key={action.label}
                           type="button"
                           onClick={() => handleNav(action.path)}
-                          className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                      className={`relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
                             isActive
-                              ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                              : 'text-slate-500 hover:bg-slate-50 hover:text-blue-600'
+                              ? 'text-blue-700 shadow-lg shadow-blue-800/30'
+                              : 'text-blue-100 hover:bg-white/15 hover:text-white'
                           }`}
                         >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-current/10 bg-white/15 text-xs">
+                          {isActive && (
+                            <span className="absolute inset-0 rounded-xl bg-white/90 shadow-sm" />
+                          )}
+                          <span className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-lg text-[10px] ${isActive ? 'bg-blue-500 text-white' : 'bg-white/20'}`}>
                             {action.icon}
                           </span>
-                          <span>{action.label}</span>
+                          <span className="relative z-10">{action.label}</span>
                         </button>
                       );
                     })}
