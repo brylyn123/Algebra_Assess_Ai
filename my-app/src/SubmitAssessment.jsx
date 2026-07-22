@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import { apiFetch } from './fetchClient';
+import Select from './components/Select';
 
 const formatDateTime = (value) => {
   if (!value) return 'Not submitted yet';
@@ -191,9 +193,8 @@ const SubmitAssessment = () => {
         formData.append('files[]', file);
       });
 
-      const response = await fetch(`${API_BASE_URL}/submit_assessment.php`, {
+      const response = await apiFetch('/submit_assessment.php', {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
       const payload = await response.json();
@@ -208,10 +209,10 @@ const SubmitAssessment = () => {
         current.map((assessment) =>
           assessment.exercise_id === selectedAssessment.exercise_id
             ? {
-                ...assessment,
-                already_submitted: true,
-                latest_submission_at: new Date().toISOString(),
-              }
+              ...assessment,
+              already_submitted: true,
+              latest_submission_at: new Date().toISOString(),
+            }
             : assessment
         )
       );
@@ -240,39 +241,35 @@ const SubmitAssessment = () => {
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
                   Subject
                 </label>
-                <select
+                <Select
                   value={selectedSubject}
                   onChange={(event) => setSelectedSubject(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  placeholder="Select a subject"
                 >
                   {subjectOptions.map((subject) => (
                     <option key={subject.value} value={subject.value}>
                       {subject.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
                   Assessment
                 </label>
-                <select
+                <Select
                   value={selectedAssessmentId}
                   onChange={(event) => setSelectedAssessmentId(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   disabled={filteredAssessments.length === 0}
+                  placeholder={filteredAssessments.length === 0 ? 'No assessments available' : 'Select an assessment'}
                 >
-                  {filteredAssessments.length === 0 ? (
-                    <option value="">No assessments available</option>
-                  ) : (
-                    filteredAssessments.map((assessment) => (
-                      <option key={assessment.exercise_id} value={assessment.exercise_id}>
-                        {assessment.title}
-                      </option>
-                    ))
-                  )}
-                </select>
+                  {filteredAssessments.map((assessment) => (
+                    <option key={assessment.exercise_id} value={assessment.exercise_id}>
+                      {assessment.title}
+                    </option>
+                  ))}
+                </Select>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">

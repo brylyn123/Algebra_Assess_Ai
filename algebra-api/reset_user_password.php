@@ -9,6 +9,7 @@ ensureUserAccountStatusSchema($conn);
 
 $authUser = requireAuthenticatedUser();
 $authRole = strtolower((string)($authUser['role'] ?? ''));
+validateCsrfToken();
 
 if (!in_array($authRole, ['teacher', 'admin'], true)) {
     http_response_code(403);

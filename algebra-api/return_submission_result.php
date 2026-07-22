@@ -6,6 +6,7 @@ require_once 'schema_utils.php';
 $data = json_decode(file_get_contents("php://input"), true);
 
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $solution_id = isset($data['solution_id']) ? intval($data['solution_id']) : null;
 

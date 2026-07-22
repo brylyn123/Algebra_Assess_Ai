@@ -1,6 +1,6 @@
 <?php
 require_once 'auth.php';
-include 'db_connect.php';
+require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 function ensureArchivedColumn($conn) {
@@ -46,8 +46,9 @@ try {
     $result = $stmt->get_result();
     
     $subjects = $result->fetch_all(MYSQLI_ASSOC);
-    echo json_encode($subjects);
+    echo json_encode(['status' => 'success', 'data' => $subjects]);
 } catch (Exception $e) {
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "Unable to load subjects."]);
 }
 ?>

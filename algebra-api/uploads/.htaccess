@@ -1,0 +1,16 @@
+# Block PHP execution in uploads directory
+<FilesMatch "\.php$">
+    Deny from all
+</FilesMatch>
+<FilesMatch "\.php5$">
+    Deny from all
+</FilesMatch>
+<FilesMatch "\.phtml$">
+    Deny from all
+</FilesMatch>
+<FilesMatch "\.pht$">
+    Deny from all
+</FilesMatch>
+<FilesMatch "\.phps$">
+    Deny from all
+</FilesMatch>

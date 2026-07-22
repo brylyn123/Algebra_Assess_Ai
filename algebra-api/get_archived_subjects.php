@@ -43,10 +43,11 @@ try {
     $stmt->execute();
     $result = $stmt->get_result();
     $archived = $result->fetch_all(MYSQLI_ASSOC);
-    echo json_encode($archived);
+    echo json_encode(['status' => 'success', 'data' => $archived]);
     $stmt->close();
 } catch (Exception $e) {
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "Unable to load archived subjects."]);
 }
 
 $conn->close();

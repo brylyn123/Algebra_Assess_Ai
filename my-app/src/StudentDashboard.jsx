@@ -11,6 +11,7 @@ import {
 import { Skeleton, SkeletonWelcome, SkeletonStatRow, SkeletonSection } from './components/Skeleton';
 import { getSubjectCardTheme } from './subjectCardThemes';
 import { API_BASE_URL } from './apiBase';
+import { apiFetch } from './fetchClient';
 import MobileNav from './components/MobileNav';
 
 const iconClassName = 'h-4 w-4';
@@ -206,9 +207,8 @@ const StudentDashboard = () => {
     setEnrollSuccess(false);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/enroll_subject.php`, {
+      const response = await apiFetch('/enroll_subject.php', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ student_id: studentId, join_code: enrollCode.trim() }),
       });
@@ -240,9 +240,8 @@ const StudentDashboard = () => {
 
   const performLogout = async () => {
     try {
-      await fetch(`${API_BASE_URL}/logout.php`, {
+      await apiFetch('/logout.php', {
         method: 'POST',
-        credentials: 'include',
       });
     } catch (error) {
       console.error('Logout request failed:', error);
@@ -494,11 +493,10 @@ const StudentDashboard = () => {
                               type="button"
                               onClick={() => navigate(action.path)}
                               title={!isExpanded ? action.label : undefined}
-                              className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${
-                                isActive
-                                  ? 'text-blue-700 shadow-lg shadow-blue-800/30'
-                                  : 'text-blue-100 hover:bg-white/15 hover:text-white'
-                              }`}
+                              className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${isActive
+                                ? 'text-blue-700 shadow-lg shadow-blue-800/30'
+                                : 'text-blue-100 hover:bg-white/15 hover:text-white'
+                                }`}
                             >
                               {isActive && (
                                 <span className="absolute inset-0 rounded-xl bg-white/90 shadow-sm" />
@@ -570,112 +568,112 @@ export const StudentOverview = () => {
           <SkeletonSection rows={3} />
         </>
       ) : (
-      <>
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-4 text-white shadow-lg shadow-purple-500/20">
-        <div className="relative z-10">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-100">Welcome back</p>
-          <h1 className="mt-0.5 text-lg font-bold">Student!</h1>
-          <p className="mt-1 max-w-md text-xs text-purple-100">
-            Check your pending assessments and track your progress.
-          </p>
-          <button
-            onClick={() => navigate('/student/subjects')}
-            className="mt-2 rounded-full bg-white px-3 py-1.5 text-[10px] font-semibold text-purple-600 shadow-md transition hover:shadow-lg"
-          >
-            View My Subjects →
-          </button>
-        </div>
-        <div className="absolute right-4 top-4 text-5xl opacity-20">🎓</div>
-      </div>
-
-      {/* Stats Row */}
-      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
-        <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Overview</p>
-        <div className="grid grid-cols-3 gap-2">
-          {stats.map((stat) => (
-            <div
-              key={stat.key}
-              className="flex items-center gap-2 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
-            >
-              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-sm text-white shadow-sm`}>
-                {stat.icon}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
-                <p className="text-base font-bold text-slate-900">{dashboardStats[stat.key] ?? '-'}</p>
-              </div>
+        <>
+          {/* Welcome Banner */}
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-4 text-white shadow-lg shadow-purple-500/20">
+            <div className="relative z-10">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-100">Welcome back</p>
+              <h1 className="mt-0.5 text-lg font-bold">Student!</h1>
+              <p className="mt-1 max-w-md text-xs text-purple-100">
+                Check your pending assessments and track your progress.
+              </p>
+              <button
+                onClick={() => navigate('/student/subjects')}
+                className="mt-2 rounded-full bg-white px-3 py-1.5 text-[10px] font-semibold text-purple-600 shadow-md transition hover:shadow-lg"
+              >
+                View My Subjects →
+              </button>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="absolute right-4 top-4 text-5xl opacity-20">🎓</div>
+          </div>
 
-      {/* Pending Assessments */}
-      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
-        <div className="flex items-center justify-between">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Pending Assessments</p>
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
-            {dashboardStats.pendingAssessments ?? 0} pending
-          </span>
-        </div>
-        <div className="mt-2 space-y-1.5">
-          {loadingAssessments ? (
-            <div className="space-y-1.5">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5">
-                  <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
-                  <div className="flex-1">
-                    <Skeleton className="mb-1 h-3 w-3/4 rounded-md" />
-                    <Skeleton className="h-2.5 w-1/2 rounded-full" />
+          {/* Stats Row */}
+          <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+            <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Overview</p>
+            <div className="grid grid-cols-3 gap-2">
+              {stats.map((stat) => (
+                <div
+                  key={stat.key}
+                  className="flex items-center gap-2 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                >
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-sm text-white shadow-sm`}>
+                    {stat.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
+                    <p className="text-base font-bold text-slate-900">{dashboardStats[stat.key] ?? '-'}</p>
                   </div>
                 </div>
               ))}
             </div>
-          ) : assessmentsError ? (
-            <p className="text-[11px] text-rose-600">{assessmentsError}</p>
-          ) : pendingAssessments.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
-              <p className="text-[11px] text-slate-500">No assessments for now</p>
-              <p className="mt-0.5 text-[9px] text-slate-400">All works caught up!</p>
+          </div>
+
+          {/* Pending Assessments */}
+          <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Pending Assessments</p>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
+                {dashboardStats.pendingAssessments ?? 0} pending
+              </span>
             </div>
-          ) : (
-            pendingAssessments.slice(0, 3).map((assessment) => (
-              <div
-                key={assessment.exercise_id}
-                className="flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
-              >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-[10px] font-bold text-white">
-                  {(assessment.subject_name || 'A').charAt(0)}
+            <div className="mt-2 space-y-1.5">
+              {loadingAssessments ? (
+                <div className="space-y-1.5">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5">
+                      <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+                      <div className="flex-1">
+                        <Skeleton className="mb-1 h-3 w-3/4 rounded-md" />
+                        <Skeleton className="h-2.5 w-1/2 rounded-full" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-slate-900">{assessment.title}</p>
-                  <p className="text-[10px] text-slate-500">
-                    {assessment.difficulty || 'Medium'} · {assessment.item_count ?? 0} items
-                  </p>
+              ) : assessmentsError ? (
+                <p className="text-[11px] text-rose-600">{assessmentsError}</p>
+              ) : pendingAssessments.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
+                  <p className="text-[11px] text-slate-500">No assessments for now</p>
+                  <p className="mt-0.5 text-[9px] text-slate-400">All works caught up!</p>
                 </div>
-                {assessment.due_date && (() => {
-                  const now = new Date();
-                  const due = new Date(assessment.due_date);
-                  if (Number.isNaN(due.getTime())) return null;
-                  const diffMs = due.getTime() - now.getTime();
-                  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                  let cls = 'bg-blue-50 text-blue-600';
-                  let label = `${diffDays}d left`;
-                  if (diffDays < 0) { cls = 'bg-red-50 text-red-600'; label = 'Overdue'; }
-                  else if (diffDays === 0) { cls = 'bg-amber-50 text-amber-600'; label = 'Today'; }
-                  else if (diffDays <= 3) { cls = 'bg-orange-50 text-orange-600'; }
-                  return (
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
-                      {label}
-                    </span>
-                  );
-                })()}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-      </>
+              ) : (
+                pendingAssessments.slice(0, 3).map((assessment) => (
+                  <div
+                    key={assessment.exercise_id}
+                    className="flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-[10px] font-bold text-white">
+                      {(assessment.subject_name || 'A').charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-slate-900">{assessment.title}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {assessment.difficulty || 'Medium'} · {assessment.item_count ?? 0} items
+                      </p>
+                    </div>
+                    {assessment.due_date && (() => {
+                      const now = new Date();
+                      const due = new Date(assessment.due_date);
+                      if (Number.isNaN(due.getTime())) return null;
+                      const diffMs = due.getTime() - now.getTime();
+                      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                      let cls = 'bg-blue-50 text-blue-600';
+                      let label = `${diffDays}d left`;
+                      if (diffDays < 0) { cls = 'bg-red-50 text-red-600'; label = 'Overdue'; }
+                      else if (diffDays === 0) { cls = 'bg-amber-50 text-amber-600'; label = 'Today'; }
+                      else if (diffDays <= 3) { cls = 'bg-orange-50 text-orange-600'; }
+                      return (
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
+                          {label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -693,14 +691,14 @@ export const StudentSubjects = () => {
     loadingAssessments = false,
     assessmentsError = '',
     enrollCode = '',
-    setEnrollCode = () => {},
+    setEnrollCode = () => { },
     enrollLoading = false,
     enrollMessage = '',
     enrollSuccess = false,
-    setEnrollSuccess = () => {},
+    setEnrollSuccess = () => { },
     showJoinCard = true,
-    setShowJoinCard = () => {},
-    handleEnroll = () => {},
+    setShowJoinCard = () => { },
+    handleEnroll = () => { },
   } = useOutletContext() ?? {};
   const currentEmail = getCurrentLocalUserEmail();
   const currentUser = currentEmail ? findLocalUser(currentEmail) : null;
@@ -830,9 +828,8 @@ export const StudentSubjects = () => {
         formData.append('files[]', file);
       });
 
-      const response = await fetch(`${API_BASE_URL}/submit_assessment.php`, {
+      const response = await apiFetch('/submit_assessment.php', {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
       const payload = await response.json();
@@ -847,11 +844,11 @@ export const StudentSubjects = () => {
         current.map((assessment) =>
           assessment.exercise_id === selectedAssessment.exercise_id
             ? {
-                ...assessment,
-                already_submitted: true,
-                submission_status: 'Pending Review',
-                latest_submission_at: new Date().toISOString(),
-              }
+              ...assessment,
+              already_submitted: true,
+              submission_status: 'Pending Review',
+              latest_submission_at: new Date().toISOString(),
+            }
             : assessment
         )
       );
@@ -873,115 +870,115 @@ export const StudentSubjects = () => {
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
       {!isSubjectAssessmentPage && (
-      <section className="mb-2 space-y-2">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-col gap-1">
-            <p className={sectionHeaderEyebrowClass}>
-              Subjects
-            </p>
-            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.85rem]">
-              My Subjects
-            </h1>
-            <p className="max-w-2xl text-xs leading-6 text-slate-500">
-              Keep track of your enrolled classes, revisit archived subjects, and join a new subject with your teacher's code.
-            </p>
+        <section className="mb-2 space-y-2">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-1">
+              <p className={sectionHeaderEyebrowClass}>
+                Subjects
+              </p>
+              <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.85rem]">
+                My Subjects
+              </h1>
+              <p className="max-w-2xl text-xs leading-6 text-slate-500">
+                Keep track of your enrolled classes, revisit archived subjects, and join a new subject with your teacher's code.
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
       )}
 
       {!isSubjectAssessmentPage && (
-      <section className="space-y-2">
-        {showJoinCard ? (
-        <div className="rounded-[1.25rem] border border-slate-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]">
-          {enrollSuccess && enrollMessage ? (
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-                <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-emerald-800">Subject Joined!</p>
-                <p className="mt-0.5 text-xs text-emerald-600">{enrollMessage}</p>
-              </div>
+        <section className="space-y-2">
+          {showJoinCard ? (
+            <div className="rounded-[1.25rem] border border-slate-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]">
+              {enrollSuccess && enrollMessage ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                    <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-emerald-800">Subject Joined!</p>
+                    <p className="mt-0.5 text-xs text-emerald-600">{enrollMessage}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEnrollMessage('');
+                      setEnrollSuccess(false);
+                      setShowJoinCard(false);
+                    }}
+                    className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Join Subject</p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">Enter the class code from your teacher to add a subject.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowJoinCard(false)}
+                      className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <form onSubmit={handleEnroll} className="flex w-full gap-2">
+                    <input
+                      value={enrollCode}
+                      onChange={(event) => {
+                        setEnrollCode(event.target.value);
+                        if (enrollMessage) {
+                          setEnrollMessage('');
+                          setEnrollSuccess(false);
+                        }
+                      }}
+                      placeholder="Paste join code"
+                      className="teacher-input h-9 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={enrollLoading}
+                      className="teacher-primary-btn h-9 whitespace-nowrap rounded-xl px-4 text-xs font-semibold disabled:cursor-wait disabled:bg-blue-300"
+                    >
+                      {enrollLoading ? 'Joining...' : 'Join'}
+                    </button>
+                  </form>
+                  {enrollMessage && !enrollSuccess && (
+                    <p className="text-[11px] font-medium text-rose-600">{enrollMessage}</p>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            <div>
               <button
                 type="button"
                 onClick={() => {
+                  setShowJoinCard(true);
                   setEnrollMessage('');
                   setEnrollSuccess(false);
-                  setShowJoinCard(false);
                 }}
-                className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
+                Join Subject
               </button>
             </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Join Subject</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Enter the class code from your teacher to add a subject.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowJoinCard(false)}
-                  className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <form onSubmit={handleEnroll} className="flex w-full gap-2">
-                <input
-                  value={enrollCode}
-                  onChange={(event) => {
-                    setEnrollCode(event.target.value);
-                    if (enrollMessage) {
-                      setEnrollMessage('');
-                      setEnrollSuccess(false);
-                    }
-                  }}
-                  placeholder="Paste join code"
-                  className="teacher-input h-9 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-                />
-                <button
-                  type="submit"
-                  disabled={enrollLoading}
-                  className="teacher-primary-btn h-9 whitespace-nowrap rounded-xl px-4 text-xs font-semibold disabled:cursor-wait disabled:bg-blue-300"
-                >
-                  {enrollLoading ? 'Joining...' : 'Join'}
-                </button>
-              </form>
-              {enrollMessage && !enrollSuccess && (
-                <p className="text-[11px] font-medium text-rose-600">{enrollMessage}</p>
-              )}
-            </>
           )}
-        </div>
-        ) : (
-        <div>
-          <button
-            type="button"
-            onClick={() => {
-              setShowJoinCard(true);
-              setEnrollMessage('');
-              setEnrollSuccess(false);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Join Subject
-          </button>
-        </div>
-        )}
-      </section>
+        </section>
       )}
 
       <section className="flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
@@ -998,22 +995,20 @@ export const StudentSubjects = () => {
                 <button
                   type="button"
                   onClick={() => setShowArchivedSubjects(false)}
-                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${
-                    !showArchivedSubjects
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${!showArchivedSubjects
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
                   Active
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowArchivedSubjects(true)}
-                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${
-                    showArchivedSubjects
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${showArchivedSubjects
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
                   Archived ({archivedSubjects.length})
                 </button>
@@ -1021,87 +1016,85 @@ export const StudentSubjects = () => {
             </div>
 
             <div className="teacher-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto pr-2 pb-4 sm:grid-cols-2 lg:grid-cols-3">
-            {loadingSubjects ? (
-              <p className="text-sm text-slate-500">Loading subjects...</p>
-            ) : subjectsError ? (
-              <p className="text-sm text-rose-600">{subjectsError}</p>
-            ) : visibleSubjects.length === 0 ? (
-              <div className="col-span-full rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-                <p className="text-sm font-semibold text-slate-900">
-                  {showArchivedSubjects ? 'No archived subjects yet' : 'No subjects yet'}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {showArchivedSubjects
-                    ? 'Archived subjects will appear here once one of your enrolled classes is archived by your teacher.'
-                    : 'Use the join subject form above to unlock your classes.'}
-                </p>
-              </div>
-            ) : (
-              visibleSubjects.map((subject) => {
-                const assessmentCount = assessmentCountBySubject.get(String(subject.subject_id)) ?? 0;
-                const subjectTheme = getSubjectCardTheme(subject);
-                return (
-                  <button
-                    key={subject.subject_id}
-                    type="button"
-                    onClick={() => {
-                      if (!showArchivedSubjects) {
-                        navigate(`/student/subjects/${subject.subject_id}`);
-                      }
-                    }}
-                    className={`group relative flex flex-col overflow-hidden rounded-[0.85rem] border border-slate-200/60 p-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.03),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_1px_2px_rgba(0,0,0,0.05),0_6px_16px_rgba(0,0,0,0.05)] ${subjectTheme.surfaceClass}`}
-                  >
-                    <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${subjectTheme.accentClass}`} />
+              {loadingSubjects ? (
+                <p className="text-sm text-slate-500">Loading subjects...</p>
+              ) : subjectsError ? (
+                <p className="text-sm text-rose-600">{subjectsError}</p>
+              ) : visibleSubjects.length === 0 ? (
+                <div className="col-span-full rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {showArchivedSubjects ? 'No archived subjects yet' : 'No subjects yet'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {showArchivedSubjects
+                      ? 'Archived subjects will appear here once one of your enrolled classes is archived by your teacher.'
+                      : 'Use the join subject form above to unlock your classes.'}
+                  </p>
+                </div>
+              ) : (
+                visibleSubjects.map((subject) => {
+                  const assessmentCount = assessmentCountBySubject.get(String(subject.subject_id)) ?? 0;
+                  const subjectTheme = getSubjectCardTheme(subject);
+                  return (
+                    <button
+                      key={subject.subject_id}
+                      type="button"
+                      onClick={() => {
+                        if (!showArchivedSubjects) {
+                          navigate(`/student/subjects/${subject.subject_id}`);
+                        }
+                      }}
+                      className={`group relative flex flex-col overflow-hidden rounded-[0.85rem] border border-slate-200/60 p-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.03),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_1px_2px_rgba(0,0,0,0.05),0_6px_16px_rgba(0,0,0,0.05)] ${subjectTheme.surfaceClass}`}
+                    >
+                      <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${subjectTheme.accentClass}`} />
 
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                          {subject.subject_code || 'Subject'}
-                        </p>
-                        <p className="mt-1 truncate text-sm font-bold text-slate-900">{subject.subject_name}</p>
-                        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
-                          {subject.course || 'Course'} • {subject.year || 'Year'} • {subject.section_name || subject.section || 'Section'}
-                        </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                            {subject.subject_code || 'Subject'}
+                          </p>
+                          <p className="mt-1 truncate text-sm font-bold text-slate-900">{subject.subject_name}</p>
+                          <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
+                            {subject.course || 'Course'} • {subject.year || 'Year'} • {subject.section_name || subject.section || 'Section'}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${showArchivedSubjects ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                            {showArchivedSubjects ? 'Archived' : 'Active'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex shrink-0 flex-col items-end gap-1.5">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${
-                          showArchivedSubjects ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          {showArchivedSubjects ? 'Archived' : 'Active'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold shadow-sm ${
-                        showArchivedSubjects
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold shadow-sm ${showArchivedSubjects
                           ? 'border-amber-200 bg-amber-50 text-amber-700'
                           : 'border-blue-200 bg-white text-blue-700'
-                      }`}>
-                        {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'}
-                      </span>
-                      {subject.school_year && (
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
-                          {subject.school_year}
+                          }`}>
+                          {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'}
                         </span>
-                      )}
-                      {subject.semester && (
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
-                          {subject.semester}
-                        </span>
-                      )}
-                    </div>
+                        {subject.school_year && (
+                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
+                            {subject.school_year}
+                          </span>
+                        )}
+                        {subject.semester && (
+                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
+                            {subject.semester}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="mt-auto pt-2">
-                      <span className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200/60 bg-slate-50 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500 transition group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:text-blue-600">
-                        {showArchivedSubjects ? 'View Subject' : 'Open Assessments'}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
-            )}
+                      <div className="mt-auto pt-2">
+                        <span className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200/60 bg-slate-50 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500 transition group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:text-blue-600">
+                          {showArchivedSubjects ? 'View Subject' : 'Open Assessments'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </>
         )}
@@ -1163,11 +1156,10 @@ export const StudentSubjects = () => {
                         <div
                           key={assessment.exercise_id}
                           onClick={() => setSelectedAssessmentId(String(assessment.exercise_id))}
-                          className={`relative overflow-hidden rounded-[0.85rem] border px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_4px_14px_rgba(0,0,0,0.05)] ${
-                            isSelected
-                              ? `${subjectTheme.surfaceClass} border-blue-300 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(59,130,246,0.1)]`
-                              : `${subjectTheme.surfaceClass} border-slate-100`
-                          }`}
+                          className={`relative overflow-hidden rounded-[0.85rem] border px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_4px_14px_rgba(0,0,0,0.05)] ${isSelected
+                            ? `${subjectTheme.surfaceClass} border-blue-300 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(59,130,246,0.1)]`
+                            : `${subjectTheme.surfaceClass} border-slate-100`
+                            }`}
                         >
                           <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${subjectTheme.accentClass}`} />
                           <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
@@ -1245,7 +1237,7 @@ export const StudentSubjects = () => {
                             <span>Items: {selectedAssessment.item_count ?? 0}</span>
                           </div>
                         </div>
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${selectedAssessment.already_submitted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                             {selectedAssessment.already_submitted ? 'Submitted' : 'Pending'}
                           </span>
@@ -1332,7 +1324,7 @@ export const StudentSubjects = () => {
                             <button
                               type="button"
                               onClick={openFilePicker}
-                            className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
+                              className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
                             >
                               Upload Photos
                             </button>

@@ -1,4 +1,11 @@
 <?php
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'This script can only be run from the command line.']);
+    exit();
+}
+
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 require_once __DIR__ . '/db_connect.php';

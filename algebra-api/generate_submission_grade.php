@@ -53,6 +53,7 @@ function extractSubmissionFilesForOcr(array $rawPayload, $fallbackPath = null) {
 $data = json_decode(file_get_contents('php://input'), true);
 
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $solution_id = isset($data['solution_id']) ? (int)$data['solution_id'] : 0;
 $ocrTextOverride = isset($data['ocr_text_override']) ? trim((string)$data['ocr_text_override']) : '';

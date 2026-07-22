@@ -144,6 +144,8 @@ CREATE TABLE Exercises_Problem (
     description TEXT,
     topic VARCHAR(100),
     difficulty ENUM('Easy', 'Medium', 'Hard') DEFAULT 'Medium',
+    due_date DATETIME NULL,
+    is_published TINYINT(1) DEFAULT 1,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_exercises_problem_subject FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
@@ -235,3 +237,22 @@ CREATE TABLE Scores (
     UNIQUE KEY uq_scores_solution (solution_id),
     FOREIGN KEY (solution_id) REFERENCES Captured_Solution(solution_id)
 ) ENGINE=InnoDB;
+
+-- 8. Performance Indexes
+CREATE INDEX idx_users_role_id ON Users(role_id);
+CREATE INDEX idx_users_account_status ON Users(account_status);
+CREATE INDEX idx_users_college_id ON Users(college_id);
+CREATE INDEX idx_users_course_id ON Users(course_id);
+CREATE INDEX idx_subject_teacher_user_id ON Subject(teacher_user_id);
+CREATE INDEX idx_subject_school_year_id ON Subject(school_year_id);
+CREATE INDEX idx_subject_semester_id ON Subject(semester_id);
+CREATE INDEX idx_enrollment_subject_id ON Enrollment(subject_id);
+CREATE INDEX idx_enrollment_student_user_id ON Enrollment(student_user_id);
+CREATE INDEX idx_exercises_problem_subject_id ON Exercises_Problem(subject_id);
+CREATE INDEX idx_exercise_items_exercise_id ON Exercise_Items(exercise_id);
+CREATE INDEX idx_captured_solution_student_user_id ON Captured_Solution(student_user_id);
+CREATE INDEX idx_captured_solution_exercise_id ON Captured_Solution(exercise_id);
+CREATE INDEX idx_captured_solution_ai_status ON Captured_Solution(ai_status);
+CREATE INDEX idx_item_scores_solution_id ON Item_Scores(solution_id);
+CREATE INDEX idx_item_scores_item_id ON Item_Scores(item_id);
+CREATE INDEX idx_scores_returned_at ON Scores(returned_at);

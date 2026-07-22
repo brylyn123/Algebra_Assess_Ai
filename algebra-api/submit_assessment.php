@@ -5,6 +5,7 @@ require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 $authUser = requireAuthenticatedUser('student');
+validateCsrfToken();
 $student_id = (int)$authUser['user_id'];
 $exercise_id = isset($_POST['exercise_id']) ? intval($_POST['exercise_id']) : null;
 
@@ -43,7 +44,7 @@ try {
     }
 
     $uploadRoot = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'captured_solutions';
-    if (!is_dir($uploadRoot) && !mkdir($uploadRoot, 0777, true) && !is_dir($uploadRoot)) {
+    if (!is_dir($uploadRoot) && !mkdir($uploadRoot, 0755, true) && !is_dir($uploadRoot)) {
         throw new Exception('Unable to create the upload directory.');
     }
 
@@ -73,6 +74,18 @@ try {
         $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
         if (!in_array($extension, $allowed, true)) {
             throw new Exception('Only JPG, JPEG, PNG, and PDF files are allowed.');
+        }
+
+        $allowedMimeTypes = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'pdf' => 'application/pdf',
+        ];
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($tmpName);
+        if ($mimeType !== $allowedMimeTypes[$extension]) {
+            throw new Exception('File type does not match its content. Only image and PDF files are allowed.');
         }
 
         $safeName = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($originalName));

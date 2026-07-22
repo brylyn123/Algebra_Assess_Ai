@@ -37,6 +37,7 @@ $extractItemScores = static function (array $payload): array {
 };
 
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $solution_id = isset($data['solution_id']) ? intval($data['solution_id']) : null;
 $ai_generation = isset($data['ai_generation']) && is_array($data['ai_generation']) ? $data['ai_generation'] : [];

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import Select from './components/Select';
 
 const getDisplayName = (user) => {
   if (!user) return 'Student';
@@ -179,9 +180,9 @@ const StudentReports = () => {
     const averageScore =
       scoredRecords.length > 0
         ? Math.round(
-            scoredRecords.reduce((total, record) => total + Number(record.score || 0), 0) /
-              scoredRecords.length
-          )
+          scoredRecords.reduce((total, record) => total + Number(record.score || 0), 0) /
+          scoredRecords.length
+        )
         : null;
 
     return {
@@ -250,17 +251,17 @@ const StudentReports = () => {
         <>
           <section className="space-y-2">
             <p className="text-xs uppercase tracking-[0.35em] text-slate-400">Filter by Subject</p>
-            <select
+            <Select
               value={selectedSubjectId}
               onChange={(event) => setSelectedSubjectId(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="All subjects"
             >
               {subjectOptions.map((subject) => (
                 <option key={subject.value} value={subject.value}>
                   {subject.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-slate-400">
               {subjectOptions.length} subject{subjectOptions.length === 1 ? '' : 's'} available
             </p>
@@ -294,9 +295,8 @@ const StudentReports = () => {
                       key={record.score_id}
                       type="button"
                       onClick={() => openDetailsModal(record)}
-                      className={`relative w-full overflow-hidden rounded-[1.6rem] border border-slate-900/10 bg-slate-100/70 p-4 text-left shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${
-                        isActive ? 'border-blue-300 bg-blue-50' : ''
-                      }`}
+                      className={`relative w-full overflow-hidden rounded-[1.6rem] border border-slate-900/10 bg-slate-100/70 p-4 text-left shadow-[0_14px_32px_rgba(148,163,184,0.14)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_36px_rgba(148,163,184,0.18)] ${isActive ? 'border-blue-300 bg-blue-50' : ''
+                        }`}
                       variants={resultVariants}
                       initial="hidden"
                       animate="visible"

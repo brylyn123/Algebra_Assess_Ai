@@ -8,15 +8,36 @@ function startApiSession(): void
     }
 
     session_name('ALGEBRA_ASSESS_SESSION');
+    $isProduction = !in_array($_SERVER['SERVER_NAME'] ?? '', ['localhost', '127.0.0.1', ''], true);
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
         'domain' => '',
-        'secure' => false,
+        'secure' => $isProduction,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
     session_start();
+}
+
+function generateCsrfToken(): string
+{
+    startApiSession();
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function validateCsrfToken(): void
+{
+    startApiSession();
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
+    if (empty($token) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid or missing CSRF token.']);
+        exit();
+    }
 }
 
 function setAuthenticatedUser(array $user): void

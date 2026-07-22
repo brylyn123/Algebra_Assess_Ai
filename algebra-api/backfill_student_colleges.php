@@ -1,5 +1,6 @@
 <?php
 require_once 'cors.php';
+require_once 'auth.php';
 
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'CLI';
 
@@ -7,6 +8,9 @@ if ($requestMethod === 'OPTIONS') {
     http_response_code(204);
     exit();
 }
+
+$authUser = requireAuthenticatedUser('admin');
+validateCsrfToken();
 
 require_once 'db_connect.php';
 require_once 'schema_utils.php';

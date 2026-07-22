@@ -1,15 +1,15 @@
 # Node and frontend build output
-/node_modules/
-/my-app/node_modules/
-/my-app/dist/
-/my-app/build/
+node_modules/
+my-app/node_modules/
+my-app/dist/
+my-app/build/
 
 # Environment and local config
 .env
 .env.*
-/algebra-api/.env
-/algebra-api/db_config.local.php
-/algebra-api/ai_secrets.local.php
+algebra-api/.env
+algebra-api/db_config.local.php
+algebra-api/ai_secrets.local.php
 
 # Logs and scratch
 npm-debug.log*
@@ -17,6 +17,8 @@ yarn-debug.log*
 yarn-error.log*
 error_log
 access_log
+cookies.txt
+algebra-api/cookies.txt
 
 # IDE and OS files
 .vscode/
@@ -29,8 +31,15 @@ Thumbs.db
 *.sln
 *.swp
 
-# Database dumps
+# Database dumps and backups
 *.sql
 *.sqlite
 *.db
 backups/
+
+# Test and debug files (remove before production)
+algebra-api/test_*.php
+algebra-api/sample.txt
+algebra-api/test.txt
+settings.json
+phpinfo.php

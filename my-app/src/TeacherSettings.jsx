@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import Select from './components/Select';
 
 const TeacherSettings = () => {
   const currentEmail = getCurrentLocalUserEmail();
@@ -149,16 +150,15 @@ const TeacherSettings = () => {
           </div>
           <div className="space-y-2">
             <label className="block text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Time zone</label>
-            <select
+            <Select
               value={timeZone}
               onChange={(e) => setTimeZone(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700"
             >
               <option>Asia/Manila</option>
               <option>Asia/Singapore</option>
               <option>America/New_York</option>
               <option>UTC</option>
-            </select>
+            </Select>
             {workflowToggles.map((toggle) => (
               <div
                 key={toggle.key}

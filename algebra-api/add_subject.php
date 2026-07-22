@@ -1,6 +1,6 @@
 <?php
 require_once 'auth.php';
-include 'db_connect.php'; // Your XAMPP config
+require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 function ensureArchivedColumn($conn) {
@@ -31,6 +31,7 @@ $sectionId    = isset($data['section_id']) ? intval($data['section_id']) : 0;
 $school_year  = $data['school_year'] ?? '';
 $semester     = $data['semester'] ?? '';
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id   = (int)$authUser['user_id'];
 $join_code    = trim($data['join_code'] ?? '');
 
@@ -172,12 +173,14 @@ try {
                 "semester" => $semester
             ]); 
     } else {
-        echo json_encode(["status" => "error", "message" => "Database error: " . $stmt->error]);
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => "Unable to add subject."]);
     }
 
     $stmt->close();
 } catch (Exception $e) {
-    echo json_encode(["status" => "error", "message" => "Server error: " . $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "Unable to add subject."]);
 }
 
 $conn->close();

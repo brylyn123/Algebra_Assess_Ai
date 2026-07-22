@@ -28,6 +28,7 @@ import SubjectDetails from './SubjectDetails';
 import RequireAuth from './RequireAuth';
 import ErrorBoundary from './components/ErrorBoundary';
 import NotFound from './components/NotFound';
+import ResetPassword from './ResetPassword';
 import { ToastProvider } from './components/Toast';
 import 'mathlive';
 
@@ -42,64 +43,65 @@ function AnimatedRoutes() {
     <div className="page-stage">
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
-        <Route path="/" element={withTransition(<Landing />)} />
-        <Route path="/login" element={withTransition(<Login />)} />
-        <Route path="/signup" element={withTransition(<Signup />)} />
-        <Route
-          path="/dashboard"
-          element={
-            <RequireAuth allowedRoles={['teacher', 'admin']}>
-              <Dashboard />
-            </RequireAuth>
-          }
-        >
-          <Route index element={withTransition(<DashboardHome />)} />
-          <Route path="subjects" element={withTransition(<ManageSubjects />)} />
-          <Route path="catalog" element={withTransition(<AdminCatalog />)} />
-          <Route path="subjects/:id" element={<SubjectDetails />} />
-          <Route path="profile" element={withTransition(<TeacherProfile />)} />
-          <Route path="settings" element={withTransition(<TeacherSettings />)} />
-        </Route>
-        <Route
-          path="/teacher"
-          element={
-            <RequireAuth allowedRoles={['teacher']}>
-              <TeacherDashboard />
-            </RequireAuth>
-          }
-        >
-          <Route index element={withTransition(<TeacherOverview />)} />
-          <Route path="assessments">
-            <Route index element={withTransition(<ManageAssessments />)} />
-            <Route path="view" element={withTransition(<ViewAssessmentsPage />)} />
-            <Route path="new" element={withTransition(<NewAssessment />)} />
-            <Route path="new-rubric" element={withTransition(<NewRubric />)} />
+          <Route path="/" element={withTransition(<Landing />)} />
+          <Route path="/login" element={withTransition(<Login />)} />
+          <Route path="/signup" element={withTransition(<Signup />)} />
+          <Route path="/reset-password" element={withTransition(<ResetPassword />)} />
+          <Route
+            path="/dashboard"
+            element={
+              <RequireAuth allowedRoles={['teacher', 'admin']}>
+                <Dashboard />
+              </RequireAuth>
+            }
+          >
+            <Route index element={withTransition(<DashboardHome />)} />
+            <Route path="subjects" element={withTransition(<ManageSubjects />)} />
+            <Route path="catalog" element={withTransition(<AdminCatalog />)} />
+            <Route path="subjects/:id" element={<SubjectDetails />} />
+            <Route path="profile" element={withTransition(<TeacherProfile />)} />
+            <Route path="settings" element={withTransition(<TeacherSettings />)} />
           </Route>
-          <Route path="grade-submissions" element={withTransition(<GradeSubmissions />)} />
-          <Route path="feedback" element={withTransition(<TeacherFeedback />)} />
-          <Route path="reports" element={withTransition(<TeacherReports />)} />
-          <Route path="profile" element={withTransition(<TeacherProfile />)} />
-          <Route path="settings" element={withTransition(<TeacherSettings />)} />
-        </Route>
-        <Route
-          path="/student"
-          element={
-            <RequireAuth allowedRoles={['student']}>
-              <StudentDashboard />
-            </RequireAuth>
-          }
-        >
-          <Route index element={withTransition(<StudentOverview />)} />
-          <Route path="subjects" element={withTransition(<StudentSubjects />)} />
-          <Route path="subjects/:id" element={withTransition(<StudentSubjects />)} />
-          <Route path="submit" element={withTransition(<SubmitAssessment />)} />
-          <Route path="reports" element={withTransition(<StudentReports />)} />
-          <Route path="profile" element={withTransition(<StudentProfile />)} />
-        </Route>
-        <Route path="*" element={withTransition(<NotFound />)} />
-      </Routes>
-    </AnimatePresence>
-  </div>
+          <Route
+            path="/teacher"
+            element={
+              <RequireAuth allowedRoles={['teacher']}>
+                <TeacherDashboard />
+              </RequireAuth>
+            }
+          >
+            <Route index element={withTransition(<TeacherOverview />)} />
+            <Route path="assessments">
+              <Route index element={withTransition(<ManageAssessments />)} />
+              <Route path="view" element={withTransition(<ViewAssessmentsPage />)} />
+              <Route path="new" element={withTransition(<NewAssessment />)} />
+              <Route path="new-rubric" element={withTransition(<NewRubric />)} />
+            </Route>
+            <Route path="grade-submissions" element={withTransition(<GradeSubmissions />)} />
+            <Route path="feedback" element={withTransition(<TeacherFeedback />)} />
+            <Route path="reports" element={withTransition(<TeacherReports />)} />
+            <Route path="profile" element={withTransition(<TeacherProfile />)} />
+            <Route path="settings" element={withTransition(<TeacherSettings />)} />
+          </Route>
+          <Route
+            path="/student"
+            element={
+              <RequireAuth allowedRoles={['student']}>
+                <StudentDashboard />
+              </RequireAuth>
+            }
+          >
+            <Route index element={withTransition(<StudentOverview />)} />
+            <Route path="subjects" element={withTransition(<StudentSubjects />)} />
+            <Route path="subjects/:id" element={withTransition(<StudentSubjects />)} />
+            <Route path="submit" element={withTransition(<SubmitAssessment />)} />
+            <Route path="reports" element={withTransition(<StudentReports />)} />
+            <Route path="profile" element={withTransition(<StudentProfile />)} />
+          </Route>
+          <Route path="*" element={withTransition(<NotFound />)} />
+        </Routes>
+      </AnimatePresence>
+    </div>
   );
 }
 

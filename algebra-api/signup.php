@@ -12,17 +12,51 @@ if (!$data) {
 }
 
 // Extract variables from the React payload
-$firstName  = $data['firstName'] ?? '';
-$middleName = $data['middleName'] ?? '';
-$lastName   = $data['lastName'] ?? '';
-$email      = $data['email'] ?? '';
-$password = password_hash($data['password'] ?? '', PASSWORD_BCRYPT); // In production, use password_hash()
-$role       = $data['role'] ?? '';
-$idNumber   = $data['idNumber'] ?? '';
+$firstName  = trim($data['firstName'] ?? '');
+$middleName = trim($data['middleName'] ?? '');
+$lastName   = trim($data['lastName'] ?? '');
+$email      = trim($data['email'] ?? '');
+$password   = $data['password'] ?? '';
+$role       = strtolower(trim($data['role'] ?? ''));
+$idNumber   = trim($data['idNumber'] ?? '');
 $collegeIdFromPayload = isset($data['collegeId']) ? intval($data['collegeId']) : 0;
 $courseId   = isset($data['courseId']) ? intval($data['courseId']) : 0;
 $sectionId  = isset($data['sectionId']) ? intval($data['sectionId']) : 0;
 $yearId     = isset($data['yearId']) ? intval($data['yearId']) : 0;
+
+// Input validation
+$errors = [];
+if ($firstName === '' || mb_strlen($firstName) > 100) {
+    $errors[] = "First name is required and must be under 100 characters.";
+}
+if ($lastName === '' || mb_strlen($lastName) > 100) {
+    $errors[] = "Last name is required and must be under 100 characters.";
+}
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $errors[] = "A valid email address is required.";
+}
+if (mb_strlen($email) > 255) {
+    $errors[] = "Email must be under 255 characters.";
+}
+if (mb_strlen($password) < 8) {
+    $errors[] = "Password must be at least 8 characters.";
+}
+if (mb_strlen($password) > 128) {
+    $errors[] = "Password must be under 128 characters.";
+}
+if (!in_array($role, ['teacher', 'student'], true)) {
+    $errors[] = "Invalid role selected.";
+}
+if ($idNumber !== '' && mb_strlen($idNumber) > 50) {
+    $errors[] = "ID number must be under 50 characters.";
+}
+if (!empty($errors)) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => implode(" ", $errors)]);
+    exit();
+}
+
+$password = password_hash($password, PASSWORD_BCRYPT);
 
 // 4. Start Database Transaction
 $conn->begin_transaction();
@@ -256,7 +290,8 @@ try {
 
 } catch (Exception $e) {
     $conn->rollback();
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "Unable to create account. Please try again."]);
 }
 
 $conn->close();

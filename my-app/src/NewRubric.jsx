@@ -5,6 +5,7 @@ import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { useToast } from './components/Toast';
+import Select from './components/Select';
 
 const NEW_RUBRIC_STORAGE_KEY = 'teacher:new-rubric-created';
 
@@ -80,7 +81,7 @@ const NewRubric = () => {
         }
         const controller = new AbortController();
         axios
-            .get(`${API_BASE_URL}/get_rubric_sets.php`, {
+            .get('/get_rubric_sets.php', {
                 params: { teacher_id: teacherId },
                 signal: controller.signal,
             })
@@ -106,10 +107,10 @@ const NewRubric = () => {
         setRubricItems(
             Array.isArray(source.items)
                 ? source.items.map((item, index) => ({
-                      description: item.description ?? '',
-                      points: Number(item.points ?? 0),
-                      id: `${item.description ?? 'item'}-${index}`,
-                  }))
+                    description: item.description ?? '',
+                    points: Number(item.points ?? 0),
+                    id: `${item.description ?? 'item'}-${index}`,
+                }))
                 : []
         );
         setAiInstructions(source.ai_instructions ?? '');
@@ -262,6 +263,18 @@ const NewRubric = () => {
             toast.warning('Please fill out all rubric fields.');
             return;
         }
+        if (newRubric.name.length > 255) {
+            toast.warning('Rubric name must be under 255 characters.');
+            return;
+        }
+        if (newRubric.criteria.length > 5000) {
+            toast.warning('Criteria must be under 5000 characters.');
+            return;
+        }
+        if (aiInstructions.length > 5000) {
+            toast.warning('AI instructions must be under 5000 characters.');
+            return;
+        }
         if (rubricItems.length === 0) {
             toast.warning('Please add at least one rubric item with max points.');
             return;
@@ -293,7 +306,7 @@ const NewRubric = () => {
                 successText = `Rubric updated! Name: ${newRubric.name}\nCriteria: ${newRubric.criteria}`;
             }
 
-            const response = await axios.post(`${API_BASE_URL}/${endpoint}`, payload, {
+            const response = await axios.post(`/${endpoint}`, payload, {
                 headers: { 'Content-Type': 'application/json' },
             });
             if (response.data?.status !== 'success') {
@@ -337,34 +350,41 @@ const NewRubric = () => {
 
     return createPortal(
         <div className="fixed inset-0 z-[1000] flex items-center justify-center overflow-hidden bg-slate-950/55 px-4 py-6 backdrop-blur-md md:px-6 md:py-8">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(191,219,254,0.22),transparent_38%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.22),transparent_38%)]" />
             <div className="pointer-events-none absolute inset-0 bg-white/10" />
             <div className="relative w-full max-w-[920px]">
-            <div className="teacher-float-card mx-auto overflow-hidden rounded-[2.25rem] border-white/70 bg-white/95 shadow-[0_30px_90px_rgba(59,130,246,0.2)] backdrop-blur-xl">
-                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 md:px-8">
-                    <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Create</p>
-                        <h2 className="text-xl font-bold text-slate-900">Create a New Rubric</h2>
-                        <p className="text-sm text-slate-500">Build the rubric here, then save it without leaving the page.</p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => navigate(location.state?.returnToAssessment ? '/teacher/assessments/new' : '/teacher/assessments')}
-                        className="text-sm font-semibold text-slate-500 transition hover:text-slate-900"
-                    >
-                        Cancel
-                    </button>
-                </div>
-                <div className="teacher-scrollbar max-h-[calc(100vh-12rem)] overflow-y-auto px-6 py-6 md:px-8 md:py-8">
-                    <form onSubmit={handleAddRubric} className="space-y-6">
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-slate-400">
-                            <span>Guided Flow</span>
-                            <span>
-                                Step {currentStep + 1} of {RUBRIC_STEPS.length}
-                            </span>
+                <div className="mx-auto overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-[0_30px_90px_rgba(16,185,129,0.2)] backdrop-blur-xl">
+                    {/* Header with gradient */}
+                    <div className="relative bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-600 px-6 py-5 md:px-8">
+                        <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20">
+                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
+                                            <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-white">{isEditing ? 'Edit Rubric' : 'Create Rubric'}</h2>
+                                        <p className="text-sm text-emerald-100/80">Build grading criteria with point levels and AI instructions.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => navigate(location.state?.returnToAssessment ? '/teacher/assessments/new' : '/teacher/assessments')}
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/15 hover:text-white"
+                            >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                                </svg>
+                            </button>
                         </div>
-                        <div className="flex gap-2 overflow-x-auto">
+                    </div>
+
+                    {/* Step indicator */}
+                    <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-3 md:px-8">
+                        <div className="flex gap-2">
                             {RUBRIC_STEPS.map((step, index) => {
                                 const active = index === currentStep;
                                 const completed = index < currentStep;
@@ -373,17 +393,15 @@ const NewRubric = () => {
                                         key={step.id}
                                         type="button"
                                         onClick={() => setCurrentStep(index)}
-                                        className={`flex-1 min-w-[140px] rounded-2xl border px-3 py-2 text-left transition ${active ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                                        className={`flex-1 rounded-xl border px-3 py-2 text-left transition ${active ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                                     >
                                         <div className="flex items-center gap-2">
-                                            <span
-                                                className={`h-6 w-6 flex items-center justify-center rounded-full text-[10px] font-semibold ${active ? 'bg-blue-600 text-white' : completed ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}
-                                            >
+                                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${active ? 'bg-emerald-600 text-white' : completed ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                                 {completed ? '✓' : index + 1}
                                             </span>
-                                            <div>
-                                                <p className={`text-sm font-semibold ${active ? 'text-slate-900' : 'text-slate-500'}`}>{step.label}</p>
-                                                <p className="text-[10px] text-slate-400">{step.description}</p>
+                                            <div className="min-w-0">
+                                                <p className={`text-xs font-semibold ${active ? 'text-slate-900' : 'text-slate-500'}`}>{step.label}</p>
+                                                <p className="text-[9px] text-slate-400 hidden sm:block">{step.description}</p>
                                             </div>
                                         </div>
                                     </button>
@@ -392,307 +410,251 @@ const NewRubric = () => {
                         </div>
                     </div>
 
-                    {currentStep === 0 && (
-                        <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="space-y-3">
-                                <label className="text-xs uppercase tracking-[0.3em] text-slate-400">Templates</label>
-                                <select
-                                    value={selectedTemplateId}
-                                    onChange={handleTemplateChange}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition"
-                                >
-                                    <option value="">Start from scratch</option>
-                                    {availableRubrics.map((rubric) => (
-                                        <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
-                                            {rubric.rubric_name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-slate-400">
-                                    Pick a saved rubric to clone its structure, then tweak the items or instructions.
-                                </p>
-                                {selectedTemplatePreview && (
-                                    <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
-                                                    Template Preview
-                                                </p>
-                                                <p className="mt-1 text-sm font-semibold text-slate-900">
-                                                    {selectedTemplatePreview.rubric_name}
-                                                </p>
-                                            </div>
-                                            <span className="rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
-                                                {Array.isArray(selectedTemplatePreview.items)
-                                                    ? `${selectedTemplatePreview.items.length} item(s)`
-                                                    : '0 item(s)'}
-                                            </span>
-                                        </div>
+                    <div className="max-h-[calc(100vh-14rem)] overflow-y-auto px-6 py-6 md:px-8 md:py-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+                        <form onSubmit={handleAddRubric} className="space-y-5">
+                            {currentStep === 0 && (
+                                <div className="space-y-4">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Templates</p>
+                                        <Select
+                                            value={selectedTemplateId}
+                                            onChange={handleTemplateChange}
+                                            placeholder="Start from scratch"
+                                        >
+                                            {availableRubrics.map((rubric) => (
+                                                <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
+                                                    {rubric.rubric_name}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                        <p className="mt-1 text-[10px] text-slate-400">Pick a saved rubric to clone its structure.</p>
 
-                                        {selectedTemplatePreview.criteria && (
-                                            <div className="mt-3">
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
-                                                    Criteria
-                                                </p>
-                                                <p className="mt-1 text-sm text-slate-600">
-                                                    {selectedTemplatePreview.criteria}
-                                                </p>
+                                        {selectedTemplatePreview && (
+                                            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/80 p-3">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-600">Template Preview</p>
+                                                <p className="mt-1 text-sm font-semibold text-slate-900">{selectedTemplatePreview.rubric_name}</p>
+                                                {selectedTemplatePreview.criteria && (
+                                                    <p className="mt-1 text-xs text-slate-600">{selectedTemplatePreview.criteria}</p>
+                                                )}
                                             </div>
                                         )}
-
-                                        {selectedTemplatePreview.ai_instructions && (
-                                            <div className="mt-3 rounded-xl border border-white/80 bg-white/90 px-3 py-3">
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-600">
-                                                    AI Instructions
-                                                </p>
-                                                <p className="mt-1 text-sm text-slate-600">
-                                                    {selectedTemplatePreview.ai_instructions}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {Array.isArray(selectedTemplatePreview.level_definitions) &&
-                                            selectedTemplatePreview.level_definitions.length > 0 && (
-                                                <div className="mt-3">
-                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
-                                                        Point Levels
-                                                    </p>
-                                                    <div className="mt-2 flex flex-wrap gap-2">
-                                                        {selectedTemplatePreview.level_definitions.map((level, index) => (
-                                                            <span
-                                                                key={`${selectedTemplatePreview.rubric_set_id}-preview-level-${index}`}
-                                                                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
-                                                            >
-                                                                {`${String(level?.label ?? '').trim() || 'Level'} - ${Number(level?.points ?? 0)} pts`}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
                                     </div>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">Rubric Name</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={newRubric.name}
-                                    onChange={handleRubricChange}
-                                    placeholder="e.g., Standard Quiz Rubric"
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                />
-                            </div>
-                        </div>
-                    )}
 
-                    {currentStep === 1 && (
-                        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-slate-900">Grading Style</p>
-                                <span className="text-[11px] text-slate-500 uppercase tracking-[0.3em]">Step 2</span>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">Grading Instructions for AI</label>
-                                <textarea
-                                    value={aiInstructions}
-                                    onChange={(e) => setAiInstructions(e.target.value)}
-                                    placeholder="Hints for the AI grader (e.g., be understanding on neatness but strict on sequence of operations)."
-                                    rows={3}
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                />
-                            </div>
-                            <p className="text-xs text-slate-400">
-                                Your notes here guide the AI on how to interpret student work, so mention what matters most in your algebra class.
-                            </p>
-                        </div>
-                    )}
-
-                    {currentStep === 2 && (
-                        <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-semibold text-slate-900">Point Levels</p>
-                                    <p className="text-xs text-slate-400">Create mastery tiers so the AI can score consistently from strong to struggling work.</p>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Rubric Name</p>
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            value={newRubric.name}
+                                            onChange={handleRubricChange}
+                                            placeholder="e.g., Standard Quiz Rubric"
+                                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                        />
+                                    </div>
                                 </div>
-                                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                                    {levelDefinitions.length} level(s)
-                                </span>
-                            </div>
-                            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                <table className="min-w-full text-left text-sm text-slate-600">
-                                    <thead className="text-[10px] uppercase tracking-[0.4em] text-slate-400">
-                                        <tr>
-                                            <th className="px-4 py-3 font-semibold">Level</th>
-                                            <th className="px-4 py-3 font-semibold">Points</th>
-                                            <th className="px-4 py-3 font-semibold text-right">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {levelDefinitions.map((level, index) => (
-                                            <tr key={`${level.label}-${index}`}>
-                                                <td className="px-4 py-3 font-semibold text-slate-900">{level.label}</td>
-                                                <td className="px-4 py-3">{level.points}</td>
-                                                <td className="px-4 py-3 text-right">
+                            )}
+
+                            {currentStep === 1 && (
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Grading Instructions</p>
+                                    <textarea
+                                        value={aiInstructions}
+                                        onChange={(e) => setAiInstructions(e.target.value)}
+                                        placeholder="Hints for the AI grader (e.g., be understanding on neatness but strict on sequence of operations)."
+                                        rows={4}
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                    />
+                                    <p className="mt-1 text-[10px] text-slate-400">Your notes guide the AI on how to interpret student work.</p>
+                                </div>
+                            )}
+
+                            {currentStep === 2 && (
+                                <div className="space-y-4">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Point Levels</p>
+                                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">{levelDefinitions.length} levels</span>
+                                        </div>
+                                        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                            <table className="min-w-full text-left text-sm text-slate-600">
+                                                <thead className="text-[9px] uppercase tracking-[0.3em] text-slate-400">
+                                                    <tr>
+                                                        <th className="px-3 py-2 font-semibold">Level</th>
+                                                        <th className="px-3 py-2 font-semibold">Points</th>
+                                                        <th className="px-3 py-2 font-semibold text-right">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {levelDefinitions.map((level, index) => (
+                                                        <tr key={`${level.label}-${index}`}>
+                                                            <td className="px-3 py-2 text-xs font-semibold text-slate-900">{level.label}</td>
+                                                            <td className="px-3 py-2 text-xs">{level.points}</td>
+                                                            <td className="px-3 py-2 text-right">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveLevelDefinition(index)}
+                                                                    className="text-[9px] font-semibold uppercase tracking-[0.2em] text-rose-600 hover:text-rose-700"
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Add New Level</p>
+                                        <div className="grid gap-2 md:grid-cols-[2fr,1fr,auto]">
+                                            <input
+                                                type="text"
+                                                value={levelLabelEntry}
+                                                onChange={(event) => setLevelLabelEntry(event.target.value)}
+                                                placeholder="Level label (e.g., Exceeds Expectations)"
+                                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                            />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={levelPointsEntry}
+                                                onChange={(event) => setLevelPointsEntry(event.target.value)}
+                                                placeholder="Points"
+                                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddLevelDefinition}
+                                                className="shrink-0 rounded-full bg-emerald-600 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white shadow hover:bg-emerald-700 transition"
+                                            >
+                                                + Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {currentStep === 3 && (
+                                <div className="space-y-4">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Criteria</p>
+                                            <button
+                                                type="button"
+                                                onClick={loadMathTemplate}
+                                                className="text-[9px] font-semibold uppercase tracking-[0.2em] text-emerald-600 hover:text-emerald-800"
+                                            >
+                                                Load Math Template
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            name="criteria"
+                                            value={newRubric.criteria}
+                                            onChange={handleRubricChange}
+                                            placeholder="Describe grading criteria here..."
+                                            rows={3}
+                                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                        />
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Add Criterion</p>
+                                        <div className="grid gap-2 md:grid-cols-2">
+                                            <input
+                                                type="text"
+                                                value={itemDescription}
+                                                onChange={(e) => setItemDescription(e.target.value)}
+                                                placeholder="Criterion description"
+                                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                            />
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={itemPoints}
+                                                    onChange={(e) => setItemPoints(e.target.value)}
+                                                    placeholder="Max points"
+                                                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAddRubricItem}
+                                                    className="shrink-0 rounded-full bg-emerald-600 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white shadow hover:bg-emerald-700 transition"
+                                                >
+                                                    + Add
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2">
+                                        <span className="text-xs text-slate-600">Total points</span>
+                                        <span className="text-sm font-bold text-slate-900">{totalPoints} pts</span>
+                                    </div>
+
+                                    {rubricItems.length > 0 && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Added Criteria</p>
+                                            {rubricItems.map((item, index) => (
+                                                <div
+                                                    key={item.id ?? `${item.description}-${index}`}
+                                                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:shadow-sm"
+                                                >
+                                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[10px] font-bold text-emerald-700">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="truncate text-sm font-medium text-slate-700">{item.description}</p>
+                                                        <p className="text-[10px] text-slate-400">{item.points} pts</p>
+                                                    </div>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleRemoveLevelDefinition(index)}
-                                                        className="text-[10px] font-semibold uppercase tracking-[0.3em] text-rose-600 hover:text-rose-700"
+                                                        onClick={() => handleRemoveRubricItem(index)}
+                                                        className="shrink-0 rounded-lg px-2 py-1 text-[10px] font-semibold text-red-500 transition hover:bg-red-50 hover:text-red-700"
                                                     >
                                                         Remove
                                                     </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div className="grid gap-3 md:grid-cols-[2fr,1fr,auto]">
-                                <input
-                                    type="text"
-                                    value={levelLabelEntry}
-                                    onChange={(event) => setLevelLabelEntry(event.target.value)}
-                                    placeholder="Level label (e.g., Exceeds Expectations)"
-                                    className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 transition"
-                                />
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={levelPointsEntry}
-                                    onChange={(event) => setLevelPointsEntry(event.target.value)}
-                                    placeholder="Points"
-                                    className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 transition"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={handleAddLevelDefinition}
-                                    className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow hover:bg-blue-700 transition"
-                                >
-                                    + Add Level
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                    {currentStep === 3 && (
-                        <div className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-semibold text-slate-900">Criteria & Rubric Items</p>
-                                    <p className="text-xs text-slate-400">Describe the learning targets and how they are scored.</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={loadMathTemplate}
-                                    className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 hover:text-blue-800"
-                                >
-                                    Load Math Template
-                                </button>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">Criteria</label>
-                                <textarea
-                                    name="criteria"
-                                    value={newRubric.criteria}
-                                    onChange={handleRubricChange}
-                                    placeholder="Describe grading criteria here..."
-                                    rows="4"
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                />
-                            </div>
-                            <div className="space-y-3">
-                                <div className="grid gap-3 md:grid-cols-2">
-                                    <input
-                                        type="text"
-                                        value={itemDescription}
-                                        onChange={(e) => setItemDescription(e.target.value)}
-                                        placeholder="Criterion description"
-                                        className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                    />
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={itemPoints}
-                                        onChange={(e) => setItemPoints(e.target.value)}
-                                        placeholder="Max points"
-                                        className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:ring-2 focus:ring-blue-500 transition"
-                                    />
-                                </div>
-                                <div className="text-right">
+                            {/* Navigation */}
+                            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                                {currentStep > 0 ? (
                                     <button
                                         type="button"
-                                        onClick={handleAddRubricItem}
-                                        className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 transition"
+                                        onClick={goToPrevStep}
+                                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
                                     >
-                                        + Add Criterion
+                                        ← Back
                                     </button>
-                                </div>
-                                <div className="flex items-center justify-between text-sm text-slate-600">
-                                    <span>Total points</span>
-                                    <span className="font-semibold text-slate-900">{totalPoints} pts</span>
-                                </div>
-                                {rubricItems.length === 0 ? (
-                                    <p className="text-sm text-slate-500">
-                                        Add criterion rows so the rubric can capture different skills or competencies.
-                                    </p>
                                 ) : (
-                                    <ul className="space-y-2">
-                                        {rubricItems.map((item, index) => (
-                                            <li
-                                                key={item.id ?? `${item.description}-${index}`}
-                                                className="flex items-center justify-between rounded-2xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-700"
-                                            >
-                                                <div>
-                                                    <p className="font-semibold text-slate-900">{item.description}</p>
-                                                    <p className="text-xs text-slate-500">{item.points} pts</p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemoveRubricItem(index)}
-                                                    className="text-[10px] font-semibold uppercase tracking-[0.3em] text-rose-600 hover:text-rose-700"
-                                                >
-                                                    Remove
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <span className="text-[10px] text-slate-400">Start with naming the rubric</span>
+                                )}
+                                {currentStep < RUBRIC_STEPS.length - 1 ? (
+                                    <button
+                                        type="button"
+                                        onClick={goToNextStep}
+                                        className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-200 transition hover:bg-emerald-700 hover:shadow-lg active:scale-[0.97]"
+                                    >
+                                        Continue →
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="submit"
+                                        className="rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-emerald-200/60 transition hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97]"
+                                    >
+                                        {isEditing ? 'Update Rubric' : 'Create Rubric'}
+                                    </button>
                                 )}
                             </div>
-                        </div>
-                    )}
-
-                    <div className="flex items-center justify-between">
-                        {currentStep > 0 ? (
-                            <button
-                                type="button"
-                                onClick={goToPrevStep}
-                                className="rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:border-slate-300"
-                            >
-                                Back to {RUBRIC_STEPS[currentStep - 1]?.label ?? 'previous step'}
-                            </button>
-                        ) : (
-                            <span className="text-xs text-slate-400">Start with naming the rubric</span>
-                        )}
-                        {currentStep < RUBRIC_STEPS.length - 1 && (
-                            <button
-                                type="button"
-                                onClick={goToNextStep}
-                                className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow hover:bg-blue-700 transition"
-                            >
-                                Continue to {RUBRIC_STEPS[currentStep + 1]?.label ?? 'next step'}
-                            </button>
-                        )}
+                        </form>
                     </div>
-
-                    <button
-                        type="submit"
-                        className="w-full rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-lg shadow-blue-200 hover:bg-blue-700 transition"
-                    >
-                        {isEditing ? 'Update Rubric' : 'Create Rubric'}
-                    </button>
-                    </form>
                 </div>
-            </div>
             </div>
         </div>,
         modalRoot

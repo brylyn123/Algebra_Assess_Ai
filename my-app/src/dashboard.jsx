@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
 import { clearCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import { apiFetch } from './fetchClient';
 import MobileNav from './components/MobileNav';
 
 const iconClassName = 'h-4 w-4';
@@ -120,9 +121,8 @@ const Dashboard = () => {
 
   const performLogout = async () => {
     try {
-      await fetch(`${API_BASE_URL}/logout.php`, {
+      await apiFetch('/logout.php', {
         method: 'POST',
-        credentials: 'include',
       });
     } catch (error) {
       console.error('Logout request failed:', error);
@@ -149,9 +149,8 @@ const Dashboard = () => {
         whileHover={prefersReducedMotion ? undefined : { x: 4, scale: 1.01 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${
-          isActive ? activeClassName : 'text-blue-100 hover:bg-white/15 hover:text-white'
-        }`}
+        className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${isActive ? activeClassName : 'text-blue-100 hover:bg-white/15 hover:text-white'
+          }`}
         title={!isExpanded ? label : undefined}
       >
         {isActive && (
@@ -202,9 +201,8 @@ const Dashboard = () => {
         whileHover={prefersReducedMotion ? undefined : { x: 4 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.985 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${
-          isActive ? 'text-blue-700 shadow-lg shadow-blue-800/30' : 'text-blue-100 hover:bg-white/15 hover:text-white'
-        }`}
+        className={`relative flex w-full items-center gap-2.5 rounded-xl ${isExpanded ? 'px-3 py-2' : 'justify-center px-0 py-2'} text-left text-xs font-bold transition ${isActive ? 'text-blue-700 shadow-lg shadow-blue-800/30' : 'text-blue-100 hover:bg-white/15 hover:text-white'
+          }`}
         title={!isExpanded ? label : undefined}
       >
         {isActive && (
@@ -393,9 +391,8 @@ const Dashboard = () => {
             {/* Content area - inside the same panel */}
             <div className="min-w-0 flex-1 overflow-hidden rounded-r-[2rem] bg-slate-100/80">
               <div
-                className={`h-full ${
-                  usesLargePanelScroll ? 'teacher-scrollbar overflow-y-auto' : 'overflow-hidden'
-                }`}
+                className={`h-full ${usesLargePanelScroll ? 'teacher-scrollbar overflow-y-auto' : 'overflow-hidden'
+                  }`}
                 style={usesLargePanelScroll ? { scrollbarGutter: 'stable' } : undefined}
               >
                 <Outlet context={{ teacherName }} />

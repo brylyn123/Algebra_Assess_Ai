@@ -15,7 +15,8 @@ $conn = new mysqli($servername, $username, $password, $dbname, $port);
 
 // 4. Check connection
 if ($conn->connect_error) {
-    http_response_code(500); // Set a proper error code
-    echo json_encode(["status" => "error", "message" => "Database connection failed: " . $conn->connect_error]);
+    http_response_code(500);
+    error_log("Database connection failed: " . $conn->connect_error);
+    echo json_encode(["status" => "error", "message" => "Unable to connect to the database. Please try again later."]);
     exit();
 }

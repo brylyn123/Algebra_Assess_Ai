@@ -1,9 +1,8 @@
 <?php
 require_once 'cors.php';
-
-include 'db_connect.php';
-require_once 'schema_utils.php';
 require_once 'auth.php';
+require_once 'db_connect.php';
+require_once 'schema_utils.php';
 
 function ensureArchivedColumn($conn) {
     $columnCheck = $conn->query("SHOW COLUMNS FROM subject LIKE 'archived'");
@@ -15,6 +14,7 @@ function ensureArchivedColumn($conn) {
 $data = json_decode(file_get_contents("php://input"), true);
 
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
 
@@ -36,12 +36,14 @@ try {
     $updateStmt->close();
 
     if ($affectedRows === 0) {
+        http_response_code(404);
         echo json_encode(["status" => "error", "message" => "No active matching subject found."]);
     } else {
         echo json_encode(["status" => "success", "message" => "Subject archived."]);
     }
 } catch (Exception $e) {
-    echo json_encode(["status" => "error", "message" => "Server error: " . $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "Unable to archive subject."]);
 }
 
 $conn->close();

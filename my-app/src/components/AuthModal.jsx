@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '../apiBase';
+import { apiFetch } from '../fetchClient';
 
 const modalBackdrop = { hidden: { opacity: 0 }, show: { opacity: 1 } };
 const modalContent = { hidden: { y: 24, opacity: 0 }, show: { y: 0, opacity: 1 } };
@@ -31,7 +32,7 @@ const AuthModal = ({ open, mode = 'signup', onClose }) => {
         ? { email: form.email, password: form.password }
         : { firstName: form.firstName, lastName: form.lastName, email: form.email, password: form.password, role: 'teacher' };
 
-      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const res = await apiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

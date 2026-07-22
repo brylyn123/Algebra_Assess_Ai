@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from '../axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from '../localAuthStore';
-import { API_BASE_URL as baseUrl } from '../apiBase';
+import { useToast } from '../components/Toast';
 
 export const useTeacherRecords = () => {
+    const { toast } = useToast();
     const currentEmail = getCurrentLocalUserEmail();
     const teacherUser = useMemo(() => {
         if (!currentEmail) return null;
@@ -38,10 +39,10 @@ export const useTeacherRecords = () => {
             setStatusMessage('');
             try {
                 const [assessmentRes, rubricRes] = await Promise.all([
-                    axios.get(`${baseUrl}/get_assessments.php`, {
+                    axios.get('/get_assessments.php', {
                         signal: controller.signal,
                     }),
-                    axios.get(`${baseUrl}/get_rubric_sets.php`, {
+                    axios.get('/get_rubric_sets.php', {
                         signal: controller.signal,
                     }),
                 ]);
@@ -78,43 +79,45 @@ export const useTeacherRecords = () => {
     const deleteAssessment = useCallback(
         async (exerciseId) => {
             if (!teacherId) {
-                alert('Log in as a teacher to delete assessments.');
+                toast.error('Log in as a teacher to delete assessments.');
                 return;
             }
             try {
                 await axios.post(
-                    `${baseUrl}/delete_assessment.php`,
+                    '/delete_assessment.php',
                     { exercise_id: exerciseId },
                     { headers: { 'Content-Type': 'application/json' } }
                 );
+                toast.success('Assessment deleted.');
                 refreshRecords();
             } catch (error) {
                 console.error('Failed to delete assessment:', error);
-                alert('Unable to delete assessment at this time.');
+                toast.error('Unable to delete assessment at this time.');
             }
         },
-        [teacherId, refreshRecords]
+        [teacherId, refreshRecords, toast]
     );
 
     const deleteRubric = useCallback(
         async (rubricSetId) => {
             if (!teacherId) {
-                alert('Log in as a teacher to delete rubrics.');
+                toast.error('Log in as a teacher to delete rubrics.');
                 return;
             }
             try {
                 await axios.post(
-                    `${baseUrl}/delete_rubric_set.php`,
+                    '/delete_rubric_set.php',
                     { rubric_set_id: rubricSetId },
                     { headers: { 'Content-Type': 'application/json' } }
                 );
+                toast.success('Rubric deleted.');
                 refreshRecords();
             } catch (error) {
                 console.error('Failed to delete rubric:', error);
-                alert('Unable to delete rubric right now.');
+                toast.error('Unable to delete rubric right now.');
             }
         },
-        [teacherId, refreshRecords]
+        [teacherId, refreshRecords, toast]
     );
 
     return {

@@ -109,7 +109,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -142,7 +142,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle, rgba(51,65,85,0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(51, 65, 85, 0.1) 0%, transparent 70%);
   opacity: 0;
   border-radius: 0.5rem;
   transition: opacity 0.3s ease;
@@ -267,6 +267,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -278,6 +279,7 @@
     opacity: 0;
     transform: translateX(-30px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -289,6 +291,7 @@
     opacity: 0;
     transform: translateX(30px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -299,24 +302,31 @@
   0% {
     background-position: -1000px 0;
   }
+
   100% {
     background-position: 1000px 0;
   }
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7);
   }
+
   50% {
     box-shadow: 0 0 0 10px rgba(96, 165, 250, 0);
   }
 }
 
 @keyframes float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-10px);
   }
@@ -383,9 +393,9 @@
   gap: 10px;
   padding: 18px 22px;
   border-radius: 14px;
-  background: rgba(255,255,255,0.85);
-  box-shadow: 0 12px 40px rgba(2,6,23,0.24);
-  border: 1px solid rgba(15,23,42,0.06);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 12px 40px rgba(2, 6, 23, 0.24);
+  border: 1px solid rgba(15, 23, 42, 0.06);
   z-index: 10000;
   min-width: 160px;
 }
@@ -401,13 +411,16 @@
   width: 36px;
   height: 36px;
   border-radius: 9999px;
-  border: 4px solid rgba(15,23,42,0.08);
-  border-top-color: #2563eb; /* blue accent */
+  border: 4px solid rgba(15, 23, 42, 0.08);
+  border-top-color: #2563eb;
+  /* blue accent */
   animation: route-spin 1s linear infinite;
 }
 
 @keyframes route-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Interactive inputs with enhanced focus states */
@@ -493,7 +506,9 @@ textarea {
 }
 
 /* Ensure root doesn't flash white; app-bg provides the visual background */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   background: transparent;
 }
@@ -502,7 +517,8 @@ html, body, #root {
 .app-bg {
   position: fixed;
   inset: 0;
-  z-index: 0; /* place above the document background but beneath app UI */
+  z-index: 0;
+  /* place above the document background but beneath app UI */
   pointer-events: none;
   background:
     radial-gradient(circle at top left, rgba(96, 165, 250, 0.08), transparent 22%),
@@ -515,8 +531,10 @@ html, body, #root {
 .page-stage {
   position: relative;
   min-height: 100vh;
-  z-index: 10; /* content above the persistent background */
-  background: transparent; /* let .app-bg provide the background */
+  z-index: 10;
+  /* content above the persistent background */
+  background: transparent;
+  /* let .app-bg provide the background */
 }
 
 /* Progress bar for route changes */
@@ -540,6 +558,7 @@ html, body, #root {
 
 /* Accessibility improvements */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -565,8 +584,13 @@ html, body, #root {
 
 /* Smooth loading overlay transitions */
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .loading-overlay {

@@ -21,5 +21,5 @@ if ($result->num_rows > 0) {
     }
 }
 
-echo json_encode($colleges);
+echo json_encode(['status' => 'success', 'data' => $colleges]);
 ?>

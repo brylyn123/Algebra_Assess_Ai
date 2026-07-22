@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from './axiosClient';
 import { getSubjectCardTheme } from './subjectCardThemes';
-import { API_BASE_URL } from './apiBase';
 
 const SubjectDetails = () => {
     const { id } = useParams(); // Grabs the ID from the URL
@@ -12,7 +11,7 @@ const SubjectDetails = () => {
         const fetchSubjectInfo = async () => {
             try {
                 // Fetch only the details for THIS specific subject
-                const response = await axios.get(`${API_BASE_URL}/get_single_subject.php?id=${id}`);
+                const response = await axios.get(`/get_single_subject.php?id=${id}`);
                 setSubjectData(response.data);
             } catch (error) {
                 console.error("Error fetching subject details:", error);

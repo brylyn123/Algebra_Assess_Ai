@@ -216,22 +216,20 @@ const TeacherReports = () => {
                 <button
                   type="button"
                   onClick={() => setActiveChart('subjects')}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                    activeChart === 'subjects'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${activeChart === 'subjects'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
                   Subjects
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveChart('assessments')}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                    activeChart === 'assessments'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${activeChart === 'assessments'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
                   Assessments
                 </button>
@@ -278,11 +276,10 @@ const TeacherReports = () => {
                     key={difficulty}
                     type="button"
                     onClick={() => setSelectedDifficulty(difficulty)}
-                    className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${
-                      selectedDifficulty === difficulty
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                        : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
-                    }`}
+                    className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${selectedDifficulty === difficulty
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                      : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
+                      }`}
                   >
                     {difficulty}
                   </button>
@@ -310,51 +307,51 @@ const TeacherReports = () => {
                     No {activeChart} report data yet.
                   </div>
                 ) : (
-                    (activeChart === 'assessments' ? visibleAssessmentGroups : [{ difficulty: '', entries: activeChartData }]).map((group) => (
-                        <div key={group.difficulty || 'all'} className="space-y-2">
-                          {group.entries.map((entry) => {
-                            const score = clampScore(entry.score);
-                            return (
-                              <div key={entry.id} className="grid gap-2 rounded-[1rem] border border-slate-100 bg-slate-50/70 p-2.5 md:grid-cols-[160px,minmax(0,1fr)] md:gap-3">
-                                <div className="min-w-0">
-                                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-sky-500">
-                                    {entry.typeLabel}
-                                  </p>
-                                  <p className="mt-0.5 text-sm font-bold leading-snug text-slate-900">
-                                    {entry.label}
-                                  </p>
-                                  <p className="text-xs text-slate-500">
-                                    {entry.submissionsText}
-                                  </p>
-                                </div>
+                  (activeChart === 'assessments' ? visibleAssessmentGroups : [{ difficulty: '', entries: activeChartData }]).map((group) => (
+                    <div key={group.difficulty || 'all'} className="space-y-2">
+                      {group.entries.map((entry) => {
+                        const score = clampScore(entry.score);
+                        return (
+                          <div key={entry.id} className="grid gap-2 rounded-[1rem] border border-slate-100 bg-slate-50/70 p-2.5 md:grid-cols-[160px,minmax(0,1fr)] md:gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-sky-500">
+                                {entry.typeLabel}
+                              </p>
+                              <p className="mt-0.5 text-sm font-bold leading-snug text-slate-900">
+                                {entry.label}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {entry.submissionsText}
+                              </p>
+                            </div>
 
-                                <div className="space-y-2">
-                                  <div className="h-8 overflow-hidden rounded-[0.85rem] bg-slate-100">
-                                    <div
-                                      className="flex h-full min-w-[4rem] items-center rounded-[0.85rem] bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-2.5 shadow-[0_8px_16px_rgba(59,130,246,0.15)]"
-                                      style={{ width: `${score}%` }}
-                                    >
-                                      <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-800 shadow-sm">
-                                        {entry.scoreText}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex flex-wrap gap-1">
-                                    {entry.metaPills.map((pill) => (
-                                      <span
-                                        key={`${entry.id}-${pill}`}
-                                        className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600"
-                                      >
-                                        {pill}
-                                      </span>
-                                    ))}
-                                  </div>
+                            <div className="space-y-2">
+                              <div className="h-8 overflow-hidden rounded-[0.85rem] bg-slate-100">
+                                <div
+                                  className="flex h-full min-w-[4rem] items-center rounded-[0.85rem] bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-2.5 shadow-[0_8px_16px_rgba(59,130,246,0.15)]"
+                                  style={{ width: `${score}%` }}
+                                >
+                                  <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-800 shadow-sm">
+                                    {entry.scoreText}
+                                  </span>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
+
+                              <div className="flex flex-wrap gap-1">
+                                {entry.metaPills.map((pill) => (
+                                  <span
+                                    key={`${entry.id}-${pill}`}
+                                    className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600"
+                                  >
+                                    {pill}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ))
                 )}
 

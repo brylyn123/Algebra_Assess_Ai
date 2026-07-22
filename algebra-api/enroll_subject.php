@@ -5,6 +5,7 @@ require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 $authUser = requireAuthenticatedUser('student');
+validateCsrfToken();
 $student_id = (int)$authUser['user_id'];
 $data = json_decode(file_get_contents("php://input"), true);
 $join_code = isset($data['join_code']) ? trim($data['join_code']) : '';

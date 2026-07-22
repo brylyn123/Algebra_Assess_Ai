@@ -1,11 +1,11 @@
 ﻿<?php
 require_once 'cors.php';
-
-include 'db_connect.php';
 require_once 'auth.php';
+require_once 'db_connect.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $exercise_id = isset($data['exercise_id']) ? intval($data['exercise_id']) : null;
 

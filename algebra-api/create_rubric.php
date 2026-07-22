@@ -1,11 +1,12 @@
 <?php
 require_once 'auth.php';
-include 'db_connect.php';
+require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $rubric_name = trim($data['name'] ?? '');
 $criteria = trim($data['criteria'] ?? '');
@@ -17,13 +18,31 @@ if (is_array($data['level_definitions']) && count($data['level_definitions']) > 
 }
 
 if (!$rubric_name || !$criteria) {
-    http_response_code(400);
+    http_response_code(422);
     echo json_encode(["status" => "error", "message" => "Missing required rubric information."]);
     exit;
 }
 
+if (mb_strlen($rubric_name) > 255) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "Rubric name must be under 255 characters."]);
+    exit;
+}
+
+if (mb_strlen($criteria) > 5000) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "Criteria must be under 5000 characters."]);
+    exit;
+}
+
+if (mb_strlen($ai_instructions) > 5000) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "AI instructions must be under 5000 characters."]);
+    exit;
+}
+
 if (count($items) === 0) {
-    http_response_code(400);
+    http_response_code(422);
     echo json_encode(["status" => "error", "message" => "Please provide at least one rubric item."]);
     exit;
 }

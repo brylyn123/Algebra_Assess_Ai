@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { API_BASE_URL } from './apiBase';
+import { apiFetch } from './fetchClient';
+import Select from './components/Select';
 
 const AdminCatalog = () => {
   const [catalog, setCatalog] = useState({ colleges: [], courses: [] });
@@ -64,9 +66,8 @@ const AdminCatalog = () => {
     setSaving(true);
     setMessage('');
     try {
-      const response = await fetch(`${API_BASE_URL}/modify_college_course.php`, {
+      const response = await apiFetch('/modify_college_course.php', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -265,18 +266,17 @@ const AdminCatalog = () => {
                 placeholder="Course code (optional)"
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
               />
-              <select
+              <Select
                 value={courseForm.collegeId}
                 onChange={(e) => setCourseForm((prev) => ({ ...prev, collegeId: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
+                placeholder="Select college"
               >
-                <option value="" disabled hidden>Select college</option>
                 {catalog.colleges.map((college) => (
                   <option key={college.college_id} value={college.college_id}>
                     {college.college_name}
                   </option>
                 ))}
-              </select>
+              </Select>
               <button
                 type="submit"
                 disabled={loading || saving}

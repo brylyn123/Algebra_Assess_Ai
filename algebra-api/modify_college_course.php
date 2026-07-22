@@ -8,6 +8,7 @@ ensureRegistrationLookupData($conn);
 
 $authUser = requireAuthenticatedUser();
 $authRole = strtolower((string)($authUser['role'] ?? ''));
+validateCsrfToken();
 if ($authRole !== 'admin') {
     http_response_code(403);
     echo json_encode([

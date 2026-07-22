@@ -1,8 +1,10 @@
 <?php
 require_once 'cors.php';
+require_once 'auth.php';
 require_once 'schema_utils.php';
 require_once 'db_connect.php';
 
+$authUser = requireAuthenticatedUser();
 $subjectId = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 if ($subjectId <= 0) {
@@ -18,11 +20,15 @@ try {
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
     $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
 
+    $role = $authUser['role'];
+    $userId = (int)$authUser['user_id'];
+    $selectJoinCode = ($role === 'teacher' || $role === 'admin') ? 's.join_code AS enrollment_code' : 'NULL AS enrollment_code';
+
     $stmt = $conn->prepare(
         "SELECT
             s.subject_id,
             s.subject_name,
-            s.join_code AS enrollment_code,
+            {$selectJoinCode},
             COALESCE(c.course_code, c.course_name) AS course,
             yl.year_level AS year,
             sec.section_name AS section,
@@ -47,10 +53,10 @@ try {
         exit;
     }
 
-    echo json_encode($subject);
+    echo json_encode(['status' => 'success', 'data' => $subject]);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "Unable to load subject details."]);
 }
 
 $conn->close();

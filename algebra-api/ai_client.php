@@ -35,6 +35,25 @@ function buildDeepSeekGradePrompt(array $submission): string
 
     $rubricText = trim((string)($submission['rubric_criteria'] ?? ''));
     $rubricInstructions = trim((string)($submission['rubric_ai_instructions'] ?? ''));
+    $hasRubric = $rubricText !== '' || $rubricInstructions !== '';
+
+    $gradingGuide = '';
+    if ($hasRubric) {
+        $gradingGuide = implode("\n\n", [
+            "Rubric Criteria: " . $rubricText,
+            "Rubric AI Instructions: " . $rubricInstructions,
+        ]);
+    } else {
+        $gradingGuide = implode("\n\n", [
+            "No rubric provided. Use the following default grading criteria:",
+            "1. Correctness: Does the student arrive at the correct answer? Are the mathematical steps valid?",
+            "2. Process: Does the student show clear, logical work? Are algebraic steps properly sequenced?",
+            "3. Completeness: Are all parts of the question answered? Are all steps shown?",
+            "4. Notation: Does the student use proper mathematical notation and symbols?",
+            "For each item, evaluate these criteria and assign a score proportional to max_score.",
+            "Provide specific feedback explaining what the student did correctly and what errors were found.",
+        ]);
+    }
 
     return implode("\n\n", [
         "You are grading a student's handwritten algebra submission.",
@@ -58,8 +77,7 @@ function buildDeepSeekGradePrompt(array $submission): string
         "- overall_feedback should summarize strengths, mistakes, and next steps.",
         "Assessment Title: " . $submission['assessment_title'],
         "Student Name: " . $submission['student_name'],
-        "Rubric Criteria: " . ($rubricText !== '' ? $rubricText : 'Not provided'),
-        "Rubric AI Instructions: " . ($rubricInstructions !== '' ? $rubricInstructions : 'Not provided'),
+        $gradingGuide,
         "Assessment Items:\n" . implode("\n\n", $itemLines),
         !empty($submission['ocr_text'])
             ? "OCR Text of Student Submission:\n" . trim((string)$submission['ocr_text'])

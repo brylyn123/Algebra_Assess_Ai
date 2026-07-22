@@ -1,11 +1,12 @@
 <?php
 require_once 'auth.php';
-include 'db_connect.php';
+require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
 $authUser = requireAuthenticatedUser('teacher');
+validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
 $rubric_set_id = isset($data['rubric_set_id']) ? intval($data['rubric_set_id']) : null;
@@ -23,16 +24,31 @@ if (!in_array($difficulty, $allowedDifficulties, true)) {
 }
 
 if (!$subject_id || $title === '') {
+    http_response_code(422);
     echo json_encode(["status" => "error", "message" => "Assessment needs a subject and a title."]);
     exit;
 }
 
-if (!$rubric_set_id) {
-    echo json_encode(["status" => "error", "message" => "Select a rubric for this assessment."]);
+if (mb_strlen($title) > 255) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "Title must be under 255 characters."]);
+    exit;
+}
+
+if (mb_strlen($description) > 2000) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "Description must be under 2000 characters."]);
+    exit;
+}
+
+if (mb_strlen($topic) > 255) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "Topic must be under 255 characters."]);
     exit;
 }
 
 if (count($items) === 0) {
+    http_response_code(422);
     echo json_encode(["status" => "error", "message" => "Provide at least one item for the assessment."]);
     exit;
 }
@@ -58,20 +74,24 @@ try {
     ensureAssessmentRubricColumn($conn);
     ensureAssessmentDueDate($conn);
 
-    $rubricStmt = $conn->prepare(
-        "SELECT rubric_set_id
-         FROM rubric_sets
-         WHERE rubric_set_id = ? AND teacher_user_id = ?
-         LIMIT 1"
-    );
-    $rubricStmt->bind_param("ii", $rubric_set_id, $teacher_id);
-    $rubricStmt->execute();
-    $rubricResult = $rubricStmt->get_result();
-    $rubricRow = $rubricResult ? $rubricResult->fetch_assoc() : null;
-    $rubricStmt->close();
+    if ($rubric_set_id) {
+        $rubricStmt = $conn->prepare(
+            "SELECT rubric_set_id
+             FROM rubric_sets
+             WHERE rubric_set_id = ? AND teacher_user_id = ?
+             LIMIT 1"
+        );
+        $rubricStmt->bind_param("ii", $rubric_set_id, $teacher_id);
+        $rubricStmt->execute();
+        $rubricResult = $rubricStmt->get_result();
+        $rubricRow = $rubricResult ? $rubricResult->fetch_assoc() : null;
+        $rubricStmt->close();
 
-    if (!$rubricRow) {
-        throw new Exception("Rubric not found or does not belong to this teacher.");
+        if (!$rubricRow) {
+            throw new Exception("Rubric not found or does not belong to this teacher.");
+        }
+    } else {
+        $rubric_set_id = null;
     }
 
     $conn->begin_transaction();
@@ -111,8 +131,16 @@ try {
             $questionType = 'handwritten_algebra';
         }
 
+        if ($maxScore <= 0 || $maxScore > 100) {
+            throw new Exception('Max score per item must be between 0 and 100.');
+        }
+
         if ($content === '') {
             throw new Exception('Each item must include question_content.');
+        }
+
+        if (mb_strlen($content) > 5000) {
+            throw new Exception('Question content must be under 5000 characters.');
         }
 
         $modelSolutionValue = $modelSolution === '' ? null : $modelSolution;

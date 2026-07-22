@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storeLocalUser } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import { apiFetch } from './fetchClient';
+import Select from './components/Select';
 
 const shakeVariants = {
     idle: { x: 0 },
@@ -72,25 +74,41 @@ const Signup = () => {
         const newErrors = {};
         if (!formData.firstName.trim()) {
             newErrors.firstName = 'First name is required';
+        } else if (formData.firstName.length > 100) {
+            newErrors.firstName = 'First name must be under 100 characters';
         }
         if (!formData.lastName.trim()) {
             newErrors.lastName = 'Last name is required';
+        } else if (formData.lastName.length > 100) {
+            newErrors.lastName = 'Last name must be under 100 characters';
         }
         if (!formData.idNumber.trim()) {
             newErrors.idNumber = 'ID number is required';
+        } else if (formData.idNumber.length > 50) {
+            newErrors.idNumber = 'ID number must be under 50 characters';
         }
         if (!formData.email.trim()) {
             newErrors.email = 'Email is required';
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
             newErrors.email = 'Please enter a valid email address';
+        } else if (formData.email.length > 255) {
+            newErrors.email = 'Email must be under 255 characters';
         }
         if (!formData.password) {
             newErrors.password = 'Password is required';
-        } else if (formData.password.length < 6) {
-            newErrors.password = 'Password must be at least 6 characters';
+        } else if (formData.password.length < 8) {
+            newErrors.password = 'Password must be at least 8 characters';
+        } else if (formData.password.length > 128) {
+            newErrors.password = 'Password must be under 128 characters';
         }
         if (role === 'student' && !formData.courseId) {
             newErrors.courseId = 'Please select a course';
+        }
+        if (role === 'student' && !formData.sectionId) {
+            newErrors.sectionId = 'Please select a section';
+        }
+        if (role === 'student' && !formData.yearId) {
+            newErrors.yearId = 'Please select a year level';
         }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -235,7 +253,7 @@ const Signup = () => {
         const selectedYear = registrationOptions.years.find((year) => String(year.year_id) === String(formData.yearId));
 
         try {
-            const response = await fetch(`${API_BASE_URL}/signup.php`, {
+            const response = await apiFetch('/signup.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -469,21 +487,20 @@ const Signup = () => {
                                                 >
                                                     <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">College</label>
                                                     {registrationOptions.colleges.length > 0 ? (
-                                                        <select
+                                                        <Select
                                                             name="collegeId"
                                                             required
                                                             value={formData.collegeId}
                                                             onChange={handleChange}
                                                             disabled={optionsLoading}
-                                                            className={selectClassName}
+                                                            placeholder="Select college"
                                                         >
-                                                            <option value="" disabled hidden>Select college</option>
                                                             {registrationOptions.colleges.map((college) => (
                                                                 <option key={college.college_id} value={college.college_id}>
                                                                     {college.college_name}
                                                                 </option>
                                                             ))}
-                                                        </select>
+                                                        </Select>
                                                     ) : (
                                                             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
                                                             No colleges are available yet. Please ask an admin to add one before signing up.
@@ -502,21 +519,20 @@ const Signup = () => {
                                                     <div className="sm:col-span-2">
                                                         <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Course</label>
                                                         {hasCourseOptions ? (
-                                                            <select
+                                                            <Select
                                                                 name="courseId"
                                                                 required
                                                                 value={formData.courseId}
                                                                 onChange={handleChange}
                                                                 disabled={optionsLoading}
-                                                                className={selectClassName}
+                                                                placeholder="Select course"
                                                             >
-                                                                <option value="" disabled hidden>Select course</option>
                                                                 {registrationOptions.courses.map((course) => (
                                                                     <option key={course.course_id} value={course.course_id}>
                                                                         {course.course_name} ({course.course_code})
                                                                     </option>
                                                                 ))}
-                                                            </select>
+                                                            </Select>
                                                         ) : (
                                                         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
                                                                 No courses are available yet. Please ask an admin to add one before signing up.
@@ -525,39 +541,37 @@ const Signup = () => {
                                                     </div>
                                                     <div>
                                                         <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Year Level</label>
-                                                        <select
+                                                        <Select
                                                             name="yearId"
                                                             required
                                                             value={formData.yearId}
                                                             onChange={handleChange}
                                                             disabled={optionsLoading}
-                                                            className={selectClassName}
+                                                            placeholder="Select year level"
                                                         >
-                                                            <option value="" disabled hidden>Select year level</option>
                                                             {registrationOptions.years.map((year) => (
                                                                 <option key={year.year_id} value={year.year_id}>
                                                                     {year.year_level}
                                                                 </option>
                                                             ))}
-                                                        </select>
+                                                        </Select>
                                                     </div>
                                                     <div>
                                                         <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Section</label>
-                                                        <select
+                                                        <Select
                                                             name="sectionId"
                                                             required
                                                             value={formData.sectionId}
                                                             onChange={handleChange}
                                                             disabled={optionsLoading}
-                                                            className={selectClassName}
+                                                            placeholder="Select section"
                                                         >
-                                                            <option value="" disabled hidden>Select section</option>
                                                             {registrationOptions.sections.map((section) => (
                                                                 <option key={section.section_id} value={section.section_id}>
                                                                     {section.section_name}
                                                                 </option>
                                                             ))}
-                                                        </select>
+                                                        </Select>
                                                     </div>
                                                 </motion.div>
                                             )}
