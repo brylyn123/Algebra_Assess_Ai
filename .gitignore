@@ -4,14 +4,20 @@ my-app/node_modules/
 my-app/dist/
 my-app/build/
 
-# Environment and local config
+# Environment and local config (API keys, DB credentials)
 .env
 .env.*
 algebra-api/.env
 algebra-api/db_config.local.php
 algebra-api/ai_secrets.local.php
+settings.json
+
+# Auto-generated files
+algebra-api/.schema_cache.php
+.cache/
 
 # Logs and scratch
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -41,5 +47,7 @@ backups/
 algebra-api/test_*.php
 algebra-api/sample.txt
 algebra-api/test.txt
-settings.json
 phpinfo.php
+
+# Student uploads (contains PII)
+algebra-api/uploads/
