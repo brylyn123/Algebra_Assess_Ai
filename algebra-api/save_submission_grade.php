@@ -261,7 +261,7 @@ try {
         $conn->rollback();
     }
     http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Unable to save grade: ' . $e->getMessage()]);
+    echo json_encode(['status' => 'error', 'message' => 'Unable to save grade.']);
 }
 
 $conn->close();

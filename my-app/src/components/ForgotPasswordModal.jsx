@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
 import { apiFetch } from '../fetchClient';
 
 const backdrop = { hidden: { opacity: 0 }, show: { opacity: 1 } };
@@ -11,7 +10,6 @@ export default function ForgotPasswordModal({ onClose }) {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
-    const [resetToken, setResetToken] = useState('');
     const [resetEmail, setResetEmail] = useState('');
     const [error, setError] = useState('');
 
@@ -34,8 +32,7 @@ export default function ForgotPasswordModal({ onClose }) {
             const data = await res.json();
             if (data.status === 'success') {
                 setResult(data.message || 'Reset link generated.');
-                setResetToken(data.reset_token || '');
-                setResetEmail(data.email || email.trim());
+                setResetEmail(email.trim());
             } else {
                 setError(data.message || 'Unable to process your request.');
             }
@@ -95,19 +92,6 @@ export default function ForgotPasswordModal({ onClose }) {
                                     </p>
                                 )}
                             </div>
-
-                            {resetToken && (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                    <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">For testing — Reset link:</p>
-                                    <Link
-                                        to={`/reset-password?token=${resetToken}&email=${encodeURIComponent(resetEmail)}`}
-                                        className="block break-all text-xs font-medium text-indigo-600 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-800"
-                                    >
-                                        /reset-password?token={resetToken.slice(0, 8)}...{resetToken.slice(-4)}
-                                    </Link>
-                                    <p className="mt-1.5 text-[10px] text-amber-600">Click the link above to reset the password.</p>
-                                </div>
-                            )}
 
                             <button
                                 type="button"

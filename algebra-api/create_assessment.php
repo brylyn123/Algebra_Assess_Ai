@@ -170,7 +170,7 @@ try {
     if ($startedTransaction || $conn->in_transaction) {
         $conn->rollback();
     }
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "Unable to create assessment."]);
 }
 
 $conn->close();

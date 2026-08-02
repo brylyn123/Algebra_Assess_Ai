@@ -255,7 +255,7 @@ try {
         ]);
     } else {
         http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => $msg]);
+        echo json_encode(['status' => 'error', 'message' => 'Unable to generate grade.']);
     }
 }
 

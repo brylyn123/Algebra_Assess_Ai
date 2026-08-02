@@ -71,7 +71,7 @@ try {
     setCacheHeaders(300);
     echo json_encode(array_merge(['status' => 'success'], $filters));
 } catch (Exception $e) {
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "Unable to load filters."]);
 }
 
 $conn->close();

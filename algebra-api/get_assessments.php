@@ -134,7 +134,7 @@ try {
     echo json_encode(["status" => "success", "assessments" => array_values($assessmentsById)]);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "Unable to load assessments."]);
 }
 
 $conn->close();

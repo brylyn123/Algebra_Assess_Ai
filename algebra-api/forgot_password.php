@@ -53,12 +53,11 @@ try {
     $updateStmt->execute();
     $updateStmt->close();
 
-    // For development: return token directly (remove in production, use email instead)
+    // In production, send token via email instead of returning it
+    // For now, return a generic success message
     echo json_encode([
         'status' => 'success',
-        'message' => 'Password reset link generated.',
-        'reset_token' => $token,
-        'email' => $email,
+        'message' => 'If an account exists with that email, a password reset link has been sent.',
     ]);
 } catch (Exception $e) {
     http_response_code(500);
