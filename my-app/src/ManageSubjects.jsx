@@ -43,6 +43,7 @@ const ManageSubjects = () => {
     const [subjectEnrollments, setSubjectEnrollments] = useState({});
     const toastTimer = useRef(null);
     const [toastVisible, setToastVisible] = useState(false);
+    const [archiveConfirmSubject, setArchiveConfirmSubject] = useState(null);
     const currentTeacherEmail = getCurrentLocalUserEmail();
     const storedTeacher = currentTeacherEmail ? findLocalUser(currentTeacherEmail) : null;
     const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id;
@@ -415,11 +416,18 @@ const ManageSubjects = () => {
             if (selectedSubject?.id === subject.id) {
                 setSelectedSubject(null);
             }
-            showToast(`"${subject.name}" archived.`);
+            setArchiveConfirmSubject(null);
+            showToast(`"${subject.name}" has been archived successfully.`, 'success', {
+                archivedName: subject.name,
+                joinCode: subject.joinCode,
+                studentCount: subjectEnrollments[subject.id]?.length ?? 0,
+                course: subject.course,
+                section: subject.section,
+            });
             fetchArchivedSubjects();
         } catch (error) {
             console.error('Archive request failed', error);
-            showToast('Could not archive the subject.', 'error');
+            showToast('Could not archive the subject. Please try again.', 'error');
         }
     };
 
@@ -528,6 +536,99 @@ const ManageSubjects = () => {
 
     return (
         <>
+            {archiveConfirmSubject && (() => {
+                const enrollCount = subjectEnrollments[archiveConfirmSubject.id]?.length ?? 0;
+                return createPortal((
+                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
+                        onClick={() => setArchiveConfirmSubject(null)}
+                    />
+                    <div
+                        className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-[0_40px_100px_rgba(15,23,42,0.25)] ring-1 ring-black/5 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="relative overflow-hidden bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 px-7 py-6 text-white">
+                            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
+                            <div className="absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-white/10" />
+                            <div className="relative flex items-start justify-between">
+                                <div className="flex items-center gap-3.5">
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 shadow-inner backdrop-blur-sm">
+                                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">Archive Subject</p>
+                                        <h3 className="mt-0.5 text-xl font-extrabold tracking-tight">{archiveConfirmSubject.name}</h3>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setArchiveConfirmSubject(null)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                                >
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="px-7 py-6">
+                            <div className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-100 p-4">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+                                    <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-amber-800">This action will hide the subject</p>
+                                    <p className="mt-1 text-xs leading-relaxed text-amber-600/80">
+                                        Students will no longer see <span className="font-semibold">"{archiveConfirmSubject.name}"</span> in their active subjects. You can restore it later from the Archived tab.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 grid grid-cols-2 gap-3">
+                                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Course</p>
+                                    <p className="mt-1 text-sm font-semibold text-slate-800">{archiveConfirmSubject.course || '—'}</p>
+                                    <p className="text-xs text-slate-500">{archiveConfirmSubject.section || '—'}</p>
+                                </div>
+                                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Students</p>
+                                    <p className="mt-1 text-sm font-semibold text-slate-800">{enrollCount} enrolled</p>
+                                    <p className="text-xs text-slate-500">Will be hidden</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+                                <span className="text-xs text-slate-500">Join Code</span>
+                                <span className="font-mono text-sm font-bold tracking-wider text-slate-700">{archiveConfirmSubject.joinCode || '—'}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/50 px-7 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setArchiveConfirmSubject(null)}
+                                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition-all duration-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm active:scale-[0.97]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleArchive(archiveConfirmSubject)}
+                                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-xs font-semibold text-white shadow-md shadow-amber-200/60 transition-all duration-200 hover:shadow-lg hover:shadow-amber-300/60 hover:brightness-110 active:scale-[0.97]"
+                            >
+                                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5"><path d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
+                                Confirm Archive
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                ), document.body);
+            })()}
+
             {toast && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 py-6 pointer-events-none">
                     {toast.variant === 'success' && (
@@ -576,6 +677,25 @@ const ManageSubjects = () => {
                                     </button>
                                 </div>
                             )}
+                            {toast.details?.archivedName && (
+                                <div className="mt-4 rounded-2xl bg-slate-50/80 border border-slate-100 px-4 py-3 space-y-1.5">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-slate-500">Subject</span>
+                                        <span className="font-medium text-slate-700">{toast.details.archivedName}</span>
+                                    </div>
+                                    {toast.details.course && (
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-slate-500">Course</span>
+                                            <span className="font-medium text-slate-700">{toast.details.course} {toast.details.section ? `• ${toast.details.section}` : ''}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-slate-500">Students</span>
+                                        <span className="font-medium text-slate-700">{toast.details.studentCount ?? 0} enrolled</span>
+                                    </div>
+                                    <p className="text-xs text-slate-400 pt-1">You can restore this subject anytime from the Archived tab.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -587,7 +707,7 @@ const ManageSubjects = () => {
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 shadow-sm shadow-blue-200">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-blue-600 shadow-sm shadow-blue-200">
                                         <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
                                             <path d="M3.75 3a1.25 1.25 0 100 2.5 1.25 1.25 0 000-2.5zM6 5.25A2.25 2.25 0 003.75 7.5h8.5A2.25 2.25 0 0014.5 5.25v-.75a.75.75 0 00-1.5 0v.75a.75.75 0 01-.75.75h-8.5a.75.75 0 01-.75-.75v-.75a.75.75 0 00-1.5 0v.75z" />
                                             <path d="M13.25 9a.75.75 0 000 1.5h-6.5a.75.75 0 000-1.5h6.5zM12 11.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zM12 14.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zM3.75 9a.75.75 0 000 1.5h3.5a.75.75 0 000-1.5h-3.5zM3 11.25a.75.75 0 01.75-.75H6a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75zM3.75 14a.75.75 0 000 1.5h.75a.75.75 0 000-1.5h-.75z" />
@@ -656,7 +776,7 @@ const ManageSubjects = () => {
                                     return (
                                         <div
                                             key={subject.id}
-                                            className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${theme.cardClass}`}
+                                            className={`group relative overflow-hidden rounded-[1.05rem] border border-l-[3px] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${theme.cardClass}`}
                                             style={{ animationDelay: `${index * 50}ms` }}
                                         >
                                             <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${theme.accentClass}`} />
@@ -1014,7 +1134,7 @@ const ManageSubjects = () => {
                                         {enrolledList.map((student, index) => (
                                             <div
                                                 key={student.enrollment_id ?? student.student_id}
-                                                className="group flex items-center gap-4 rounded-xl border border-slate-100 bg-white px-4 py-3 transition-all duration-200 hover:border-slate-200 hover:shadow-sm"
+                                                className="group flex items-center gap-4 rounded-lg border border-slate-100 bg-white px-4 py-3 transition-all duration-200 hover:border-slate-200 hover:shadow-sm"
                                                 style={{ animationDelay: `${index * 40}ms` }}
                                             >
                                                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-500 text-xs font-bold text-white">
@@ -1058,10 +1178,7 @@ const ManageSubjects = () => {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                handleArchive(selectedSubjectRecord);
-                                                setSelectedSubject(null);
-                                            }}
+                                            onClick={() => setArchiveConfirmSubject(selectedSubjectRecord)}
                                             className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 transition-all duration-200 hover:-translate-y-0.5 hover:bg-amber-100 hover:shadow-sm active:scale-[0.97]"
                                         >
                                             <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5"><path d="M1.75 1.5a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25V1.75a.25.25 0 00-.25-.25H1.75zM0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0114.25 16H1.75A1.75 1.75 0 010 14.25V1.75z" /></svg>

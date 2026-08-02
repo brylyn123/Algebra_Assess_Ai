@@ -2,6 +2,7 @@
 require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'cache_headers.php';
 
 function ensureArchivedColumn($conn) {
     $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
@@ -46,6 +47,7 @@ try {
     $result = $stmt->get_result();
     
     $subjects = $result->fetch_all(MYSQLI_ASSOC);
+    setCacheHeaders(60);
     echo json_encode(['status' => 'success', 'data' => $subjects]);
 } catch (Exception $e) {
     http_response_code(500);

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import Select from './components/Select';
+import MathText from './MathText';
 
 const TeacherFeedback = () => {
   const currentEmail = getCurrentLocalUserEmail();
@@ -145,18 +146,24 @@ const TeacherFeedback = () => {
   };
 
   return (
-    <div className="h-full min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-5">
-      <div className="mx-auto flex h-full min-h-0 max-w-[1440px] flex-col gap-10 pb-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-2">
-            <p className="teacher-eyebrow">Feedback</p>
-            <h1 className="teacher-heading">Results & Feedback</h1>
-            <p className="text-sm text-slate-500">
-              Review every submission that already has a saved grade and teacher feedback.
-            </p>
-          </div>
-          <div className="teacher-status-pill bg-blue-50 text-blue-700">
-            {loading ? 'Loading...' : `${filteredRecords.length} graded submissions`}
+    <div className="h-full min-h-0 overflow-hidden px-1 pt-3 sm:px-2">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1100px] flex-col gap-2 pb-2">
+        <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path fillRule="evenodd" d="M7 8a3 3 0 100 6 3 3 0 000-6zM2 8a5 5 0 1110 0 5 5 0 01-10 0zm10-2a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold text-white">Results & Feedback</h2>
+              </div>
+              <p className="text-xs text-blue-100 ml-[42px]">Review every submission that already has a saved grade and teacher feedback.</p>
+            </div>
+            <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white">
+              {loading ? 'Loading...' : `${filteredRecords.length} graded submissions`}
+            </div>
           </div>
         </div>
 
@@ -305,6 +312,47 @@ const TeacherFeedback = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Item Explanations */}
+              {Array.isArray(selectedRecord.item_scores) && selectedRecord.item_scores.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-3">Item Explanations</p>
+                  <div className="space-y-3">
+                    {selectedRecord.item_scores.map((item) => (
+                      <div
+                        key={item.item_score_id ?? item.item_no}
+                        className="rounded-xl border border-slate-100 bg-slate-50/80 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                              Item {item.item_no}
+                            </p>
+                            <p className="mt-0.5 text-sm font-medium text-slate-700">
+                              <MathText text={item.question_content} />
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                            {item.score_earned != null
+                              ? `${Number(item.score_earned).toFixed(1)} / ${Number(item.max_score || 0).toFixed(1)}`
+                              : '—'}
+                          </span>
+                        </div>
+                        {item.ai_feedback && (
+                          <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-500 mb-1">
+                              AI Explanation
+                            </p>
+                            <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+                              {item.ai_feedback}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

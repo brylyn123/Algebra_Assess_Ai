@@ -2,6 +2,7 @@
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
 require_once 'auth.php';
+require_once 'cache_headers.php';
 
 $authUser = requireAuthenticatedUser('student');
 $student_id = (int)$authUser['user_id'];
@@ -33,6 +34,8 @@ try {
             subj.subject_id,
             subj.subject_name,
             subj.join_code AS subject_code,
+            cs.file_path,
+            cs.ai_raw_json,
             DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date
         FROM Scores sc
         INNER JOIN Captured_Solution cs ON cs.solution_id = sc.solution_id
@@ -54,6 +57,37 @@ try {
 
     $records = [];
     while ($row = $result->fetch_assoc()) {
+        $files = [];
+        $rawJson = $row['ai_raw_json'] ?? null;
+        if ($rawJson) {
+            $decoded = json_decode($rawJson, true);
+            if (json_last_error() === JSON_ERROR_NONE && isset($decoded['files']) && is_array($decoded['files'])) {
+                foreach ($decoded['files'] as $file) {
+                    $path = trim((string)($file['file_path'] ?? ''));
+                    if ($path === '') continue;
+                    $originalName = trim((string)($file['original_name'] ?? basename($path)));
+                    $extension = strtolower(pathinfo($originalName !== '' ? $originalName : $path, PATHINFO_EXTENSION));
+                    $files[] = [
+                        'name' => $originalName !== '' ? $originalName : basename($path),
+                        'path' => $path,
+                        'type' => $extension === 'pdf' ? 'pdf' : 'image',
+                    ];
+                }
+            }
+        }
+        if (count($files) === 0) {
+            $fallbackPath = trim((string)($row['file_path'] ?? ''));
+            if ($fallbackPath !== '') {
+                $fallbackName = basename($fallbackPath);
+                $extension = strtolower(pathinfo($fallbackName, PATHINFO_EXTENSION));
+                $files[] = [
+                    'name' => $fallbackName,
+                    'path' => $fallbackPath,
+                    'type' => $extension === 'pdf' ? 'pdf' : 'image',
+                ];
+            }
+        }
+
         $records[] = [
             'score_id' => (int)$row['score_id'],
             'solution_id' => (int)$row['solution_id'],
@@ -69,6 +103,7 @@ try {
             'ai_feedback' => $row['ai_feedback'] ?? '',
             'date_scored' => $row['date_scored'],
             'returned_at' => $row['returned_at'],
+            'files' => $files,
             'item_scores' => [],
         ];
     }
@@ -124,6 +159,7 @@ try {
         $itemStmt->close();
     }
 
+    setCacheHeaders(60);
     header('Content-Type: application/json');
     echo json_encode([
         'status' => 'success',

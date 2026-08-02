@@ -93,34 +93,40 @@ const TeacherProfile = () => {
   };
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-4 py-3 md:px-6 md:py-4">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-4">
-        <section className="page-hero-card p-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">Teacher Profile</p>
-              <h1 className="text-xl font-bold text-slate-900">{heroDetails.name}</h1>
-              <p className="text-sm text-slate-500">Lead your algebra classes with confidence and AI-powered insights.</p>
+    <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-1 pt-3 sm:px-2">
+      <div className="mx-auto flex max-w-[1100px] flex-col gap-2">
+        <section className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold text-white">{heroDetails.name}</h2>
+              </div>
+              <p className="text-xs text-blue-100 ml-[42px]">Lead your algebra classes with confidence and AI-powered insights.</p>
             </div>
-            <div className="rounded-xl border border-blue-200 bg-white/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-700 shadow-sm">
+            <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white">
               {heroDetails.role}
             </div>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[1.2rem] border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-[0_10px_20px_rgba(56,189,248,0.08)]">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-sky-600">School</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{heroDetails.employer}</p>
-              <p className="text-xs text-slate-500">{heroDetails.email}</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border border-white/20 bg-white/10 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-blue-200">School</p>
+              <p className="mt-0.5 text-sm font-semibold text-white">{heroDetails.employer}</p>
+              <p className="text-xs text-blue-200">{heroDetails.email}</p>
             </div>
-            <div className="rounded-[1.2rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-[0_10px_20px_rgba(16,185,129,0.08)]">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-600">Subjects</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{loading ? '-' : statistics.subjects}</p>
-              <p className="text-xs text-slate-500">Active classes assigned to you.</p>
+            <div className="rounded-lg border border-white/20 bg-white/10 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-blue-200">Subjects</p>
+              <p className="mt-0.5 text-2xl font-black text-white">{loading ? '-' : statistics.subjects}</p>
+              <p className="text-xs text-blue-200">Active classes assigned to you.</p>
             </div>
-            <div className="rounded-[1.2rem] border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-4 shadow-[0_10px_20px_rgba(139,92,246,0.08)]">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-violet-600">Learners</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{loading ? '-' : statistics.students}</p>
-              <p className="text-xs text-slate-500">Students enrolled across all subjects.</p>
+            <div className="rounded-lg border border-white/20 bg-white/10 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-blue-200">Learners</p>
+              <p className="mt-0.5 text-2xl font-black text-white">{loading ? '-' : statistics.students}</p>
+              <p className="text-xs text-blue-200">Students enrolled across all subjects.</p>
             </div>
           </div>
         </section>

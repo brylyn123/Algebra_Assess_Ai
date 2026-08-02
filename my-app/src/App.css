@@ -219,15 +219,15 @@
 }
 
 .auth-panel {
-  @apply rounded-xl border border-slate-100 bg-slate-50/80 p-5;
+  @apply rounded-xl border border-slate-100 bg-slate-50/80 p-6;
 }
 
 .auth-badge {
-  @apply inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.28em] text-blue-600;
+  @apply inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-600;
 }
 
 .auth-input {
-  @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 font-medium outline-none transition placeholder:text-slate-400 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100;
+  @apply w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 font-medium outline-none transition placeholder:text-slate-400 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100;
 }
 
 .auth-subtle {
@@ -236,29 +236,26 @@
 
 .teacher-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #94a3b8 transparent;
+  scrollbar-color: #94a3b8 #f1f5f9;
 }
 
 .teacher-scrollbar::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
 }
 
 .teacher-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
+  border-radius: 9999px;
 }
 
 .teacher-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%);
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: padding-box;
+  background-color: #94a3b8;
+  border-radius: 9999px;
 }
 
 .teacher-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background-color: #64748b;
 }
 
 /* Modern Animations */
@@ -595,4 +592,20 @@ body,
 
 .loading-overlay {
   animation: fade-in 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

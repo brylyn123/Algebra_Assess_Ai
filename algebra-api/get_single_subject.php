@@ -3,6 +3,7 @@ require_once 'cors.php';
 require_once 'auth.php';
 require_once 'schema_utils.php';
 require_once 'db_connect.php';
+require_once 'cache_headers.php';
 
 $authUser = requireAuthenticatedUser();
 $subjectId = isset($_GET['id']) ? intval($_GET['id']) : 0;
@@ -53,6 +54,7 @@ try {
         exit;
     }
 
+    setCacheHeaders(60);
     echo json_encode(['status' => 'success', 'data' => $subject]);
 } catch (Exception $e) {
     http_response_code(500);

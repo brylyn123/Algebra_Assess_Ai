@@ -237,7 +237,8 @@ const Dashboard = () => {
   const settingsPath = isTeacherZone ? '/teacher/settings' : '/dashboard/settings';
   const isReportsRoute = location.pathname === '/teacher/reports';
   const isSettingsRoute = location.pathname === '/teacher/settings' || location.pathname === '/dashboard/settings';
-  const usesLargePanelScroll = isReportsRoute || isSettingsRoute;
+  const isQuestionEditor = location.pathname === '/teacher/assessments/edit-questions';
+  const usesLargePanelScroll = isReportsRoute || isSettingsRoute || isQuestionEditor;
   const sidebarActions = userRole === 'admin'
     ? [...quickActions, { label: 'Catalog', icon: navIcons.catalog, path: '/dashboard/catalog' }]
     : quickActions;

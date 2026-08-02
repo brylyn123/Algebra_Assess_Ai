@@ -13,8 +13,126 @@ import { getSubjectCardTheme } from './subjectCardThemes';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import MobileNav from './components/MobileNav';
+import { useToast } from './components/Toast';
+import MathText from './MathText';
 
 const iconClassName = 'h-4 w-4';
+
+function toAbsoluteFileUrl(path) {
+  if (!path) return '';
+  if (/^(https?:|blob:)/i.test(path)) return path;
+  const normalizedPath = String(path).replace(/^\/+/, '');
+  return `${API_BASE_URL}/${normalizedPath}`;
+}
+
+const analyzeImageQuality = (file) => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve({ pass: true, reasons: [], note: 'PDF quality verified after upload' });
+      return;
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 200;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+
+      try {
+        const imageData = ctx.getImageData(0, 0, size, size);
+        const data = imageData.data;
+        const gray = new Float32Array(size * size);
+
+        for (let i = 0; i < gray.length; i++) {
+          const r = data[i * 4];
+          const g = data[i * 4 + 1];
+          const b = data[i * 4 + 2];
+          gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+        }
+
+        const reasons = [];
+
+        let blurSum = 0;
+        let blurCount = 0;
+        for (let y = 1; y < size - 1; y++) {
+          for (let x = 1; x < size - 1; x++) {
+            const idx = y * size + x;
+            const laplacian = -4 * gray[idx]
+              + gray[idx - 1] + gray[idx + 1]
+              + gray[idx - size] + gray[idx + size];
+            blurSum += laplacian * laplacian;
+            blurCount++;
+          }
+        }
+        const blurVariance = blurCount > 0 ? blurSum / blurCount : 0;
+        if (blurVariance < 50) {
+          reasons.push('Image may be blurry');
+        }
+
+        let brightnessSum = 0;
+        for (let i = 0; i < gray.length; i++) {
+          brightnessSum += gray[i];
+        }
+        const brightness = brightnessSum / gray.length;
+        if (brightness < 30) {
+          reasons.push('Image is too dark');
+        } else if (brightness > 225) {
+          reasons.push('Image is too bright');
+        }
+
+        let contrastSum = 0;
+        for (let i = 0; i < gray.length; i++) {
+          contrastSum += (gray[i] - brightness) * (gray[i] - brightness);
+        }
+        const contrast = Math.sqrt(contrastSum / gray.length);
+        if (contrast < 20) {
+          reasons.push('Image has low contrast');
+        }
+
+        resolve({ pass: reasons.length === 0, reasons });
+      } catch {
+        resolve({ pass: true, reasons: [] });
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ pass: true, reasons: [] });
+    };
+
+    img.src = url;
+  });
+};
+
+const checkImageContent = async (file) => {
+  if (!file.type.startsWith('image/')) {
+    return { pass: true, reason: 'PDF content verified after upload' };
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiFetch('/check_image_legibility.php', {
+      method: 'POST',
+      body: formData,
+    });
+    const result = await response.json();
+
+    if (result.status === 'success') {
+      return { pass: result.readable, reason: result.reason || '' };
+    }
+    return { pass: true, reason: '' };
+  } catch {
+    return { pass: true, reason: '' };
+  }
+};
 
 const navIcons = {
   home: (
@@ -113,6 +231,7 @@ const sectionHeaderSubtextClass = 'mt-1 text-sm text-slate-500';
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [hovering, setHovering] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => {
@@ -570,7 +689,7 @@ export const StudentOverview = () => {
       ) : (
         <>
           {/* Welcome Banner */}
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-4 text-white shadow-lg shadow-purple-500/20">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-4 text-white shadow-lg shadow-purple-500/20">
             <div className="relative z-10">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-100">Welcome back</p>
               <h1 className="mt-0.5 text-lg font-bold">Student!</h1>
@@ -588,7 +707,7 @@ export const StudentOverview = () => {
           </div>
 
           {/* Stats Row */}
-          <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+          <div className="rounded-[1.05rem] border border-slate-200/60 bg-white p-3 shadow-sm">
             <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Overview</p>
             <div className="grid grid-cols-3 gap-2">
               {stats.map((stat) => (
@@ -609,7 +728,7 @@ export const StudentOverview = () => {
           </div>
 
           {/* Pending Assessments */}
-          <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+          <div className="rounded-[1.1rem] border border-slate-200/60 bg-white p-3 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Pending Assessments</p>
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-700">
@@ -707,9 +826,11 @@ export const StudentSubjects = () => {
   const [assessmentList, setAssessmentList] = useState(availableAssessments);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [fileQualityResults, setFileQualityResults] = useState(new Map());
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
   const [showArchivedSubjects, setShowArchivedSubjects] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -768,11 +889,40 @@ export const StudentSubjects = () => {
     [selectedAssessment, selectedSubject]
   );
 
-  const handleFiles = (event) => {
+  const handleFiles = async (event) => {
     const fileList = Array.from(event.target.files || []);
     if (fileList.length === 0) return;
+
+    const startIndex = selectedFiles.length;
     setSelectedFiles((current) => [...current, ...fileList]);
     event.target.value = '';
+
+    for (let i = 0; i < fileList.length; i++) {
+      const fileIndex = startIndex + i;
+      // Step 1: Check image quality (instant, client-side)
+      const qualityResult = await analyzeImageQuality(fileList[i]);
+      setFileQualityResults((prev) => {
+        const next = new Map(prev);
+        next.set(fileIndex, { ...qualityResult, checking: true });
+        return next;
+      });
+      if (!qualityResult.pass) {
+        const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
+        toast.warning(`${fileList[i].name}: ${reasons}. Please retake with better lighting.`);
+      }
+
+      // Step 2: Check image content (AI, server-side)
+      const contentResult = await checkImageContent(fileList[i]);
+      setFileQualityResults((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(fileIndex) || {};
+        next.set(fileIndex, { ...existing, ...contentResult, checking: false });
+        return next;
+      });
+      if (!contentResult.pass) {
+        toast.error(`${fileList[i].name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
+      }
+    }
   };
 
   const openFilePicker = () => {
@@ -781,39 +931,70 @@ export const StudentSubjects = () => {
 
   const removeSelectedFile = (indexToRemove) => {
     setSelectedFiles((current) => current.filter((_, index) => index !== indexToRemove));
+    setFileQualityResults((prev) => {
+      const next = new Map(prev);
+      next.delete(indexToRemove);
+      return next;
+    });
   };
 
   const clearFiles = () => {
     setSelectedFiles([]);
+    setFileQualityResults(new Map());
     setSubmitMessage('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
+  const hasFailingImages = useMemo(() => {
+    for (const [, result] of fileQualityResults) {
+      if (result && !result.pass) return true;
+    }
+    return false;
+  }, [fileQualityResults]);
+
+  const isCheckingContent = useMemo(() => {
+    for (const [, result] of fileQualityResults) {
+      if (result && result.checking === true) return true;
+    }
+    return false;
+  }, [fileQualityResults]);
+
   const handleSubmit = async () => {
     if (!studentId) {
       setSubmitMessage('Please log in as a student to submit work.');
+      toast.warning('Please log in as a student to submit work.');
       return;
     }
 
     if (!selectedSubject) {
       setSubmitMessage('Choose an enrolled subject first.');
+      toast.warning('Choose an enrolled subject first.');
       return;
     }
 
     if (!selectedAssessment) {
       setSubmitMessage('Choose an assessment first.');
+      toast.warning('Choose an assessment first.');
       return;
     }
 
     if (selectedAssessment.already_submitted) {
       setSubmitMessage('This assessment already has a submission.');
+      toast.warning('This assessment already has a submission.');
       return;
     }
 
     if (selectedFiles.length === 0) {
       setSubmitMessage('Upload at least one file before submitting.');
+      toast.warning('Upload at least one file before submitting.');
+      return;
+    }
+
+    if (hasFailingImages) {
+      setSubmitMessage('Some files failed quality checks. Please remove or replace them before submitting.');
+      toast.error('Some images are blurry or too dark. Please replace them before submitting.');
       return;
     }
 
@@ -838,7 +1019,16 @@ export const StudentSubjects = () => {
         throw new Error(payload.message || 'Unable to submit assessment.');
       }
 
-      setSubmitMessage('Assessment submitted successfully. Your teacher can now grade it from Grade Submissions.');
+      let message = 'Assessment submitted successfully. Your teacher can now grade it from Grade Submissions.';
+      if (payload.warnings && payload.warnings.length > 0) {
+        const warningMsgs = payload.warnings.map((w) => `${w.file}: ${w.reason}`).join('; ');
+        message += ` Some files were removed: ${warningMsgs}`;
+        toast.warning(message);
+      } else {
+        toast.success('Assessment submitted successfully! Your teacher can now grade it.');
+      }
+
+      setSubmitMessage(message);
       setSelectedFiles([]);
       setAssessmentList((current) =>
         current.map((assessment) =>
@@ -853,7 +1043,9 @@ export const StudentSubjects = () => {
         )
       );
     } catch (error) {
-      setSubmitMessage(error.message || 'Unable to submit assessment.');
+      const errMsg = error.message || 'Unable to submit assessment.';
+      setSubmitMessage(errMsg);
+      toast.error(errMsg);
     } finally {
       setSubmitLoading(false);
     }
@@ -1273,7 +1465,7 @@ export const StudentSubjects = () => {
                                     </div>
                                     <span className="text-sm text-slate-500">{item.max_score ?? 0} pts</span>
                                   </div>
-                                  <p className="text-sm leading-7 text-slate-700">{item.question_content}</p>
+                                  <p className="text-sm leading-7 text-slate-700 overflow-hidden break-words"><MathText text={item.question_content} /></p>
                                   {Array.isArray(item.options) && item.options.length > 0 && (
                                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                                       {item.options.map((option, optionIndex) => (
@@ -1297,75 +1489,195 @@ export const StudentSubjects = () => {
 
                       <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
                         <div className="space-y-3">
-                          <div>
-                            <p className="text-base font-semibold text-slate-900">Upload Scanned Answer Photos</p>
-                            <p className="mt-1 text-sm text-slate-500">
-                              Upload clear JPG or PNG photos for the best OCR and AI grading results. Once submitted, uploads are locked.
-                            </p>
-                            <p className="mt-2 text-xs text-amber-600">
-                              PDF files are allowed, but automatic text extraction may be less reliable than image uploads.
-                            </p>
-                          </div>
+                          {selectedAssessment.already_submitted ? (
+                            <>
+                              <div>
+                                <p className="text-base font-semibold text-slate-900">Submitted Solution</p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  Your uploaded files are shown below. Uploads are locked after submission.
+                                </p>
+                              </div>
 
-                          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center">
-                            <div className="flex-1 space-y-2">
-                              <input
-                                ref={fileInputRef}
-                                id={`student-upload-${selectedAssessment.exercise_id}`}
-                                type="file"
-                                multiple
-                                accept="image/*,.pdf"
-                                onChange={handleFiles}
-                                className="w-full rounded-xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700"
-                              />
-                              <p className="text-xs italic text-slate-500">{fileLabel}</p>
-                              <p className="text-[11px] text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={openFilePicker}
-                              className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
-                            >
-                              Upload Photos
-                            </button>
-                          </div>
+                              {Array.isArray(selectedAssessment.submission_files) && selectedAssessment.submission_files.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                                  {selectedAssessment.submission_files.map((file, idx) => {
+                                    const fileUrl = toAbsoluteFileUrl(file.path);
+                                    const isImage = file.type === 'image';
+                                    return (
+                                      <button
+                                        key={`${file.path}-${idx}`}
+                                        type="button"
+                                        onClick={() => setPreviewFile(file)}
+                                        className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 transition hover:border-blue-300 hover:shadow-md"
+                                      >
+                                        {isImage ? (
+                                          <img
+                                            src={fileUrl}
+                                            alt={file.name || `Submission ${idx + 1}`}
+                                            className="h-32 w-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="flex h-32 w-full items-center justify-center bg-slate-100">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-8 w-8 text-slate-400">
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                            </svg>
+                                          </div>
+                                        )}
+                                        <p className="truncate px-2 py-1.5 text-[11px] text-slate-600">{file.name}</p>
+                                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/10">
+                                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6 text-white opacity-0 drop-shadow transition group-hover:opacity-100">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6" />
+                                          </svg>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center">
+                                  <p className="text-sm text-slate-500">No files were uploaded for this submission.</p>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <p className="text-base font-semibold text-slate-900">Upload Scanned Answer Photos</p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  Upload clear JPG or PNG photos for the best OCR and AI grading results. Once submitted, uploads are locked.
+                                </p>
+                                <p className="mt-2 text-xs text-amber-600">
+                                  PDF files are allowed, but automatic text extraction may be less reliable than image uploads.
+                                </p>
+                              </div>
 
-                          {selectedFiles.length > 0 && (
-                            <div className="space-y-2">
-                              {selectedFiles.map((file, index) => (
-                                <div
-                                  key={`${selectedAssessment.exercise_id}-${file.name}-${file.lastModified}`}
-                                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+                              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center">
+                                <div className="flex-1 space-y-2">
+                                  <input
+                                    ref={fileInputRef}
+                                    id={`student-upload-${selectedAssessment.exercise_id}`}
+                                    type="file"
+                                    multiple
+                                    accept="image/*,.pdf"
+                                    onChange={handleFiles}
+                                    className="w-full rounded-xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700"
+                                  />
+                                  <p className="text-xs italic text-slate-500">{fileLabel}</p>
+                                  <p className="text-[11px] text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={openFilePicker}
+                                  className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
                                 >
-                                  <span className="truncate">{file.name}</span>
+                                  Select Files
+                                </button>
+                              </div>
+
+                              {selectedFiles.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-semibold text-slate-500">Selected files ({selectedFiles.length})</p>
+                                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                                    {selectedFiles.map((file, index) => {
+                                      const isImage = file.type?.startsWith('image/');
+                                      const previewUrl = isImage ? URL.createObjectURL(file) : null;
+                                      return (
+                                        <div
+                                          key={`${selectedAssessment.exercise_id}-${file.name}-${file.lastModified}-${index}`}
+                                          className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                                        >
+                                          {isImage && previewUrl ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => setPreviewFile({ name: file.name, path: previewUrl, type: 'image' })}
+                                              className="block w-full"
+                                            >
+                                              <img
+                                                src={previewUrl}
+                                                alt={file.name}
+                                                className="h-32 w-full object-cover transition group-hover:brightness-90"
+                                              />
+                                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/10">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 text-white opacity-0 drop-shadow transition group-hover:opacity-100">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6" />
+                                                </svg>
+                                              </div>
+                                            </button>
+                                          ) : (
+                                            <div className="flex h-32 w-full items-center justify-center">
+                                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-8 w-8 text-slate-400">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                              </svg>
+                                            </div>
+                                          )}
+                                          <div className="flex items-center justify-between gap-1 px-2 py-1.5">
+                                            <span className="truncate text-[11px] text-slate-600">{file.name}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => removeSelectedFile(index)}
+                                              className="shrink-0 text-[11px] font-semibold text-rose-500 hover:text-rose-700"
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
+                                          {(() => {
+                                            const quality = fileQualityResults.get(index);
+                                            if (!quality) return null;
+                                            if (quality.checking) {
+                                              return (
+                                                <div className="px-2 pb-1.5">
+                                                  <span className="text-[10px] font-medium text-blue-500 flex items-center gap-1">
+                                                    <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                    </svg>
+                                                    Checking content...
+                                                  </span>
+                                                </div>
+                                              );
+                                            }
+                                            if (quality.pass) {
+                                              return (
+                                                <div className="px-2 pb-1.5">
+                                                  <span className="text-[10px] font-medium text-emerald-600">✓ Clear</span>
+                                                </div>
+                                              );
+                                            }
+                                            return (
+                                              <div className="px-2 pb-1.5">
+                                                <span className="text-[10px] font-medium text-rose-500">
+                                                  ⚠ {quality.reasons?.join(', ') || quality.reason || 'Poor quality'}
+                                                </span>
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                   <button
                                     type="button"
-                                    onClick={() => removeSelectedFile(index)}
-                                    className="shrink-0 font-semibold text-rose-500 hover:text-rose-700"
+                                    onClick={clearFiles}
+                                    className="text-xs font-semibold text-slate-500 hover:text-slate-700"
                                   >
-                                    Remove
+                                    Clear all
                                   </button>
                                 </div>
-                              ))}
-                              <button
-                                type="button"
-                                onClick={clearFiles}
-                                className="text-xs font-semibold text-slate-500 hover:text-slate-700"
-                              >
-                                Clear files
-                              </button>
-                            </div>
+                              )}
+                            </>
                           )}
 
                           <div className="flex flex-wrap items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={handleSubmit}
-                              disabled={submitLoading || selectedAssessment.already_submitted}
-                              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                            >
-                              {submitLoading ? 'Submitting...' : selectedAssessment.already_submitted ? 'Already Submitted' : 'Upload Photos'}
-                            </button>
+                            {!selectedAssessment.already_submitted && (
+                              <button
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={submitLoading || hasFailingImages}
+                                className="ml-auto rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                              >
+                                {submitLoading ? 'Submitting...' : 'Submit Files'}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setSelectedAssessmentId('')}
@@ -1399,6 +1711,35 @@ export const StudentSubjects = () => {
           </div>
         )}
       </section>
+
+      {previewFile && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setPreviewFile(null)}>
+          <div className="relative max-h-[90vh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setPreviewFile(null)}
+              className="absolute -top-3 -right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-bold text-slate-600 shadow-lg transition hover:text-slate-900"
+            >
+              &times;
+            </button>
+            {previewFile.type === 'pdf' ? (
+              <iframe
+                title={previewFile.name}
+                src={toAbsoluteFileUrl(previewFile.path)}
+                className="h-[80vh] w-[80vw] rounded-2xl border border-slate-200 bg-white"
+              />
+            ) : (
+              <img
+                src={toAbsoluteFileUrl(previewFile.path)}
+                alt={previewFile.name}
+                className="max-h-[85vh] max-w-[90vw] rounded-2xl border border-slate-200 bg-white object-contain shadow-2xl"
+              />
+            )}
+            <p className="mt-2 text-center text-xs text-white/80">{previewFile.name}</p>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

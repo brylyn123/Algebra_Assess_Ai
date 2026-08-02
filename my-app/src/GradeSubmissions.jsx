@@ -5,6 +5,8 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import Select from './components/Select';
+import { useTeacherRecords } from './hooks/useTeacherRecords';
+import MathText from './MathText';
 
 const toAbsoluteFileUrl = (path) => {
   if (!path) return '';
@@ -65,6 +67,40 @@ const writeStoredDraft = (submissionId, draftPayload) => {
   window.localStorage.setItem(getDraftStorageKey(submissionId), JSON.stringify(draftPayload));
 };
 
+const formatOcrText = (text) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    const trimmed = line.trim();
+    // Bold lines that start with question/item labels
+    const labelMatch = trimmed.match(/^(Question|Item|Problem|Part|Q|P|No\.?|Number)\s*(\d+[\.:)]?)\s*(.*)/i);
+    if (labelMatch) {
+      return (
+        <div key={i} className="mt-2 first:mt-0">
+          <span className="font-bold text-slate-900">{labelMatch[1]} {labelMatch[2]}</span>
+          {labelMatch[3] && <span className="text-slate-700"> {labelMatch[3]}</span>}
+        </div>
+      );
+    }
+    // Bold numbered answers like "1.", "2.", "1)", "2)"
+    const numberedMatch = trimmed.match(/^(\d+[\.:)]?)\s+(.*)/);
+    if (numberedMatch && numberedMatch[2]) {
+      return (
+        <div key={i} className="mt-1.5 first:mt-0">
+          <span className="font-semibold text-slate-800">{numberedMatch[1]}</span>
+          <span className="text-slate-700"> {numberedMatch[2]}</span>
+        </div>
+      );
+    }
+    // Blank lines become visual separators
+    if (trimmed === '') {
+      return <div key={i} className="h-2" />;
+    }
+    // Regular lines
+    return <div key={i} className="text-slate-700">{line}</div>;
+  });
+};
+
 const clearStoredDraft = (submissionId) => {
   if (!submissionId || typeof window === 'undefined') {
     return;
@@ -119,10 +155,10 @@ const getInitials = (name) => {
 };
 
 const statusConfig = {
-  graded: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', label: 'Graded' },
-  pending: { color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Pending' },
-  'needs review': { color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', label: 'Needs Review' },
-  'ready to return': { color: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-500', label: 'Ready to Return' },
+  graded: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', label: 'Graded and Saved' },
+  pending: { color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Not Graded' },
+  'needs review': { color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', label: 'Not Graded' },
+  'ready to return': { color: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-500', label: 'Graded and Saved' },
 };
 
 const getStatusConfig = (status) => {
@@ -135,7 +171,7 @@ const GradeSubmissions = () => {
   const teacherUser = currentEmail ? findLocalUser(currentEmail) : null;
   const teacherId = teacherUser?.user_id ?? teacherUser?.teacher_id ?? teacherUser?.id ?? null;
   const [submissions, setSubmissions] = useState([]);
-  const [selectedAssessment, setSelectedAssessment] = useState('all');
+  const [selectedAssessment, setSelectedAssessment] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -158,7 +194,15 @@ const GradeSubmissions = () => {
   const [pageMessage, setPageMessage] = useState('');
   const [manualOcrText, setManualOcrText] = useState('');
   const [ocrFailed, setOcrFailed] = useState(false);
+  const [editingOcr, setEditingOcr] = useState(false);
+  const [ocrDraft, setOcrDraft] = useState('');
+  const [savingOcr, setSavingOcr] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [perPage] = useState(25);
   const location = useLocation();
+  const { assessments } = useTeacherRecords();
 
   useEffect(() => {
     if (location.state?.exerciseId) {
@@ -185,10 +229,14 @@ const GradeSubmissions = () => {
       setPageMessage('');
 
       try {
-        const response = await fetch(`${API_BASE_URL}/grade_submissions.php?teacher_id=${teacherId}`, {
-          credentials: 'include',
-          signal: controller.signal,
-        });
+        const exerciseParam = selectedAssessment && selectedAssessment !== 'all' ? `&exercise_id=${selectedAssessment}` : '';
+        const response = await fetch(
+          `${API_BASE_URL}/grade_submissions.php?teacher_id=${teacherId}&page=${currentPage}&per_page=${perPage}${exerciseParam}`,
+          {
+            credentials: 'include',
+            signal: controller.signal,
+          }
+        );
         const text = await response.text();
 
         if (!response.ok) {
@@ -210,13 +258,17 @@ const GradeSubmissions = () => {
         if (!isMounted) return;
 
         setSubmissions(payload.submissions);
+        if (payload.pagination) {
+          setTotalCount(payload.pagination.total);
+          setTotalPages(payload.pagination.total_pages);
+        }
 
         setSelectedSubmission((previous) => {
+          if (!previous) return null;
           if (payload.submissions.length === 0) {
             return null;
           }
-          const stillVisible = payload.submissions.find((submission) => submission.id === previous?.id);
-          return stillVisible || payload.submissions[0];
+          return payload.submissions.find((submission) => submission.id === previous?.id) || null;
         });
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -238,10 +290,11 @@ const GradeSubmissions = () => {
       isMounted = false;
       controller.abort();
     };
-  }, [teacherId]);
+  }, [teacherId, currentPage, perPage, selectedAssessment]);
 
   useEffect(() => {
     setSelectedAssessment('all');
+    setCurrentPage(1);
   }, [teacherId]);
 
   const applyDraftToState = (submission, generation, saved = false) => {
@@ -311,6 +364,8 @@ const GradeSubmissions = () => {
     setSaveMessage('');
     setOcrFailed(false);
     setManualOcrText('');
+    setEditingOcr(false);
+    setOcrDraft('');
 
     if (!selectedSubmission?.id) {
       return;
@@ -394,6 +449,42 @@ const GradeSubmissions = () => {
     return payload;
   };
 
+  const handleSaveOcrText = async () => {
+    if (!selectedSubmission || !teacherId) return;
+    setSavingOcr(true);
+    try {
+      const response = await apiFetch('/save_submission_grade.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacher_id: teacherId,
+          solution_id: selectedSubmission.id,
+          total_score_earned: selectedSubmission.score ?? 0,
+          ai_feedback: selectedSubmission.ai_feedback ?? '',
+          item_scores: selectedSubmission.items ?? [],
+          ocr_text: ocrDraft,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.status !== 'success') {
+        throw new Error(payload.message || 'Unable to save extracted text.');
+      }
+
+      setSubmissions((current) =>
+        current.map((s) =>
+          s.id === selectedSubmission.id ? { ...s, ocr_text: ocrDraft } : s
+        )
+      );
+      setSelectedSubmission((prev) => prev ? { ...prev, ocr_text: ocrDraft } : prev);
+      setEditingOcr(false);
+      setSaveMessage('Extracted text saved.');
+    } catch (error) {
+      setSaveMessage(error.message || 'Unable to save extracted text.');
+    } finally {
+      setSavingOcr(false);
+    }
+  };
+
   const returnAssessmentResults = async () => {
     if (!teacherId || !selectedAssessment || visibleSubmissions.length === 0) {
       return;
@@ -463,6 +554,17 @@ const GradeSubmissions = () => {
     saveDraftSnapshot(submission, generated, false);
     markSubmissionWithDraft(submission.id, generated);
 
+    if (payload.ocr_text) {
+      setSubmissions((current) =>
+        current.map((s) =>
+          s.id === submission.id ? { ...s, ocr_text: payload.ocr_text } : s
+        )
+      );
+      if (selectedSubmission?.id === submission.id) {
+        setSelectedSubmission((prev) => prev ? { ...prev, ocr_text: payload.ocr_text } : prev);
+      }
+    }
+
     if (!options.skipUiUpdate && selectedSubmission?.id === submission.id) {
       applyDraftToState(submission, generated, false);
     }
@@ -528,6 +630,11 @@ const GradeSubmissions = () => {
     setGradingModalOpen(false);
     setBatchSubmissionIds([]);
     setGradingMode('single');
+  };
+
+  const closeGradingPanel = () => {
+    setSelectedSubmission(null);
+    closeGradingModal();
   };
 
   const updateDraftItemScore = (itemId, field, value) => {
@@ -728,34 +835,28 @@ const GradeSubmissions = () => {
   };
 
   const assessmentOptions = useMemo(() => {
-    const grouped = new Map();
+    if (assessments.length === 0) {
+      return [];
+    }
 
+    const submissionCountMap = new Map();
     submissions.forEach((submission) => {
-      if (submission.status === 'Graded') {
-        return;
-      }
-
       const key = String(submission.exercise_id ?? '');
-      if (!key) {
-        return;
-      }
-
-      const current = grouped.get(key) ?? {
-        value: key,
-        title: submission.assessment_title || 'Untitled Assessment',
-        subject: submission.subject_display || 'Unassigned Subject',
-        count: 0,
-      };
-
-      current.count += 1;
-      grouped.set(key, current);
+      if (!key) return;
+      submissionCountMap.set(key, (submissionCountMap.get(key) ?? 0) + 1);
     });
 
-    return Array.from(grouped.values()).map((assessment) => ({
-      value: assessment.value,
-      label: `${assessment.title} (${assessment.count})`,
-    }));
-  }, [submissions]);
+    return assessments.map((assessment) => {
+      const key = String(assessment.exercise_id);
+      const count = submissionCountMap.get(key) ?? 0;
+      return {
+        value: key,
+        label: count > 0
+          ? `${assessment.title} (${count})`
+          : assessment.title,
+      };
+    });
+  }, [assessments, submissions]);
 
   useEffect(() => {
     if (assessmentOptions.length === 0) {
@@ -770,9 +871,7 @@ const GradeSubmissions = () => {
   }, [assessmentOptions]);
 
   const visibleSubmissions = useMemo(() => {
-    const ungraded = submissions.filter((submission) => submission.status !== 'Graded');
-
-    return ungraded.filter((submission) => String(submission.exercise_id ?? '') === selectedAssessment);
+    return submissions.filter((submission) => String(submission.exercise_id ?? '') === selectedAssessment);
   }, [selectedAssessment, submissions]);
   const pendingSubmissions = useMemo(
     () => visibleSubmissions.filter((submission) => String(submission.status || '').toLowerCase() === 'pending'),
@@ -814,8 +913,8 @@ const GradeSubmissions = () => {
     }
 
     setSelectedSubmission((previous) => {
-      const stillVisible = visibleSubmissions.find((submission) => submission.id === previous?.id);
-      return stillVisible || visibleSubmissions[0];
+      if (!previous) return null;
+      return visibleSubmissions.find((submission) => submission.id === previous?.id) || null;
     });
   }, [visibleSubmissions]);
 
@@ -835,7 +934,7 @@ const GradeSubmissions = () => {
     ? !(selectedSubmissionDraft || selectedSubmission?.score_id || hasDraftResult)
     : !hasDraftResult;
   const batchCompleted = gradingMode === 'batch' && gradingModalOpen && batchSubmissionIds.length > 0 && batchRemainingToSave.length === 0;
-  const canReturnAssessment = visibleSubmissions.length > 0 && visibleSubmissions.every((submission) => submission.status === 'Ready to Return');
+  const canReturnAssessment = visibleSubmissions.length > 0 && visibleSubmissions.some((submission) => submission.status === 'Ready to Return') && visibleSubmissions.filter((s) => s.status !== 'Graded').every((submission) => submission.status === 'Ready to Return');
   const batchAssessmentTitle = useMemo(() => {
     const batchSource = submissions.find((submission) => batchSubmissionIds.includes(submission.id));
     return batchSource?.assessment_title ?? '';
@@ -872,8 +971,8 @@ const GradeSubmissions = () => {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
-          <div className="flex min-w-0 flex-col gap-3 lg:w-[340px] lg:shrink-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+          <div className="flex min-w-0 flex-col gap-3">
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
                 Select Assessment
@@ -911,7 +1010,7 @@ const GradeSubmissions = () => {
             </div>
 
             {pageMessage && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-700">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-700">
                 {pageMessage}
               </div>
             )}
@@ -923,7 +1022,7 @@ const GradeSubmissions = () => {
               </div>
               {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
 
-              <div className="teacher-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pb-2">
+              <div className="teacher-scrollbar min-h-0 flex-1 overflow-y-auto pb-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {loading && (
                   <div className="flex items-center justify-center py-8">
                     <div className="relative">
@@ -1004,64 +1103,98 @@ const GradeSubmissions = () => {
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="hidden min-h-0 flex-1 lg:flex lg:flex-col lg:items-center lg:justify-center">
-            {gradingModalOpen && (selectedSubmission || batchCompleted) && typeof document !== 'undefined' && createPortal((
-              <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-                <div
-                  className={`mx-auto flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_40px_100px_rgba(15,23,42,0.25)] ring-1 ring-black/5 ${gradingMode === 'batch'
-                    ? 'max-h-[90vh] w-[min(1200px,calc(100vw-2rem))]'
-                    : 'max-h-[88vh] w-[min(860px,calc(100vw-2rem))]'
-                    }`}
+      {(selectedSubmission || batchCompleted) && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm transition-opacity duration-200" onClick={closeGradingPanel}>
+          <div
+            className="mx-auto flex max-h-[88vh] w-[min(860px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl bg-white shadow-[0_40px_100px_rgba(15,23,42,0.25)] ring-1 ring-black/5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 px-8 py-6 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                    {batchCompleted ? 'Batch Complete' : gradingMode === 'batch' ? 'Select All Ungraded' : 'Student Review'}
+                  </p>
+                  <h2 className="mt-1 text-xl font-bold">{batchCompleted ? 'Assessment Ready to Return' : selectedSubmission?.student_name}</h2>
+                  <p className="mt-1 text-sm text-white/80">{batchCompleted ? batchAssessmentTitle : selectedSubmission?.assessment_title}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeGradingPanel}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
-                        {getInitials(batchCompleted ? batchAssessmentTitle : selectedSubmission?.student_name)}
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                          {batchCompleted ? 'Batch Complete' : gradingMode === 'batch' ? 'Select All Ungraded' : 'Student Review'}
-                        </p>
-                        <h2 className="text-base font-bold text-slate-900">
-                          {batchCompleted ? 'Assessment Ready to Return' : selectedSubmission?.student_name}
-                        </h2>
-                        <p className="text-xs text-slate-500">
-                          {batchCompleted ? batchAssessmentTitle : selectedSubmission?.assessment_title}
-                        </p>
-                      </div>
-                    </div>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {selectedSubmission?.status === 'Graded' && selectedSubmission?.score != null && (
+              <div className="grid grid-cols-3 gap-3 px-8 pt-6">
+                <div className="rounded-2xl bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Status</p>
+                  <p className="mt-1 text-3xl font-black text-emerald-600">Graded</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-emerald-400">Score assigned</p>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Score</p>
+                  <p className="mt-1 text-3xl font-black text-emerald-600">{selectedSubmission.score != null ? `${Number(selectedSubmission.score).toFixed(1)}%` : '—'}</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-emerald-400">Final result</p>
+                </div>
+                <div className="rounded-2xl bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Date</p>
+                  <p className="mt-1 text-lg font-black text-blue-600">{selectedSubmission?.submission_date ?? '—'}</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-blue-400">Submitted on</p>
+                </div>
+              </div>
+            )}
+
+            {selectedSubmission?.status !== 'Graded' && (
+              <div className="grid grid-cols-3 gap-3 px-8 pt-6">
+                <div className="rounded-2xl bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Status</p>
+                  <p className="mt-1 text-xl font-black text-amber-600">{batchCompleted ? 'Ready to Return' : 'Pending'}</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-amber-400">{batchCompleted ? 'All done' : 'Awaiting grade'}</p>
+                </div>
+                <div className="rounded-2xl bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Date</p>
+                  <p className="mt-1 text-lg font-black text-blue-600">{selectedSubmission?.submission_date ?? '—'}</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-blue-400">Submitted on</p>
+                </div>
+                <div className="rounded-2xl bg-indigo-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">Subject</p>
+                  <p className="mt-1 text-sm font-black text-indigo-600 truncate">{selectedSubmission?.assessment_title ?? '—'}</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-indigo-400">Assessment</p>
+                </div>
+              </div>
+            )}
+
+            {gradingMode === 'batch' && (
+              <div className="px-8 pt-4">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Selected Students</p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {batchPendingSubmissions.map((submission) => (
                     <button
+                      key={submission.id}
                       type="button"
-                      onClick={closeGradingModal}
-                      className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+                      onClick={() => setSelectedSubmission(submission)}
+                      className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedSubmission?.id === submission.id
+                        ? 'border-blue-300 bg-blue-600 text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
+                        }`}
                     >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                      </svg>
+                      {submission.student_name}
                     </button>
-                  </div>
-                  {gradingMode === 'batch' && (
-                    <div className="border-b border-slate-100 px-6 py-3">
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Selected Students</p>
-                      <div className="flex gap-2 overflow-x-auto pb-1">
-                        {batchPendingSubmissions.map((submission) => (
-                          <button
-                            key={submission.id}
-                            type="button"
-                            onClick={() => setSelectedSubmission(submission)}
-                            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedSubmission?.id === submission.id
-                              ? 'border-blue-300 bg-blue-600 text-white'
-                              : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
-                              }`}
-                          >
-                            {submission.student_name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="teacher-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="teacher-scrollbar min-h-0 flex-1 overflow-y-auto px-8 py-5">
                     {batchCompleted ? (
                       <div className="flex flex-col items-center justify-center py-12 text-center">
                         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
@@ -1075,7 +1208,7 @@ const GradeSubmissions = () => {
                         </p>
                         <button
                           type="button"
-                          onClick={closeGradingModal}
+                          onClick={closeGradingPanel}
                           className="teacher-primary-btn mt-6"
                         >
                           Return Assessment
@@ -1083,7 +1216,7 @@ const GradeSubmissions = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4">
+                        <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4">
                           <div>
                             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Student</p>
                             <p className="mt-1 text-sm font-semibold text-slate-900">{selectedSubmission?.student_name}</p>
@@ -1120,59 +1253,186 @@ const GradeSubmissions = () => {
                             <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 0 0 1.5-1.5V4.5a1.5 1.5 0 0 0-1.5-1.5H3.75a1.5 1.5 0 0 0-1.5 1.5v15a1.5 1.5 0 0 0 1.5 1.5Z" />
                             </svg>
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Submitted Work</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Submitted Work & Extracted Text</p>
                           </div>
-                          {submissionFiles.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center">
-                              <p className="text-sm text-slate-400">No files uploaded</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              <div className="flex gap-1.5">
-                                {submissionFiles.map((file, index) => {
-                                  const isActive = activeFile?.id === file.id;
-                                  return (
-                                    <button
-                                      key={file.id}
-                                      type="button"
-                                      onClick={() => setSelectedFileIndex(index)}
-                                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${isActive
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                        }`}
-                                    >
-                                      {submissionFiles.length > 1 ? `Page ${index + 1}` : 'View File'}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setIsPreviewOpen(true)}
-                                className="block w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-300 hover:shadow-sm"
-                              >
-                                {activeFile?.type === 'pdf' ? (
-                                  <div className="flex h-36 items-center justify-center bg-slate-50">
-                                    <div className="text-center">
-                                      <svg className="mx-auto h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                      </svg>
-                                      <p className="mt-1 text-xs font-medium text-slate-500">PDF - Click to preview</p>
-                                    </div>
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            {/* Left: Image */}
+                            <div>
+                              {submissionFiles.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center">
+                                  <p className="text-sm text-slate-400">No files uploaded</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {submissionFiles.map((file, index) => {
+                                      const isActive = activeFile?.id === file.id;
+                                      return (
+                                        <button
+                                          key={file.id}
+                                          type="button"
+                                          onClick={() => setSelectedFileIndex(index)}
+                                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${isActive
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                          {submissionFiles.length > 1 ? `Page ${index + 1}` : 'View File'}
+                                        </button>
+                                      );
+                                    })}
                                   </div>
-                                ) : (
-                                  <img
-                                    src={activeFile?.url}
-                                    alt={`${selectedSubmission?.student_name} submission ${selectedFileIndex + 1}`}
-                                    className="h-36 w-full object-contain bg-slate-50"
-                                  />
-                                )}
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsPreviewOpen(true)}
+                                    className="block w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-300 hover:shadow-sm"
+                                  >
+                                    {activeFile?.type === 'pdf' ? (
+                                      <div className="flex h-64 items-center justify-center bg-slate-50">
+                                        <div className="text-center">
+                                          <svg className="mx-auto h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                          </svg>
+                                          <p className="mt-1 text-xs font-medium text-slate-500">PDF - Click to preview</p>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <img
+                                        src={activeFile?.url}
+                                        alt={`${selectedSubmission?.student_name} submission ${selectedFileIndex + 1}`}
+                                        className="h-64 w-full object-contain bg-slate-50"
+                                      />
+                                    )}
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          )}
+
+                            {/* Right: Extracted Text */}
+                            <div>
+                              {selectedSubmission?.ocr_text ? (
+                                <div className="h-full">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Extracted Solution</p>
+                                    {!editingOcr && (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingOcr(true); setOcrDraft(selectedSubmission.ocr_text || ''); }}
+                                        className="text-[10px] font-semibold text-blue-500 hover:text-blue-700 transition"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                  </div>
+                                  {editingOcr ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={ocrDraft}
+                                        onChange={(event) => setOcrDraft(event.target.value)}
+                                        rows={10}
+                                        className="teacher-input !text-sm !whitespace-pre-wrap"
+                                        style={{ scrollbarWidth: 'thin' }}
+                                      />
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={handleSaveOcrText}
+                                          disabled={savingOcr}
+                                          className="teacher-primary-btn !px-3 !py-1.5 !text-[11px]"
+                                        >
+                                          {savingOcr ? 'Saving...' : 'Save'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => { setEditingOcr(false); setOcrDraft(''); }}
+                                          disabled={savingOcr}
+                                          className="teacher-secondary-btn !px-3 !py-1.5 !text-[11px]"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="max-h-72 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-sm leading-relaxed"
+                                      style={{ scrollbarWidth: 'thin' }}
+                                    >
+                                      <p className="mb-2 text-[10px] text-slate-400 italic">Extracted text may contain errors. Click Edit to correct.</p>
+                                      {formatOcrText(selectedSubmission.ocr_text)}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 py-8">
+                                  <p className="text-sm text-slate-400">No extracted text available</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
-                        {shouldShowGeneratePanel ? (
+                        {selectedSubmission?.status === 'Graded' && selectedSubmission?.score != null && (
+                          <div className="space-y-4 rounded-2xl border border-emerald-200/60 bg-emerald-50/30 p-5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                                  <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                  </svg>
+                                </div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Graded</p>
+                              </div>
+                              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                                {selectedSubmission.score != null ? `${Number(selectedSubmission.score).toFixed(1)}%` : '—'}
+                              </span>
+                            </div>
+
+                            <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Final Score</p>
+                              <p className="mt-2 text-4xl font-black text-emerald-600">
+                                {selectedSubmission.score != null ? `${Number(selectedSubmission.score).toFixed(1)}%` : '—'}
+                              </p>
+                            </div>
+
+                            {selectedSubmission?.feedback && (
+                              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400 mb-2">Feedback</p>
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedSubmission.feedback}</p>
+                              </div>
+                            )}
+
+                            {Array.isArray(draftItemScores) && draftItemScores.length > 0 && (
+                              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400 mb-3">Item Explanations</p>
+                                <div className="space-y-3">
+                                  {draftItemScores.map((item) => (
+                                    <div key={item.item_id ?? item.item_no} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                            Item {item.item_no}
+                                          </p>
+                                          <p className="mt-0.5 text-sm font-medium text-slate-700 line-clamp-2"><MathText text={item.question_content} /></p>
+                                        </div>
+                                        <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                          {item.score_earned != null && item.score_earned !== '' ? `${Number(item.score_earned).toFixed(1)} / ${Number(item.max_score || 0).toFixed(1)}` : '—'}
+                                        </span>
+                                      </div>
+                                      {item.ai_feedback && (
+                                        <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2">
+                                          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-500 mb-1">AI Explanation</p>
+                                          <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{item.ai_feedback}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {selectedSubmission?.status !== 'Graded' && (shouldShowGeneratePanel ? (
                           <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5">
                             {ocrFailed ? (
                               <>
@@ -1283,6 +1543,60 @@ const GradeSubmissions = () => {
                               </span>
                             </div>
 
+                            {selectedSubmission?.ocr_text && (
+                              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Extracted Solution</p>
+                                  {!editingOcr && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingOcr(true); setOcrDraft(selectedSubmission.ocr_text || ''); }}
+                                      className="text-[10px] font-semibold text-blue-500 hover:text-blue-700 transition"
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                </div>
+                                {editingOcr ? (
+                                  <div className="space-y-2">
+                                    <textarea
+                                      value={ocrDraft}
+                                      onChange={(event) => setOcrDraft(event.target.value)}
+                                      rows={10}
+                                      className="teacher-input !text-sm !whitespace-pre-wrap"
+                                      style={{ scrollbarWidth: 'thin' }}
+                                    />
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={handleSaveOcrText}
+                                        disabled={savingOcr}
+                                        className="teacher-primary-btn !px-3 !py-1.5 !text-[11px]"
+                                      >
+                                        {savingOcr ? 'Saving...' : 'Save'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingOcr(false); setOcrDraft(''); }}
+                                        disabled={savingOcr}
+                                        className="teacher-secondary-btn !px-3 !py-1.5 !text-[11px]"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="max-h-72 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-sm leading-relaxed"
+                                    style={{ scrollbarWidth: 'thin' }}
+                                  >
+                                    <p className="mb-2 text-[10px] text-slate-400 italic">Extracted text may contain errors. Click Edit to correct.</p>
+                                    {formatOcrText(selectedSubmission.ocr_text)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
                               <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Score</p>
                               <p className="mt-2 text-4xl font-black text-blue-600">
@@ -1333,7 +1647,7 @@ const GradeSubmissions = () => {
                                           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                                             Item {item.item_no}
                                           </p>
-                                          <p className="mt-0.5 text-sm font-medium text-slate-700 line-clamp-2">{item.question_content}</p>
+                                          <p className="mt-0.5 text-sm font-medium text-slate-700 line-clamp-2"><MathText text={item.question_content} /></p>
                                         </div>
                                         <div className="w-20 shrink-0">
                                           <input
@@ -1361,52 +1675,48 @@ const GradeSubmissions = () => {
                               )}
                             </div>
 
-                            <div className="flex gap-3">
-                              <button
-                                type="button"
-                                onClick={gradingMode === 'batch' ? handleSaveAllResults : handleSaveResult}
-                                disabled={!selectedSubmission || returning || generating || bulkGenerating || !hasDraftResult}
-                                className="teacher-primary-btn flex-1"
-                                style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 55%, #34d399 100%)' }}
-                              >
-                                {returning ? (
-                                  <span className="flex items-center gap-2">
-                                    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Saving...
-                                  </span>
-                                ) : gradingMode === 'batch' ? 'Save All Results' : 'Save Result'}
-                              </button>
-                            </div>
                             {saveMessage && (
                               <p className={`text-xs font-medium ${saveMessage.toLowerCase().includes('unable') ? 'text-red-600' : 'text-emerald-600'}`}>
                                 {saveMessage}
                               </p>
                             )}
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
-                </div>
+            <div className="shrink-0 border-t border-slate-100 bg-slate-50/50 px-8 py-3">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeGradingPanel}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
+                >
+                  Close
+                </button>
+                {selectedSubmission?.status !== 'Graded' && hasDraftResult && (
+                  <button
+                    type="button"
+                    onClick={gradingMode === 'batch' ? handleSaveAllResults : handleSaveResult}
+                    disabled={!selectedSubmission || returning || generating || bulkGenerating}
+                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97]"
+                  >
+                    {returning ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Saving...
+                      </span>
+                    ) : gradingMode === 'batch' ? 'Save All Results' : 'Save Result'}
+                  </button>
+                )}
               </div>
-            ), document.body)}
-
-            {gradingModalOpen && (
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-100/80">
-                  <svg className="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                  </svg>
-                </div>
-                <p className="text-sm font-medium text-slate-400">Select a student to begin grading</p>
+            </div>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
+            </div>
+          )}
 
       {isPreviewOpen && activeFile && typeof document !== 'undefined' && createPortal((
         <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">

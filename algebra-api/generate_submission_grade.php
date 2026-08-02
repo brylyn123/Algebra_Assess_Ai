@@ -169,11 +169,44 @@ try {
     }
 
     if ($ocrText === '' && $ocrTextOverride === '') {
+        if (!empty($savedFiles)) {
+            try {
+                $visionResult = extractOcrTextFromSavedFiles($savedFiles);
+                $extractedText = trim((string)($visionResult['ocr_text'] ?? ''));
+
+                if ($extractedText !== '') {
+                    $ocrText = $extractedText;
+                    $existingRawPayload['ocr'] = [
+                        'status' => 'completed',
+                        'source' => 'ai_vision',
+                        'model' => $visionResult['model'] ?? 'unknown',
+                        'generated_at' => gmdate('c'),
+                        'files' => $visionResult['files'] ?? [],
+                    ];
+
+                    $ocrTextOrNull = $ocrText !== '' ? $ocrText : null;
+                    $ocrUpdateJson = json_encode($existingRawPayload);
+                    $ocrUpdateStmt = $conn->prepare(
+                        "UPDATE Captured_Solution
+                         SET ocr_text = ?, ai_raw_json = ?
+                         WHERE solution_id = ?"
+                    );
+                    $ocrUpdateStmt->bind_param('ssi', $ocrTextOrNull, $ocrUpdateJson, $solution_id);
+                    $ocrUpdateStmt->execute();
+                    $ocrUpdateStmt->close();
+                }
+            } catch (Exception $visionError) {
+                error_log('Vision OCR failed for solution ' . $solution_id . ': ' . $visionError->getMessage());
+            }
+        }
+    }
+
+    if ($ocrText === '' && $ocrTextOverride === '') {
         http_response_code(422);
         echo json_encode([
             'status' => 'error',
             'code' => 'ocr_failed',
-            'message' => 'No extracted text available. Please type or paste the student\'s answer manually.',
+            'message' => 'AI vision could not extract text from the uploaded files. Please type or paste the student\'s answer manually.',
         ]);
         exit();
     }
@@ -208,11 +241,12 @@ try {
         'message' => 'AI draft generated successfully.',
         'solution_id' => $solution_id,
         'ai_status' => 'completed',
+        'ocr_text' => $ocrText,
         'ai_generation' => $aiGeneration,
     ]);
 } catch (Exception $e) {
     $msg = $e->getMessage();
-    if (stripos($msg, 'tesseract') !== false || stripos($msg, 'ocr') !== false) {
+    if (stripos($msg, 'tesseract') !== false || stripos($msg, 'ocr') !== false || stripos($msg, 'vision') !== false) {
         http_response_code(422);
         echo json_encode([
             'status' => 'error',

@@ -33,6 +33,28 @@ function schemaIndexExists(mysqli $conn, string $table, string $indexName): bool
     return $exists;
 }
 
+function migrationsAlreadyRan(mysqli $conn): bool {
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $cached = false;
+    $result = $conn->query("SELECT 1 FROM schema_migration_log WHERE migration_key = 'live_schema_v1' LIMIT 1");
+    if ($result && $result->num_rows > 0) {
+        $cached = true;
+    }
+    return $cached;
+}
+
+function markMigrationsRan(mysqli $conn): void {
+    $conn->query("INSERT IGNORE INTO schema_migration_log (migration_key, ran_at) VALUES ('live_schema_v1', NOW())");
+}
+
+function ensureMigrationFlagTable(mysqli $conn): void {
+    $conn->query("CREATE TABLE IF NOT EXISTS schema_migration_log (
+        migration_key VARCHAR(100) PRIMARY KEY,
+        ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )");
+}
+
 function ensureUserAccountStatusSchema(mysqli $conn): void {
     static $checked = false;
 
@@ -41,6 +63,14 @@ function ensureUserAccountStatusSchema(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) {
+        return;
+    }
 
     $userTable = resolveExistingTableName($conn, ['Users', 'users']);
 
@@ -82,6 +112,9 @@ function ensureRolesSchema(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     if (
         !$conn->query(
@@ -260,23 +293,36 @@ function getEnrollmentSubjectColumn(mysqli $conn): string {
         return $column;
     }
 
+    $cacheFile = __DIR__ . '/.schema_cache.php';
+    if (file_exists($cacheFile)) {
+        $cache = require $cacheFile;
+        if (isset($cache['enrollment_column'])) {
+            $column = $cache['enrollment_column'];
+            return $column;
+        }
+    }
+
     $preferred = 'subject_id';
     $result = $conn->query("SHOW COLUMNS FROM Enrollment LIKE '$preferred'");
     if ($result && $result->num_rows > 0) {
         $result->free();
         $column = $preferred;
-        return $column;
+    } else {
+        $fallback = 'offering_id';
+        $result = $conn->query("SHOW COLUMNS FROM Enrollment LIKE '$fallback'");
+        if ($result && $result->num_rows > 0) {
+            $result->free();
+            $column = $fallback;
+        } else {
+            throw new Exception('Enrollment table is missing the subject identifier column.');
+        }
     }
 
-    $fallback = 'offering_id';
-    $result = $conn->query("SHOW COLUMNS FROM Enrollment LIKE '$fallback'");
-    if ($result && $result->num_rows > 0) {
-        $result->free();
-        $column = $fallback;
-        return $column;
-    }
+    $cache = file_exists($cacheFile) ? require $cacheFile : [];
+    $cache['enrollment_column'] = $column;
+    @file_put_contents($cacheFile, '<?php return ' . var_export($cache, true) . ';');
 
-    throw new Exception('Enrollment table is missing the subject identifier column.');
+    return $column;
 }
 
 function resolveExistingTableName(mysqli $conn, array $candidates): string {
@@ -288,12 +334,24 @@ function resolveExistingTableName(mysqli $conn, array $candidates): string {
         }
     }
 
+    $cacheFile = __DIR__ . '/.schema_cache.php';
+    $fileCache = file_exists($cacheFile) ? require $cacheFile : [];
+    foreach ($candidates as $candidate) {
+        if (isset($fileCache["table_{$candidate}"])) {
+            $resolved = $fileCache["table_{$candidate}"];
+            $cache[$candidate] = $resolved;
+            return $resolved;
+        }
+    }
+
     foreach ($candidates as $candidate) {
         $escaped = $conn->real_escape_string($candidate);
         $result = $conn->query("SHOW TABLES LIKE '{$escaped}'");
         if ($result && $result->num_rows > 0) {
             $result->free();
             $cache[$candidate] = $candidate;
+            $fileCache["table_{$candidate}"] = $candidate;
+            @file_put_contents($cacheFile, '<?php return ' . var_export($fileCache, true) . ';');
             return $candidate;
         }
         if ($result) {
@@ -301,7 +359,8 @@ function resolveExistingTableName(mysqli $conn, array $candidates): string {
         }
     }
 
-    throw new Exception('Unable to find any of these tables: ' . implode(', ', $candidates));
+    $first = $candidates[0] ?? 'unknown';
+    throw new Exception("Required table '{$first}' does not exist.");
 }
 
 function ensureAssessmentRubricColumn(mysqli $conn): void {
@@ -312,6 +371,9 @@ function ensureAssessmentRubricColumn(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     $result = $conn->query("SHOW COLUMNS FROM Exercises_Problem LIKE 'rubric_set_id'");
     if ($result && $result->num_rows > 0) {
@@ -336,6 +398,9 @@ function ensureScoreAiFeedbackColumn(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     $result = $conn->query("SHOW COLUMNS FROM Scores LIKE 'ai_feedback'");
     $hasAiFeedback = $result && $result->num_rows > 0;
@@ -382,6 +447,9 @@ function ensureScoreMetricsColumns(mysqli $conn): void {
 
     $checked = true;
 
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
+
     $rawScoreResult = $conn->query("SHOW COLUMNS FROM Scores LIKE 'raw_score_earned'");
     $hasRawScore = $rawScoreResult && $rawScoreResult->num_rows > 0;
     if ($rawScoreResult) {
@@ -421,6 +489,9 @@ function ensureScoreReturnColumn(mysqli $conn): void {
 
     $checked = true;
 
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
+
     $returnedAtResult = $conn->query("SHOW COLUMNS FROM Scores LIKE 'returned_at'");
     $hasReturnedAt = $returnedAtResult && $returnedAtResult->num_rows > 0;
     if ($returnedAtResult) {
@@ -452,6 +523,12 @@ function ensureStudentProfileColumns(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     $userTable = resolveExistingTableName($conn, ['Users', 'users']);
     ensureRolesSchema($conn);
@@ -519,6 +596,9 @@ function ensureCourseCollegeForeignKey(mysqli $conn): void {
 
     $checked = true;
 
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
+
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     ensureCollegeForeignKeyForTable($conn, $courseTable);
 }
@@ -531,6 +611,9 @@ function ensureFlexibleOrganizationColumns(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $collegeTable = resolveExistingTableName($conn, ['Colleges', 'colleges', 'college']);
@@ -580,6 +663,9 @@ function ensureRegistrationLookupData(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     ensureRolesSchema($conn);
     ensureCourseCollegeForeignKey($conn);
@@ -633,6 +719,9 @@ function ensureYearLevelAuditColumns(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
     $columns = [
@@ -728,6 +817,9 @@ function ensureSemesterSchema(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     if (
         !$conn->query(
@@ -895,6 +987,9 @@ function ensureSchoolYearSchema(mysqli $conn): void {
 
     $checked = true;
 
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
+
     if (
         !$conn->query(
             "CREATE TABLE IF NOT EXISTS school_year (
@@ -1057,6 +1152,9 @@ function ensureSubjectLookupColumns(mysqli $conn): void {
     }
 
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     ensureRegistrationLookupData($conn);
     ensureSchoolYearSchema($conn);
@@ -1367,6 +1465,9 @@ function ensureAssessmentDueDate(mysqli $conn): void {
     static $checked = false;
     if ($checked) { return; }
     $checked = true;
+
+    ensureMigrationFlagTable($conn);
+    if (migrationsAlreadyRan($conn)) { return; }
 
     $hasCol = schemaColumnExists($conn, 'Exercises_Problem', 'due_date');
     if (!$hasCol) {

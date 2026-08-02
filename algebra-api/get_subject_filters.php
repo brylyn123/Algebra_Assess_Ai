@@ -4,6 +4,7 @@ require_once 'cors.php';
 include 'db_connect.php';
 require_once 'schema_utils.php';
 require_once 'auth.php';
+require_once 'cache_headers.php';
 
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
@@ -67,6 +68,7 @@ try {
         $stmt->close();
     }
 
+    setCacheHeaders(300);
     echo json_encode(array_merge(['status' => 'success'], $filters));
 } catch (Exception $e) {
     echo json_encode(["status" => "error", "message" => $e->getMessage()]);

@@ -2,6 +2,7 @@
 require_once 'cors.php';
 require_once 'db_connection.php';
 require_once 'schema_utils.php';
+require_once 'cache_headers.php';
 
 ensureRegistrationLookupData($conn);
 
@@ -21,5 +22,6 @@ if ($result->num_rows > 0) {
     }
 }
 
+setCacheHeaders(60);
 echo json_encode(['status' => 'success', 'data' => $colleges]);
 ?>

@@ -5,6 +5,13 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import Select from './components/Select';
 
+const toAbsoluteFileUrl = (path) => {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = String(path).replace(/^\/+/, '');
+  return `${API_BASE_URL}/${normalizedPath}`;
+};
+
 const getDisplayName = (user) => {
   if (!user) return 'Student';
 
@@ -388,6 +395,75 @@ const StudentReports = () => {
                   {selectedRecord.ai_feedback || 'No AI feedback was saved for this submission.'}
                 </p>
               </div>
+
+              {Array.isArray(selectedRecord.item_scores) && selectedRecord.item_scores.length > 0 && (
+                <div className="rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Item Breakdown</p>
+                  <div className="mt-4 space-y-4">
+                    {selectedRecord.item_scores.map((item, index) => (
+                      <div key={item.item_score_id ?? index} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-bold text-slate-900">Item {item.item_no ?? index + 1}</p>
+                          <p className="text-sm font-semibold text-blue-700">
+                            {item.score_earned != null ? Number(item.score_earned).toFixed(2) : '—'} / {item.max_score != null ? Number(item.max_score).toFixed(2) : '—'}
+                          </p>
+                        </div>
+                        {item.question_content && (
+                          <p className="mt-2 whitespace-pre-wrap text-xs text-slate-500">{item.question_content}</p>
+                        )}
+                        {item.ai_feedback && (
+                          <div className="mt-3 rounded-xl bg-blue-50/70 p-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-400">AI Feedback</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-7 text-slate-700">{item.ai_feedback}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(selectedRecord.files) && selectedRecord.files.length > 0 && (
+                <div className="rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Submitted Files</p>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {selectedRecord.files.map((file, index) => {
+                      const fileUrl = toAbsoluteFileUrl(file.path);
+                      return file.type === 'image' ? (
+                        <a
+                          key={index}
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative block aspect-square overflow-hidden rounded-xl border border-slate-100 bg-slate-50"
+                        >
+                          <img
+                            src={fileUrl}
+                            alt={file.name}
+                            className="h-full w-full object-cover transition group-hover:scale-105"
+                          />
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent p-2">
+                            <p className="truncate text-[10px] font-medium text-white">{file.name}</p>
+                          </div>
+                        </a>
+                      ) : (
+                        <a
+                          key={index}
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex aspect-square flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center transition hover:border-blue-300 hover:bg-blue-50/50"
+                        >
+                          <svg className="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                          </svg>
+                          <p className="mt-2 truncate text-xs font-medium text-slate-600">{file.name}</p>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>,

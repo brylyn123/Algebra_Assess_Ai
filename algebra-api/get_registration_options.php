@@ -2,6 +2,7 @@
 require_once 'cors.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'cache_headers.php';
 
 try {
     ensureRegistrationLookupData($conn);
@@ -44,6 +45,7 @@ try {
         $result->free();
     }
 
+    setCacheHeaders(300);
     echo json_encode($payload);
 } catch (Exception $e) {
     http_response_code(500);

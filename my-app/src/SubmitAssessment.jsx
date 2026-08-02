@@ -4,6 +4,116 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import Select from './components/Select';
+import { useToast } from './components/Toast';
+
+const analyzeImageQuality = (file) => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve({ pass: true, note: 'PDF quality verified after upload' });
+      return;
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 200;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+
+      try {
+        const imageData = ctx.getImageData(0, 0, size, size);
+        const data = imageData.data;
+        const gray = new Float32Array(size * size);
+
+        for (let i = 0; i < gray.length; i++) {
+          const r = data[i * 4];
+          const g = data[i * 4 + 1];
+          const b = data[i * 4 + 2];
+          gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+        }
+
+        const reasons = [];
+
+        let blurSum = 0;
+        let blurCount = 0;
+        for (let y = 1; y < size - 1; y++) {
+          for (let x = 1; x < size - 1; x++) {
+            const idx = y * size + x;
+            const laplacian = -4 * gray[idx]
+              + gray[idx - 1] + gray[idx + 1]
+              + gray[idx - size] + gray[idx + size];
+            blurSum += laplacian * laplacian;
+            blurCount++;
+          }
+        }
+        const blurVariance = blurCount > 0 ? blurSum / blurCount : 0;
+        if (blurVariance < 50) {
+          reasons.push('Image may be blurry');
+        }
+
+        let brightnessSum = 0;
+        for (let i = 0; i < gray.length; i++) {
+          brightnessSum += gray[i];
+        }
+        const brightness = brightnessSum / gray.length;
+        if (brightness < 30) {
+          reasons.push('Image is too dark');
+        } else if (brightness > 225) {
+          reasons.push('Image is too bright');
+        }
+
+        let contrastSum = 0;
+        for (let i = 0; i < gray.length; i++) {
+          contrastSum += (gray[i] - brightness) * (gray[i] - brightness);
+        }
+        const contrast = Math.sqrt(contrastSum / gray.length);
+        if (contrast < 20) {
+          reasons.push('Image has low contrast');
+        }
+
+        resolve({ pass: reasons.length === 0, reasons });
+      } catch {
+        resolve({ pass: true, reasons: [] });
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ pass: true, reasons: [] });
+    };
+
+    img.src = url;
+  });
+};
+
+const checkImageContent = async (file) => {
+  if (!file.type.startsWith('image/')) {
+    return { pass: true, reason: 'PDF content verified after upload' };
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiFetch('/check_image_legibility.php', {
+      method: 'POST',
+      body: formData,
+    });
+    const result = await response.json();
+
+    if (result.status === 'success') {
+      return { pass: result.readable, reason: result.reason || '' };
+    }
+    return { pass: true, reason: '' };
+  } catch {
+    return { pass: true, reason: '' };
+  }
+};
 
 const formatDateTime = (value) => {
   if (!value) return 'Not submitted yet';
@@ -25,6 +135,7 @@ const SubmitAssessment = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const currentUser = currentEmail ? findLocalUser(currentEmail) : null;
   const studentId = currentUser?.user_id ?? currentUser?.student_id ?? null;
+  const { toast } = useToast();
 
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');
@@ -34,6 +145,7 @@ const SubmitAssessment = () => {
   const [assessmentsError, setAssessmentsError] = useState('');
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
+  const [fileQualityResults, setFileQualityResults] = useState(new Map());
 
   useEffect(() => {
     let isMounted = true;
@@ -146,21 +258,92 @@ const SubmitAssessment = () => {
     return `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} ready to upload`;
   }, [selectedFiles.length]);
 
-  const handleFiles = (event) => {
+  const hasFailingImages = useMemo(() => {
+    for (const [, result] of fileQualityResults) {
+      if (result && result.pass === false) return true;
+    }
+    return false;
+  }, [fileQualityResults]);
+
+  const isCheckingContent = useMemo(() => {
+    for (const [, result] of fileQualityResults) {
+      if (result && result.checking === true) return true;
+    }
+    return false;
+  }, [fileQualityResults]);
+
+  const handleFiles = async (event) => {
     const fileList = Array.from(event.target.files || []);
     if (fileList.length === 0) return;
+
+    const startIndex = selectedFiles.length;
     setSelectedFiles((current) => [...current, ...fileList]);
+
+    for (let i = 0; i < fileList.length; i++) {
+      const fileIndex = startIndex + i;
+      // Step 1: Check image quality (instant, client-side)
+      const qualityResult = await analyzeImageQuality(fileList[i]);
+      setFileQualityResults((prev) => {
+        const next = new Map(prev);
+        next.set(fileIndex, { ...qualityResult, checking: true });
+        return next;
+      });
+      if (!qualityResult.pass) {
+        const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
+        toast.warning(`${fileList[i].name}: ${reasons}. Please retake with better lighting.`);
+      }
+
+      // Step 2: Check image content (AI, server-side)
+      const contentResult = await checkImageContent(fileList[i]);
+      setFileQualityResults((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(fileIndex) || {};
+        next.set(fileIndex, { ...existing, ...contentResult, checking: false });
+        return next;
+      });
+      if (!contentResult.pass) {
+        toast.error(`${fileList[i].name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
+      }
+    }
   };
 
-  const handleDrop = (event) => {
+  const handleDrop = async (event) => {
     event.preventDefault();
     const fileList = Array.from(event.dataTransfer.files || []);
     if (fileList.length === 0) return;
+
+    const startIndex = selectedFiles.length;
     setSelectedFiles((current) => [...current, ...fileList]);
+
+    for (let i = 0; i < fileList.length; i++) {
+      const fileIndex = startIndex + i;
+      const qualityResult = await analyzeImageQuality(fileList[i]);
+      setFileQualityResults((prev) => {
+        const next = new Map(prev);
+        next.set(fileIndex, { ...qualityResult, checking: true });
+        return next;
+      });
+      if (!qualityResult.pass) {
+        const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
+        toast.warning(`${fileList[i].name}: ${reasons}. Please retake with better lighting.`);
+      }
+
+      const contentResult = await checkImageContent(fileList[i]);
+      setFileQualityResults((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(fileIndex) || {};
+        next.set(fileIndex, { ...existing, ...contentResult, checking: false });
+        return next;
+      });
+      if (!contentResult.pass) {
+        toast.error(`${fileList[i].name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
+      }
+    }
   };
 
   const clearFiles = () => {
     setSelectedFiles([]);
+    setFileQualityResults(new Map());
     setSubmitMessage('');
   };
 
@@ -169,16 +352,25 @@ const SubmitAssessment = () => {
   const handleSubmit = async () => {
     if (!studentId) {
       setSubmitMessage('Please log in as a student to submit work.');
+      toast.warning('Please log in as a student to submit work.');
       return;
     }
 
     if (!selectedAssessment) {
       setSubmitMessage('Choose an assessment first.');
+      toast.warning('Choose an assessment first.');
       return;
     }
 
     if (selectedFiles.length === 0) {
       setSubmitMessage('Upload at least one file before submitting.');
+      toast.warning('Upload at least one file before submitting.');
+      return;
+    }
+
+    if (hasFailingImages) {
+      setSubmitMessage('Some files failed quality checks. Please remove or replace them before submitting.');
+      toast.error('Some images are blurry or too dark. Please replace them before submitting.');
       return;
     }
 
@@ -198,12 +390,27 @@ const SubmitAssessment = () => {
         body: formData,
       });
       const payload = await response.json();
+
       if (payload.status !== 'success') {
+        if (payload.file_errors && Array.isArray(payload.file_errors)) {
+          const errMsgs = payload.file_errors.map((e) => `${e.file}: ${e.reason}`).join('; ');
+          throw new Error(errMsgs || payload.message || 'Unable to submit assessment.');
+        }
         throw new Error(payload.message || 'Unable to submit assessment.');
       }
 
-      setSubmitMessage('Assessment submitted successfully. Your teacher can now see it in Grade Submissions.');
+      let message = 'Assessment submitted successfully. Your teacher can now see it in Grade Submissions.';
+      if (payload.warnings && payload.warnings.length > 0) {
+        const warningMsgs = payload.warnings.map((w) => `${w.file}: ${w.reason}`).join('; ');
+        message += ` Some files were removed: ${warningMsgs}`;
+        toast.warning(message);
+      } else {
+        toast.success('Assessment submitted successfully! Your teacher can now grade it.');
+      }
+
+      setSubmitMessage(message);
       setSelectedFiles([]);
+      setFileQualityResults(new Map());
 
       setAvailableAssessments((current) =>
         current.map((assessment) =>
@@ -217,30 +424,47 @@ const SubmitAssessment = () => {
         )
       );
     } catch (error) {
-      setSubmitMessage(error.message || 'Unable to submit assessment.');
+      const errMsg = error.message || 'Unable to submit assessment.';
+      setSubmitMessage(errMsg);
+      toast.error(errMsg);
     } finally {
       setSubmitLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-transparent py-8">
-      <div className="mx-auto max-w-6xl space-y-6 px-4 md:px-6">
-        <div className="space-y-2 px-2">
-          <h1 className="text-3xl font-bold text-slate-900">Submit Assessment</h1>
-          <p className="text-sm text-slate-500">
-            Choose one of your enrolled subjects, pick an available assessment, then upload your completed handwritten work.
-          </p>
+    <div className="mx-auto flex h-full max-w-[1100px] flex-col px-1 pt-3 sm:px-2" style={{ height: 'calc(100vh - 6rem)' }}>
+      <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path d="M9.653 16.915l-.005-.003-.019-.01a20.759 20.759 0 01-1.162-.682 22.045 22.045 0 01-2.582-1.9C4.045 12.733 2 10.352 2 7.5a4.5 4.5 0 018-2.828A4.5 4.5 0 0118 7.5c0 2.852-2.044 5.233-3.885 6.82a22.049 22.049 0 01-3.744 2.582l-.019.01-.005.003h-.002a.723.723 0 01-.682 0h-.002z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-white">Submit Assessment</h2>
+            </div>
+            <p className="text-xs text-blue-100 ml-[42px]">
+              Upload your handwritten solutions for AI-powered grading and teacher review.
+            </p>
+          </div>
         </div>
+      </div>
 
-        <div className="grid gap-6 lg:grid-cols-[0.95fr,1.05fr]">
-          <section className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow">
-            <h2 className="text-xl font-semibold text-slate-900">Choose Assessment</h2>
-            <div className="mt-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 transparent' }}>
+        <style>{`
+          .submit-scroll::-webkit-scrollbar { width: 7px; }
+          .submit-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 9999px; }
+          .submit-scroll::-webkit-scrollbar-thumb { background-color: #94a3b8; border-radius: 9999px; }
+          .submit-scroll::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
+        `}</style>
+        <div className="submit-scroll grid gap-4 lg:grid-cols-[0.95fr,1.05fr] pb-4">
+          <section className="rounded-lg border border-slate-200/60 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400 mb-3">Choose Assessment</p>
+            <div className="space-y-3">
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                  Subject
-                </label>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Subject</label>
                 <Select
                   value={selectedSubject}
                   onChange={(event) => setSelectedSubject(event.target.value)}
@@ -255,9 +479,7 @@ const SubmitAssessment = () => {
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                  Assessment
-                </label>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Assessment</label>
                 <Select
                   value={selectedAssessmentId}
                   onChange={(event) => setSelectedAssessmentId(event.target.value)}
@@ -272,45 +494,68 @@ const SubmitAssessment = () => {
                 </Select>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-3 text-sm">
                 {loadingSubjects || loadingAssessments ? (
-                  <p>Loading your enrolled subjects and assessments...</p>
+                  <p className="text-slate-500">Loading your enrolled subjects and assessments...</p>
                 ) : subjectsError ? (
                   <p className="text-red-600">{subjectsError}</p>
                 ) : assessmentsError ? (
                   <p className="text-red-600">{assessmentsError}</p>
                 ) : selectedAssessment ? (
-                  <div className="space-y-3">
-                    <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="grid gap-2 sm:grid-cols-2">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Assessment</p>
-                        <p className="font-semibold text-slate-900">{selectedAssessment.title}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Assessment</p>
+                        <p className="text-sm font-semibold text-slate-700">{selectedAssessment.title}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Subject</p>
-                        <p className="font-semibold text-slate-900">{selectedAssessment.subject_name}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Subject</p>
+                        <p className="text-sm font-semibold text-slate-700">{selectedAssessment.subject_name}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Topic</p>
-                        <p className="font-semibold text-slate-900">{selectedAssessment.topic || '—'}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Topic</p>
+                        <p className="text-sm font-semibold text-slate-700">{selectedAssessment.topic || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Items</p>
-                        <p className="font-semibold text-slate-900">{selectedAssessment.item_count || 0}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Items</p>
+                        <p className="text-sm font-semibold text-slate-700">{selectedAssessment.item_count || 0}</p>
                       </div>
                       {selectedAssessment.due_date && (
                         <div>
-                          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Due Date</p>
-                          <p className="font-semibold text-slate-900">{new Date(selectedAssessment.due_date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Due Date</p>
+                          <p className="text-sm font-semibold text-slate-700">{new Date(selectedAssessment.due_date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                       )}
                     </div>
                     {selectedAssessment.description && (
-                      <p>{selectedAssessment.description}</p>
+                      <p className="text-xs text-slate-500">{selectedAssessment.description}</p>
                     )}
-                    <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-                      {selectedAssessment.difficulty && <span>Difficulty: {selectedAssessment.difficulty}</span>}
-                      {selectedAssessment.subject_meta && <span>{selectedAssessment.subject_meta}</span>}
+                    {selectedAssessment.items && selectedAssessment.items.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Questions</p>
+                        {selectedAssessment.items.map((item, idx) => (
+                          <div key={idx} className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
+                                  #{item.item_no}
+                                </span>
+                                {item.question_type && (
+                                  <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                                    {item.question_type.replace(/_/g, ' ')}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-700 whitespace-pre-wrap">{item.question_content}</p>
+                            </div>
+                            <span className="shrink-0 text-[10px] font-semibold text-slate-500">{item.max_score} pts</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">
+                      {selectedAssessment.difficulty && <span className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium">Difficulty: {selectedAssessment.difficulty}</span>}
+                      {selectedAssessment.subject_meta && <span className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium">{selectedAssessment.subject_meta}</span>}
                       {selectedAssessment.due_date && (() => {
                         const now = new Date();
                         const due = new Date(selectedAssessment.due_date);
@@ -322,9 +567,9 @@ const SubmitAssessment = () => {
                         if (diffDays < 0) { cls = 'text-red-600 font-semibold'; label = 'Overdue'; }
                         else if (diffDays === 0) { cls = 'text-amber-600 font-semibold'; label = 'Due today'; }
                         else if (diffDays <= 3) { cls = 'text-orange-600 font-semibold'; }
-                        return <span className={cls}>{label}</span>;
+                        return <span className={`inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium ${cls}`}>{label}</span>;
                       })()}
-                      <span>
+                      <span className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium">
                         {selectedAssessment.already_submitted
                           ? `Last submitted: ${formatDateTime(selectedAssessment.latest_submission_at)}`
                           : 'Not submitted yet'}
@@ -332,18 +577,18 @@ const SubmitAssessment = () => {
                     </div>
                   </div>
                 ) : (
-                  <p>No assessment is available for the selected subject yet.</p>
+                  <p className="text-slate-400">No assessment is available for the selected subject yet.</p>
                 )}
               </div>
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow">
-            <h2 className="text-xl font-semibold text-slate-900">Upload Handwritten Solutions</h2>
-            <p className="mt-1 text-sm text-slate-500">
+          <section className="rounded-lg border border-slate-200/60 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400 mb-3">Upload Handwritten Solutions</p>
+            <p className="text-xs text-slate-500 mb-2">
               Upload clear photos of your handwritten solutions for the best OCR and AI grading results. Each file can be up to 10MB.
             </p>
-            <p className="mt-2 text-xs text-amber-600">
+            <p className="text-[10px] text-amber-600 font-semibold mb-3">
               Best results: JPG or PNG photos. PDF uploads are allowed, but automatic text extraction may be less reliable.
             </p>
 
@@ -352,51 +597,95 @@ const SubmitAssessment = () => {
               onDragEnter={preventDefault}
               onDragLeave={preventDefault}
               onDrop={handleDrop}
-              className="mt-6 flex cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/70 px-6 py-12 text-center transition hover:border-blue-400 hover:bg-blue-50"
+              className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 px-6 py-10 text-center transition hover:border-blue-400 hover:bg-blue-50/50"
             >
               <input onChange={handleFiles} type="file" multiple accept=".jpg,.jpeg,.png,.pdf" className="hidden" />
-              <span className="text-3xl">Upload</span>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6 text-blue-400">
+                  <path d="M9.653 16.915l-.005-.003-.019-.01a20.759 20.759 0 01-1.162-.682 22.045 22.045 0 01-2.582-1.9C4.045 12.733 2 10.352 2 7.5a4.5 4.5 0 018-2.828A4.5 4.5 0 0118 7.5c0 2.852-2.044 5.233-3.885 6.82a22.049 22.049 0 01-3.744 2.582l-.019.01-.005.003h-.002a.723.723 0 01-.682 0h-.002z" />
+                </svg>
+              </div>
               <p className="text-sm font-semibold text-slate-700">{fileLabel}</p>
-              <p className="text-xs text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
-              <span className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow">
+              <p className="text-[10px] text-slate-400">Supported formats: JPG, JPEG, PNG, PDF</p>
+              <span className="rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]">
                 Choose Files
               </span>
             </label>
 
             {selectedFiles.length > 0 && (
-              <div className="mt-4 space-y-2 text-sm text-slate-600">
-                {selectedFiles.map((file, index) => (
-                  <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-xl bg-slate-100 px-4 py-2">
-                    <span className="truncate">{file.name}</span>
-                    <span className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                  </div>
-                ))}
+              <div className="mt-3 space-y-1.5">
+                {selectedFiles.map((file, index) => {
+                  const quality = fileQualityResults.get(index);
+                  return (
+                    <div key={`${file.name}-${index}`} className="flex flex-col rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="truncate text-xs font-medium text-slate-700">{file.name}</span>
+                        <span className="shrink-0 ml-2 text-[10px] text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                      </div>
+                      {quality?.pass === false && (
+                        <span className="text-red-500 text-[10px] mt-0.5">
+                          ⚠️ {quality.reasons?.join(', ') || quality.reason || 'Quality issue detected'}
+                        </span>
+                      )}
+                      {quality?.checking === true && (
+                        <span className="text-blue-500 text-[10px] mt-0.5 flex items-center gap-1">
+                          <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Checking content...
+                        </span>
+                      )}
+                      {quality?.pass === true && !quality.checking && !quality.note && (
+                        <span className="text-emerald-500 text-[10px] mt-0.5">✅ Clear</span>
+                      )}
+                      {quality?.note && (
+                        <span className="text-slate-400 text-[10px] mt-0.5">{quality.note}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
             {submitMessage && (
-              <p className={`mt-4 text-sm ${submitMessage.includes('successfully') ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <div className={`mt-3 rounded-lg border px-3 py-2 text-xs font-semibold ${submitMessage.includes('successfully') ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
                 {submitMessage}
-              </p>
+              </div>
             )}
           </section>
         </div>
 
-        <div className="flex flex-wrap justify-end gap-3">
+        <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-white/80 px-4 py-3">
           <button
             type="button"
             onClick={clearFiles}
-            className="rounded-2xl border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-600 hover:border-slate-400"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
           >
             Clear Files
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="rounded-2xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 disabled:bg-blue-400"
-            disabled={submitLoading || selectedFiles.length === 0 || !selectedAssessment}
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-300/50 active:scale-[0.97] disabled:cursor-wait disabled:opacity-60"
+            disabled={submitLoading || selectedFiles.length === 0 || !selectedAssessment || hasFailingImages}
           >
-            {submitLoading ? 'Submitting...' : 'Submit Assessment'}
+            {submitLoading ? (
+              <>
+                <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>Submitting...</span>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                  <path d="M9.653 16.915l-.005-.003-.019-.01a20.759 20.759 0 01-1.162-.682 22.045 22.045 0 01-2.582-1.9C4.045 12.733 2 10.352 2 7.5a4.5 4.5 0 018-2.828A4.5 4.5 0 0118 7.5c0 2.852-2.044 5.233-3.885 6.82a22.049 22.049 0 01-3.744 2.582l-.019.01-.005.003h-.002a.723.723 0 01-.682 0h-.002z" />
+                </svg>
+                <span>Submit Assessment</span>
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -39,12 +39,15 @@ const Signup = () => {
         yearId: '',
         email: '',
         password: '',
+        confirmPassword: '',
     });
 
     const [message, setMessage] = useState('');
     const [toast, setToast] = useState(null);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [registrationOptions, setRegistrationOptions] = useState({
         colleges: [],
         courses: [],
@@ -101,6 +104,11 @@ const Signup = () => {
         } else if (formData.password.length > 128) {
             newErrors.password = 'Password must be under 128 characters';
         }
+        if (!formData.confirmPassword) {
+            newErrors.confirmPassword = 'Please confirm your password';
+        } else if (formData.confirmPassword !== formData.password) {
+            newErrors.confirmPassword = 'Passwords do not match';
+        }
         if (role === 'student' && !formData.courseId) {
             newErrors.courseId = 'Please select a course';
         }
@@ -130,6 +138,7 @@ const Signup = () => {
             courseName: '',
             sectionId: '',
             yearId: '',
+            confirmPassword: '',
         }));
     };
 
@@ -306,9 +315,6 @@ const Signup = () => {
     ];
     const hasCourseOptions = registrationOptions.courses.length > 0;
 
-    const inputClassName = 'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100';
-    const selectClassName = `${inputClassName} disabled:cursor-not-allowed disabled:opacity-70`;
-
     return (
         <div
             className="min-h-screen overflow-hidden bg-slate-50 text-slate-800"
@@ -323,43 +329,43 @@ const Signup = () => {
                 <div className="absolute right-[10%] top-24 -z-10 h-56 w-56 rounded-full bg-indigo-100/30 blur-3xl" />
 
                 <header className="sticky top-0 z-20 bg-blue-500 text-white shadow-sm">
-                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 lg:px-10">
+                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5 lg:px-10">
                         <div
                             onClick={() => navigate('/')}
-                            className="flex cursor-pointer items-center gap-2"
+                            className="flex cursor-pointer items-center gap-2.5"
                             role="button"
                             aria-label="Go back to landing page"
                         >
-                            <div className="rounded-lg bg-white/20 p-1.5 text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <div className="rounded-lg bg-white/20 p-2 text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
                             <div>
-                                <p className="text-xs font-black tracking-tight text-white">AlgebraAssess</p>
+                                <p className="text-sm font-black tracking-tight text-white">AlgebraAssess</p>
                             </div>
                         </div>
                         <Link
                             to="/"
-                            className="rounded-full border border-white/20 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-white/80 transition hover:bg-white/10 hover:text-white"
+                            className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-white/80 transition hover:bg-white/10 hover:text-white"
                         >
                             Back to Landing
                         </Link>
                     </div>
                 </header>
 
-                <main className="mx-auto flex min-h-[calc(100vh-56px)] max-w-7xl items-center justify-center px-6 py-6 lg:px-10">
+                <main className="mx-auto flex min-h-[calc(100vh-56px)] max-w-7xl items-center justify-center px-6 py-8 lg:px-10">
                     <motion.section initial="hidden" animate="show" variants={pageVariants} className="relative w-full max-w-sm">
-                        <div className="rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm backdrop-blur-xl">
-                            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-                                <div className="mb-4 flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-inner">
+                        <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm backdrop-blur-xl">
+                            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-6">
+                                <div className="mb-5 flex rounded-lg border border-slate-200 bg-white p-1 shadow-inner">
                                     {roleOptions.map((option) => (
                                         <motion.button
                                             key={option.value}
                                             type="button"
                                             whileTap={{ scale: 0.98 }}
                                             onClick={() => handleRoleChange(option.value)}
-                                            className={`relative flex-1 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition ${role === option.value
+                                            className={`relative flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${role === option.value
                                                 ? 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 text-white shadow-md shadow-sky-200/80'
                                                 : 'text-slate-500 hover:text-indigo-500'
                                                 }`}
@@ -369,12 +375,12 @@ const Signup = () => {
                                     ))}
                                 </div>
 
-                                <div className="mb-5 text-center">
-                                    <div className="relative mb-2 h-7">
+                                <div className="mb-6 text-center">
+                                    <div className="relative mb-2 h-8">
                                         <AnimatePresence initial={false} mode="wait">
                                             <motion.h1
                                                 key={role}
-                                                className="absolute inset-0 text-lg font-black text-slate-900"
+                                                className="absolute inset-0 text-2xl font-black text-slate-900"
                                                 initial={{ opacity: 0, y: 8 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: -8 }}
@@ -392,7 +398,7 @@ const Signup = () => {
                                             initial={{ opacity: 0, y: 8 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -8 }}
-                                            className={`mb-3 w-full rounded-xl border px-3 py-2 text-[11px] font-semibold ${toast.type === 'success'
+                                            className={`mb-4 w-full rounded-xl border px-4 py-3 text-sm font-semibold ${toast.type === 'success'
                                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                                                 : 'border-rose-200 bg-rose-50 text-rose-700'
                                                 }`}
@@ -404,7 +410,7 @@ const Signup = () => {
 
                                 {message && (
                                     <motion.div
-                                        className="mb-4 rounded-xl border border-rose-100 bg-rose-50 p-3 text-[11px] font-medium text-rose-600"
+                                        className="mb-4 rounded-xl border border-rose-100 bg-rose-50 p-3.5 text-sm font-medium text-rose-600"
                                         variants={shakeVariants}
                                         initial="idle"
                                         animate="error"
@@ -413,48 +419,51 @@ const Signup = () => {
                                     </motion.div>
                                 )}
 
-                                <form onSubmit={handleSubmit} className="space-y-2.5">
-                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <div>
-                                            <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">First Name</label>
+                                            <label className="mb-1.5 ml-1 block h-5 truncate whitespace-nowrap text-sm font-semibold text-slate-700">First Name</label>
                                             <input
                                                 name="firstName"
                                                 required
                                                 onChange={handleChange}
-                                                className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.firstName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                                placeholder="Juan"
+                                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-700 font-medium outline-none transition ${errors.firstName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                             />
                                             {errors.firstName && (
-                                                <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.firstName}</p>
+                                                <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.firstName}</p>
                                             )}
                                         </div>
                                         <div>
-                                            <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Middle Name</label>
-                                            <input
-                                                name="middleName"
-                                                onChange={handleChange}
-                                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Last Name</label>
+                                            <label className="mb-1.5 ml-1 block h-5 truncate whitespace-nowrap text-sm font-semibold text-slate-700">Last Name</label>
                                             <input
                                                 name="lastName"
                                                 required
                                                 onChange={handleChange}
-                                                className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.lastName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                                placeholder="Cruz"
+                                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-700 font-medium outline-none transition ${errors.lastName ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                             />
                                             {errors.lastName && (
-                                                <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.lastName}</p>
+                                                <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.lastName}</p>
                                             )}
                                         </div>
                                     </div>
+                                    <div>
+                                        <label className="mb-1.5 ml-1 block h-5 truncate whitespace-nowrap text-sm font-semibold text-slate-700">Middle Name</label>
+                                        <input
+                                            name="middleName"
+                                            onChange={handleChange}
+                                            placeholder="Dela"
+                                            className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 font-medium outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
+                                        />
+                                    </div>
 
                                     <div>
-                                        <div className="relative mb-1 h-3">
+                                        <div className="relative mb-1.5 h-5">
                                             <AnimatePresence initial={false} mode="wait">
                                                 <motion.label
                                                     key={role}
-                                                    className="absolute inset-0 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500"
+                                                    className="absolute inset-0 ml-1 block text-sm font-semibold text-slate-700"
                                                     initial={{ opacity: 0 }}
                                                     animate={{ opacity: 1 }}
                                                     exit={{ opacity: 0 }}
@@ -468,14 +477,15 @@ const Signup = () => {
                                             name="idNumber"
                                             required
                                             onChange={handleChange}
-                                            className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.idNumber ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                            placeholder="e.g. 2024-00001"
+                                            className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-700 font-medium outline-none transition ${errors.idNumber ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
                                         {errors.idNumber && (
-                                            <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.idNumber}</p>
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.idNumber}</p>
                                         )}
                                     </div>
 
-                                    <div className="min-h-[72px]">
+                                    <div className="min-h-[80px]">
                                         <AnimatePresence mode="wait" initial={false}>
                                             {role === 'teacher' ? (
                                                 <motion.div
@@ -485,7 +495,7 @@ const Signup = () => {
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
-                                                    <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">College</label>
+                                                    <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">College</label>
                                                     {registrationOptions.colleges.length > 0 ? (
                                                         <Select
                                                             name="collegeId"
@@ -502,22 +512,22 @@ const Signup = () => {
                                                             ))}
                                                         </Select>
                                                     ) : (
-                                                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                                                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                                             No colleges are available yet. Please ask an admin to add one before signing up.
                                                         </div>
                                                     )}
                                                 </motion.div>
                                             ) : (
-                                                    <motion.div
-                                                        key="studentFields"
-                                                        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-                                                        initial={{ opacity: 0, y: 8 }}
-                                                        animate={{ opacity: 1, y: 0 }}
+                                                <motion.div
+                                                    key="studentFields"
+                                                    className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+                                                    initial={{ opacity: 0, y: 8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
                                                     exit={{ opacity: 0, y: -8 }}
                                                     transition={{ duration: 0.2, ease: 'easeOut' }}
                                                 >
                                                     <div className="sm:col-span-2">
-                                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Course</label>
+                                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Course</label>
                                                         {hasCourseOptions ? (
                                                             <Select
                                                                 name="courseId"
@@ -534,13 +544,13 @@ const Signup = () => {
                                                                 ))}
                                                             </Select>
                                                         ) : (
-                                                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                                                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                                                 No courses are available yet. Please ask an admin to add one before signing up.
                                                             </div>
                                                         )}
                                                     </div>
                                                     <div>
-                                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Year Level</label>
+                                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Year Level</label>
                                                         <Select
                                                             name="yearId"
                                                             required
@@ -557,7 +567,7 @@ const Signup = () => {
                                                         </Select>
                                                     </div>
                                                     <div>
-                                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Section</label>
+                                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Section</label>
                                                         <Select
                                                             name="sectionId"
                                                             required
@@ -579,30 +589,85 @@ const Signup = () => {
                                     </div>
 
                                     <div>
-                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Email address</label>
+                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Email address</label>
                                         <input
                                             type="email"
                                             name="email"
                                             required
                                             onChange={handleChange}
-                                            className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.email ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                            placeholder="name@email.com"
+                                            className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-700 font-medium outline-none transition ${errors.email ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
                                         />
                                         {errors.email && (
-                                            <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.email}</p>
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.email}</p>
                                         )}
                                     </div>
 
                                     <div>
-                                        <label className="mb-1 ml-1 block text-[9px] font-bold uppercase tracking-wider text-slate-500">Password</label>
-                                        <input
-                                            type="password"
-                                            name="password"
-                                            required
-                                            onChange={handleChange}
-                                            className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[11px] text-slate-700 font-medium outline-none transition ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
-                                        />
+                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Password</label>
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                name="password"
+                                                required
+                                                onChange={handleChange}
+                                                placeholder="Min. 8 characters"
+                                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 pr-11 text-sm text-slate-700 font-medium outline-none transition ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition hover:text-slate-600"
+                                                tabIndex={-1}
+                                            >
+                                                {showPassword ? (
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        </div>
                                         {errors.password && (
-                                            <p className="mt-0.5 ml-1 text-[9px] font-medium text-rose-600">{errors.password}</p>
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.password}</p>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Confirm Password</label>
+                                        <div className="relative">
+                                            <input
+                                                type={showConfirmPassword ? 'text' : 'password'}
+                                                name="confirmPassword"
+                                                required
+                                                onChange={handleChange}
+                                                placeholder="Re-enter your password"
+                                                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 pr-11 text-sm text-slate-700 font-medium outline-none transition ${errors.confirmPassword ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : 'border-slate-200 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100'}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition hover:text-slate-600"
+                                                tabIndex={-1}
+                                            >
+                                                {showConfirmPassword ? (
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        </div>
+                                        {errors.confirmPassword && (
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.confirmPassword}</p>
                                         )}
                                     </div>
 
@@ -610,7 +675,7 @@ const Signup = () => {
                                         whileHover={{ y: -1 }}
                                         whileTap={{ scale: 0.99 }}
                                         type="submit"
-                                        className={`w-full rounded-xl py-2.5 text-xs font-bold text-white shadow-md transition duration-300 ${loading
+                                        className={`w-full rounded-xl py-3 text-sm font-bold text-white shadow-md transition duration-300 ${loading
                                             ? 'cursor-wait bg-sky-400 shadow-sky-200'
                                             : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-lg'
                                             }`}
@@ -620,8 +685,8 @@ const Signup = () => {
                                     </motion.button>
                                 </form>
 
-                                <div className="mt-4 text-center">
-                                    <p className="text-[11px] font-medium text-slate-500">
+                                <div className="mt-5 text-center">
+                                    <p className="text-sm font-medium text-slate-500">
                                         Already have an account?
                                         <button onClick={() => navigate('/login')} className="ml-1 font-bold text-indigo-500 transition hover:text-indigo-600">
                                             Login

@@ -2,6 +2,7 @@
 require_once 'cors.php';
 require_once 'auth.php';
 require_once 'db_connect.php';
+require_once 'cache_headers.php';
 
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
@@ -59,6 +60,7 @@ try {
     }
 
     $stmt->close();
+    setCacheHeaders(60);
     echo json_encode(["status" => "success", "rubrics" => array_values($grouped)]);
 } catch (Exception $e) {
     http_response_code(500);

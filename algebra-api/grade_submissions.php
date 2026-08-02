@@ -7,6 +7,9 @@ require_once 'schema_utils.php';
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
 $subject_filter_raw = $_GET['subject_id'] ?? null;
+$exercise_filter_raw = $_GET['exercise_id'] ?? null;
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = max(1, min(100, (int)($_GET['per_page'] ?? 25)));
 $subject_filter_value = null;
 $subject_filter_is_null = false;
 
@@ -48,6 +51,7 @@ SELECT
     COALESCE(sy.label, subj.school_year) AS school_year,
     cs.file_path,
     cs.ai_raw_json,
+    cs.ocr_text,
     sc.score_id,
     sc.total_score_earned,
     sc.ai_feedback,
@@ -80,6 +84,15 @@ $filters[] = 'subj.teacher_user_id = ?';
 $types .= 'i';
 $params[] = $teacher_id;
 
+if ($exercise_filter_raw !== null) {
+    $exercise_id = intval($exercise_filter_raw);
+    if ($exercise_id > 0) {
+        $filters[] = 'ep.exercise_id = ?';
+        $types .= 'i';
+        $params[] = $exercise_id;
+    }
+}
+
 if ($subject_filter_is_null) {
     $filters[] = 'subj.subject_id IS NULL';
 } elseif ($subject_filter_value !== null) {
@@ -92,7 +105,29 @@ if (!empty($filters)) {
     $query .= ' WHERE ' . implode(' AND ', $filters);
 }
 
-$query .= ' ORDER BY cs.date_uploaded DESC, cs.solution_id DESC;';
+$countQuery = "SELECT COUNT(*) AS total FROM Captured_Solution cs
+    LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
+    JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
+    LEFT JOIN Subject subj ON subj.subject_id = ep.subject_id";
+if (!empty($filters)) {
+    $countQuery .= ' WHERE ' . implode(' AND ', $filters);
+}
+
+$countStmt = $conn->prepare($countQuery);
+if (!empty($params)) {
+    $countStmt->bind_param($types, ...$params);
+}
+$countStmt->execute();
+$totalRow = $countStmt->get_result()->fetch_assoc();
+$totalCount = (int)($totalRow['total'] ?? 0);
+$countStmt->close();
+
+$totalPages = max(1, (int)ceil($totalCount / $perPage));
+$page = min($page, $totalPages);
+$offset = ($page - 1) * $perPage;
+
+$query .= ' ORDER BY cs.date_uploaded DESC, cs.solution_id DESC';
+$query .= " LIMIT {$perPage} OFFSET {$offset}";
 
 $stmt = $conn->prepare($query);
 if (!$stmt) {
@@ -191,6 +226,7 @@ while ($row = $result->fetch_assoc()) {
         'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
         'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
         'ai_feedback' => $row['ai_feedback'] ?? '',
+        'ocr_text' => $row['ocr_text'] ?? null,
         'returned_at' => $row['returned_at'] ?? null,
         'items' => [],
     ];
@@ -257,4 +293,10 @@ header('Content-Type: application/json');
 echo json_encode([
     'status' => 'success',
     'submissions' => $submissions,
+    'pagination' => [
+        'total' => $totalCount,
+        'page' => $page,
+        'per_page' => $perPage,
+        'total_pages' => $totalPages,
+    ],
 ]);

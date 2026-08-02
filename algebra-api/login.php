@@ -3,9 +3,14 @@ require_once 'cors.php';
 require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'rate_limiter.php';
 
 ensureRolesSchema($conn);
 ensureUserAccountStatusSchema($conn);
+
+$clientIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+$loginIpHash = crc32($clientIp);
+rateLimitOrDie($conn, abs($loginIpHash), 'login', 10, 900);
 
 $userTable = resolveExistingTableName($conn, ['Users', 'users']);
 $roleExpression = getUserRoleNameExpression($conn, 'u');
@@ -53,43 +58,41 @@ try {
     if ($user = $result->fetch_assoc()) {
         $storedPassword = (string)($user['password'] ?? '');
         $isPasswordValid = password_verify($password, $storedPassword);
-        $needsRehash = false;
+        $needsRehash = password_needs_rehash($storedPassword, PASSWORD_BCRYPT);
 
-        if (!$isPasswordValid && hash_equals($storedPassword, (string)$password)) {
-            // Legacy compatibility for older accounts that may still store plain text passwords.
-            $isPasswordValid = true;
-            $needsRehash = true;
-        }
-
-        if ($isPasswordValid) {
-            if ($needsRehash) {
-                $rehash = password_hash($password, PASSWORD_BCRYPT);
-                $update = $conn->prepare("UPDATE {$userTable} SET password = ? WHERE user_id = ?");
-                $update->bind_param("si", $rehash, $user['user_id']);
-                $update->execute();
-                $update->close();
-            }
-
-            $role = $user['role'];
-            $finalUser = $user;
-            $finalUser['teacher_id'] = $role === 'teacher' ? (int)$user['user_id'] : null;
-            $finalUser['student_id'] = $role === 'student' ? (int)$user['user_id'] : null;
-            $finalUser['idNumber'] = $user['institutional_id'];
-            $finalUser['firstName'] = $user['first_Name'];
-            $finalUser['middleName'] = $user['middle_Name'];
-            $finalUser['lastName'] = $user['last_Name'];
-            unset($finalUser['password']);
-
-            setAuthenticatedUser($finalUser);
-
-            echo json_encode(["status" => "success", "user" => $finalUser]);
-        } else {
+        if (!$isPasswordValid) {
+            http_response_code(401);
             echo json_encode(["status" => "error", "message" => "Incorrect password."]);
+            exit();
         }
+
+        if ($needsRehash) {
+            $rehash = password_hash($password, PASSWORD_BCRYPT);
+            $update = $conn->prepare("UPDATE {$userTable} SET password = ? WHERE user_id = ?");
+            $update->bind_param("si", $rehash, $user['user_id']);
+            $update->execute();
+            $update->close();
+        }
+
+        $role = $user['role'];
+        $finalUser = $user;
+        $finalUser['teacher_id'] = $role === 'teacher' ? (int)$user['user_id'] : null;
+        $finalUser['student_id'] = $role === 'student' ? (int)$user['user_id'] : null;
+        $finalUser['idNumber'] = $user['institutional_id'];
+        $finalUser['firstName'] = $user['first_Name'];
+        $finalUser['middleName'] = $user['middle_Name'];
+        $finalUser['lastName'] = $user['last_Name'];
+        unset($finalUser['password']);
+
+        setAuthenticatedUser($finalUser);
+
+        echo json_encode(["status" => "success", "user" => $finalUser]);
     } else {
+        http_response_code(401);
         echo json_encode(["status" => "error", "message" => "Active account not found."]);
     }
 } catch (Exception $e) {
-    echo json_encode(["status" => "error", "message" => "Server Error: " . $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "An internal error occurred."]);
 }
 ?>

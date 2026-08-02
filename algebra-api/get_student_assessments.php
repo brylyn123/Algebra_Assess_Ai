@@ -3,6 +3,7 @@ require_once 'cors.php';
 require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'cache_headers.php';
 
 $authUser = requireAuthenticatedUser('student');
 $student_id = (int)$authUser['user_id'];
@@ -39,7 +40,8 @@ try {
             MAX(cs.date_uploaded) AS latest_submission_at,
             MAX(CASE WHEN sc.returned_at IS NOT NULL THEN sc.score_id END) AS score_id,
             MAX(CASE WHEN sc.returned_at IS NOT NULL THEN sc.total_score_earned END) AS total_score_earned,
-            MAX(CASE WHEN sc.returned_at IS NOT NULL THEN sc.ai_feedback END) AS ai_feedback
+            MAX(CASE WHEN sc.returned_at IS NOT NULL THEN sc.ai_feedback END) AS ai_feedback,
+            MAX(cs.solution_id) AS solution_id
         FROM exercises_problem ep
         INNER JOIN Subject s ON s.subject_id = ep.subject_id
         LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
@@ -118,6 +120,7 @@ try {
             'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
             'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
             'ai_feedback' => $row['ai_feedback'] ?? '',
+            'solution_id' => $row['solution_id'] !== null ? (int)$row['solution_id'] : null,
             'items' => [],
         ];
     }
@@ -172,6 +175,139 @@ try {
         }
     }
 
+    $submittedAssessments = array_filter($assessments, fn($a) => isset($a['solution_id']) && $a['solution_id'] !== null);
+
+    $allSolutionIds = array_values(array_unique(array_map(
+        fn($assessment) => (int)$assessment['solution_id'],
+        $submittedAssessments
+    )));
+
+    if (count($allSolutionIds) > 0) {
+        $solutionPlaceholders = implode(',', array_fill(0, count($allSolutionIds), '?'));
+        $solutionTypes = str_repeat('i', count($allSolutionIds));
+
+        $fileStmt = $conn->prepare(
+            "SELECT solution_id, file_path, ai_raw_json
+             FROM Captured_Solution
+             WHERE solution_id IN ($solutionPlaceholders)
+             ORDER BY solution_id ASC"
+        );
+        $fileStmt->bind_param($solutionTypes, ...$allSolutionIds);
+        $fileStmt->execute();
+        $fileResult = $fileStmt->get_result();
+
+        $filesBySolution = [];
+        while ($fileRow = $fileResult->fetch_assoc()) {
+            $solId = (int)$fileRow['solution_id'];
+            $files = [];
+            $rawJson = $fileRow['ai_raw_json'] ?? null;
+            if ($rawJson) {
+                $decoded = json_decode($rawJson, true);
+                if (json_last_error() === JSON_ERROR_NONE && isset($decoded['files']) && is_array($decoded['files'])) {
+                    foreach ($decoded['files'] as $f) {
+                        $path = trim((string)($f['file_path'] ?? ''));
+                        if ($path === '') continue;
+                        $name = trim((string)($f['original_name'] ?? basename($path)));
+                        $ext = strtolower(pathinfo($name !== '' ? $name : $path, PATHINFO_EXTENSION));
+                        $files[] = [
+                            'name' => $name !== '' ? $name : basename($path),
+                            'path' => $path,
+                            'type' => $ext === 'pdf' ? 'pdf' : 'image',
+                        ];
+                    }
+                }
+            }
+            if (count($files) === 0) {
+                $fallbackPath = trim((string)($fileRow['file_path'] ?? ''));
+                if ($fallbackPath !== '') {
+                    $fallbackName = basename($fallbackPath);
+                    $ext = strtolower(pathinfo($fallbackName, PATHINFO_EXTENSION));
+                    $files[] = [
+                        'name' => $fallbackName,
+                        'path' => $fallbackPath,
+                        'type' => $ext === 'pdf' ? 'pdf' : 'image',
+                    ];
+                }
+            }
+            $filesBySolution[$solId] = $files;
+        }
+        $fileStmt->close();
+
+        foreach ($assessments as &$assessment) {
+            $solId = $assessment['solution_id'] ?? null;
+            if ($solId !== null && isset($filesBySolution[$solId])) {
+                $assessment['submission_files'] = $filesBySolution[$solId];
+            } else {
+                $assessment['submission_files'] = [];
+            }
+        }
+        unset($assessment);
+    }
+
+    if (count($submittedAssessments) > 0 && count($allSolutionIds) > 0) {
+        $scorePlaceholders = implode(',', array_fill(0, count($allSolutionIds), '?'));
+        $scoreTypes = str_repeat('i', count($allSolutionIds));
+        $itemScoreStmt = $conn->prepare(
+            "SELECT
+                iscore.solution_id,
+                iscore.item_score_id,
+                iscore.item_id,
+                ei.item_no,
+                ei.question_content,
+                ei.max_score,
+                iscore.score_earned,
+                iscore.ai_feedback,
+                iscore.is_manual_override
+             FROM Item_Scores iscore
+             INNER JOIN exercise_items ei ON ei.item_id = iscore.item_id
+             WHERE iscore.solution_id IN ($scorePlaceholders)
+             ORDER BY iscore.solution_id ASC, ei.item_no ASC"
+        );
+        $itemScoreStmt->bind_param($scoreTypes, ...$allSolutionIds);
+        $itemScoreStmt->execute();
+        $itemScoreResult = $itemScoreStmt->get_result();
+
+        $itemScoresBySolution = [];
+        while ($itemScoreRow = $itemScoreResult->fetch_assoc()) {
+            $solId = (int)$itemScoreRow['solution_id'];
+            if (!isset($itemScoresBySolution[$solId])) {
+                $itemScoresBySolution[$solId] = [];
+            }
+            $itemScoresBySolution[$solId][] = [
+                'item_score_id' => (int)$itemScoreRow['item_score_id'],
+                'item_id' => (int)$itemScoreRow['item_id'],
+                'item_no' => isset($itemScoreRow['item_no']) ? (int)$itemScoreRow['item_no'] : 1,
+                'question_content' => $itemScoreRow['question_content'],
+                'max_score' => isset($itemScoreRow['max_score']) ? round((float)$itemScoreRow['max_score'], 2) : null,
+                'score_earned' => $itemScoreRow['score_earned'] !== null ? round((float)$itemScoreRow['score_earned'], 2) : null,
+                'ai_feedback' => $itemScoreRow['ai_feedback'] ?? '',
+                'is_manual_override' => !empty($itemScoreRow['is_manual_override']),
+            ];
+        }
+        $itemScoreStmt->close();
+
+        foreach ($assessments as &$assessment) {
+            $solId = $assessment['solution_id'] ?? null;
+            if ($solId !== null && isset($itemScoresBySolution[$solId])) {
+                $assessment['item_scores'] = $itemScoresBySolution[$solId];
+            } else {
+                $assessment['item_scores'] = [];
+            }
+        }
+        unset($assessment);
+    }
+
+    foreach ($assessments as &$assessment) {
+        if (!isset($assessment['submission_files'])) {
+            $assessment['submission_files'] = [];
+        }
+        if (!isset($assessment['item_scores'])) {
+            $assessment['item_scores'] = [];
+        }
+    }
+    unset($assessment);
+
+    setCacheHeaders(60);
     echo json_encode([
         'status' => 'success',
         'assessments' => $assessments,

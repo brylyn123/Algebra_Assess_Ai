@@ -78,37 +78,43 @@ const TeacherSettings = () => {
   };
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-4 py-3 md:px-6 md:py-4">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-4">
-      <section className="page-hero-card p-5">
-        <div className="flex flex-col gap-2">
-          <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">App Settings</p>
-          <h1 className="text-xl font-bold text-slate-900">Classroom Controls</h1>
-          <p className="text-sm text-slate-500">
-            Customize AlgebraAssess so your workflow matches your grading rhythm.
-          </p>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <div className="teacher-float-card px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Logged in as</p>
-            <p className="text-sm font-semibold text-slate-900">{fullName}</p>
-            <p className="text-xs text-slate-500">{storedTeacher?.email ?? 'teacher@example.com'}</p>
+    <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-1 pt-3 sm:px-2">
+      <div className="mx-auto flex max-w-[1100px] flex-col gap-2">
+      <section className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929 1.115l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.05 7.05 0 010-2.227L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54A6.992 6.992 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-white">Classroom Controls</h2>
+            </div>
+            <p className="text-xs text-blue-100 ml-[42px]">Customize AlgebraAssess so your workflow matches your grading rhythm.</p>
           </div>
-          <div className="teacher-float-card px-3 py-2.5">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Default view</p>
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          <div className="rounded-lg border border-white/20 bg-white/10 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-blue-200">Logged in as</p>
+            <p className="mt-0.5 text-sm font-semibold text-white">{fullName}</p>
+            <p className="text-xs text-blue-200">{storedTeacher?.email ?? 'teacher@example.com'}</p>
+          </div>
+          <div className="rounded-lg border border-white/20 bg-white/10 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-blue-200">Default view</p>
             <div className="mt-1.5 flex gap-1.5 flex-wrap">
               {['subjects', 'submissions', 'reports'].map((entry) => (
                 <button
                   key={entry}
                   type="button"
                   onClick={() => setDefaultView(entry)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${entry === defaultView ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700'}`}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${entry === defaultView ? 'bg-white text-blue-600' : 'border border-white/30 text-white hover:bg-white/10'}`}
                 >
                   {entry.charAt(0).toUpperCase() + entry.slice(1)}
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">Choose the page you want to land on after login.</p>
+            <p className="text-[10px] text-blue-200 mt-1">Choose the page you want to land on after login.</p>
           </div>
         </div>
       </section>

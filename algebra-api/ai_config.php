@@ -19,6 +19,8 @@ function getAiConfig(): array
         'model' => getenv('DEEPSEEK_MODEL') ?: null,
         'ocr_model' => getenv('DEEPSEEK_OCR_MODEL') ?: null,
         'ocr_provider' => getenv('DEEPSEEK_OCR_PROVIDER') ?: null,
+        'gemini_api_key' => getenv('GEMINI_API_KEY') ?: null,
+        'gemini_model' => getenv('GEMINI_MODEL') ?: null,
         'tesseract_path' => getenv('TESSERACT_PATH') ?: null,
         'timeout_seconds' => getenv('DEEPSEEK_TIMEOUT_SECONDS') ?: null,
     ], static fn($value) => $value !== null && $value !== '');
@@ -26,9 +28,11 @@ function getAiConfig(): array
     $config = array_filter(array_merge([
         'api_key' => null,
         'base_url' => 'https://api.deepseek.com',
-        'model' => 'deepseek-chat',
-        'ocr_model' => 'deepseek-vl2',
-        'ocr_provider' => 'tesseract',
+        'model' => 'deepseek-v4-flash',
+        'ocr_model' => 'deepseek-v4-flash',
+        'ocr_provider' => 'gemini',
+        'gemini_api_key' => null,
+        'gemini_model' => 'gemini-2.0-flash',
         'tesseract_path' => null,
         'timeout_seconds' => 60,
     ], $localConfig, $envConfig), static fn($value) => $value !== null && $value !== '');

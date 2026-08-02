@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 import { getSubjectThemeByName } from './subjectCardThemes';
+import { API_BASE_URL } from './apiBase';
+import MathText from './MathText';
 
 const formatDate = (value) => {
     if (!value) return 'Not dated yet';
@@ -24,6 +26,11 @@ const ManageAssessments = () => {
     const [historyPanel, setHistoryPanel] = useState('assessments');
     const [showAssessmentDetail, setShowAssessmentDetail] = useState(false);
     const [selectedAssessmentDetail, setSelectedAssessmentDetail] = useState(null);
+    const [detailTab, setDetailTab] = useState('questions');
+    const [trackerData, setTrackerData] = useState(null);
+    const [trackerLoading, setTrackerLoading] = useState(false);
+    const [trackerError, setTrackerError] = useState('');
+    const [trackerCache, setTrackerCache] = useState({});
 
     const formatDateTime = (value) => {
         if (!value) return null;
@@ -50,6 +57,59 @@ const ManageAssessments = () => {
         const points = Number(level?.points ?? 0);
         return label ? `${label} - ${points} pts` : `${points} pts`;
     };
+
+    const fetchTrackerData = useCallback(async (exerciseId) => {
+        if (!exerciseId) return;
+        setTrackerLoading(true);
+        setTrackerError('');
+        try {
+            const response = await fetch(`${API_BASE_URL}/get_assessment_submission_tracker.php?exercise_id=${exerciseId}`, {
+                credentials: 'include',
+            });
+            const text = await response.text();
+            let payload;
+            try { payload = JSON.parse(text); } catch { throw new Error('Invalid server response.'); }
+            if (!response.ok || payload.status !== 'success' || !Array.isArray(payload.students)) {
+                throw new Error(payload.message || 'Unable to load tracker data.');
+            }
+            setTrackerCache((prev) => ({ ...prev, [exerciseId]: payload }));
+            setTrackerData(payload);
+        } catch (err) {
+            setTrackerError(err.message || 'Failed to load submission tracker.');
+        } finally {
+            setTrackerLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        setDetailTab('questions');
+        setTrackerData(null);
+        setTrackerError('');
+        setTrackerLoading(false);
+    }, [showAssessmentDetail]);
+
+    useEffect(() => {
+        if (!showAssessmentDetail) return;
+        const cached = trackerCache[selectedAssessmentDetail?.exercise_id];
+        if (cached) {
+            setTrackerData(cached);
+        } else {
+            setTrackerData(null);
+        }
+        setTrackerError('');
+        setTrackerLoading(false);
+    }, [selectedAssessmentDetail?.exercise_id, showAssessmentDetail]);
+
+    useEffect(() => {
+        if (detailTab === 'tracker' && selectedAssessmentDetail && showAssessmentDetail) {
+            const cached = trackerCache[selectedAssessmentDetail.exercise_id];
+            if (cached) {
+                setTrackerData(cached);
+            } else {
+                fetchTrackerData(selectedAssessmentDetail.exercise_id);
+            }
+        }
+    }, [detailTab, selectedAssessmentDetail?.exercise_id, showAssessmentDetail]);
 
     const filteredAssessments = useMemo(() => {
         return assessments.filter((item) => {
@@ -110,7 +170,7 @@ const ManageAssessments = () => {
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 shadow-sm shadow-blue-200">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-blue-600 shadow-sm shadow-blue-200">
                                     <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
                                         <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zM9 9a.75.75 0 000 1.5h.75a.75.75 0 000-1.5H9z" clipRule="evenodd" />
                                     </svg>
@@ -215,7 +275,7 @@ const ManageAssessments = () => {
                                                 animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
                                                 transition={{ duration: 0.28, delay: index * 0.06, ease: 'easeOut' }}
                                                 whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-                                                className={`relative overflow-hidden rounded-2xl ${card.tone} p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg`}
+                                                className={`relative overflow-hidden rounded-xl ${card.tone} p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg`}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20">
@@ -275,7 +335,7 @@ const ManageAssessments = () => {
                                                             setSelectedAssessmentDetail(item);
                                                             setShowAssessmentDetail(true);
                                                         }}
-                                                        className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer flex flex-col min-h-[180px] ${subjectTheme.cardClass}`}
+                                                        className={`group relative overflow-hidden rounded-[1.1rem] border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer flex flex-col min-h-[180px] ${subjectTheme.cardClass}`}
                                                     >
                                                         <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${subjectTheme.accentClass}`} />
                                                         <div className="flex flex-1 flex-col gap-2.5 p-4 pl-5">
@@ -395,7 +455,7 @@ const ManageAssessments = () => {
                         className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm"
                         onClick={() => setShowHistoryModal(false)}
                     >
-                        <div className="relative w-full max-w-3xl max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]">
+                        <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-3xl max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]">
 
                             <div className="bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 px-8 pb-6 pt-7">
                                 <div className="flex items-start justify-between">
@@ -473,7 +533,7 @@ const ManageAssessments = () => {
                                                                 setSelectedAssessmentDetail(item);
                                                                 setShowAssessmentDetail(true);
                                                             }}
-                                                            className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer ${subjectTheme.cardClass}`}
+                                                            className={`group relative overflow-hidden rounded-[1.1rem] border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer ${subjectTheme.cardClass}`}
                                                         >
                                                             <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${subjectTheme.accentClass}`} />
                                                             <div className="flex flex-col gap-3 p-4 pl-5">
@@ -585,7 +645,7 @@ const ManageAssessments = () => {
                         className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm"
                         onClick={() => setShowAssessmentDetail(false)}
                     >
-                        <div className="relative w-full max-w-3xl max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]">
+                        <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-3xl max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]">
 
                             <div className="bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 px-8 pb-6 pt-7">
                                 <div className="flex items-start justify-between">
@@ -624,19 +684,19 @@ const ManageAssessments = () => {
                             <div className="flex flex-1 min-h-0 flex-col overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
                                 <div className="px-8 py-6">
                                     <div className="mb-6 grid grid-cols-3 gap-3">
-                                        <div className="rounded-2xl bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                        <div className="rounded-2xl border-l-[3px] border-l-blue-300 bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
                                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Questions</p>
                                             <p className="mt-1 text-3xl font-black text-blue-600">{selectedAssessmentDetail.items?.length ?? 0}</p>
                                             <p className="mt-0.5 text-[11px] font-medium text-blue-400">Total items</p>
                                         </div>
-                                        <div className="rounded-2xl bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                        <div className="rounded-2xl border-l-[3px] border-l-amber-300 bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
                                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Total Points</p>
                                             <p className="mt-1 text-3xl font-black text-amber-600">
                                                 {(selectedAssessmentDetail.items || []).reduce((sum, item) => sum + (item.max_score ?? 0), 0)}
                                             </p>
                                             <p className="mt-0.5 text-[11px] font-medium text-amber-400">Maximum score</p>
                                         </div>
-                                        <div className="rounded-2xl bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                        <div className="rounded-2xl border-l-[3px] border-l-emerald-300 bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
                                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Due Date</p>
                                             <p className="mt-1 text-3xl font-black text-emerald-600">
                                                 {(() => {
@@ -676,68 +736,232 @@ const ManageAssessments = () => {
                                     </div>
 
                                     {selectedAssessmentDetail.subject_meta && (
-                                        <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                                        <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
                                             <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Subject Meta</p>
                                             <p className="mt-0.5 text-xs text-slate-600">{selectedAssessmentDetail.subject_meta}</p>
                                         </div>
                                     )}
 
-                                    <div className="mb-6 flex items-center gap-2">
-                                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100">
-                                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-slate-500">
-                                                <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                                    <div className="mb-4 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailTab('questions')}
+                                            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${detailTab === 'questions'
+                                                ? 'bg-white text-slate-900 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                                                <path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" />
                                             </svg>
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-700">
                                             Questions ({selectedAssessmentDetail.items?.length ?? 0})
-                                        </p>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailTab('tracker')}
+                                            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${detailTab === 'tracker'
+                                                ? 'bg-white text-slate-900 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                                                <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                                            </svg>
+                                            Submission Tracker
+                                        </button>
                                     </div>
 
-                                    {(!selectedAssessmentDetail.items || selectedAssessmentDetail.items.length === 0) ? (
-                                        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center">
-                                            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50">
-                                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6 text-blue-400">
-                                                    <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5z" clipRule="evenodd" />
-                                                </svg>
+                                    <AnimatePresence mode="wait">
+                                    {detailTab === 'questions' && (
+                                        <motion.div
+                                            key="questions-content"
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -8 }}
+                                            transition={{ duration: 0.18, ease: 'easeInOut' }}
+                                        >
+                                        {(!selectedAssessmentDetail.items || selectedAssessmentDetail.items.length === 0) ? (
+                                            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center">
+                                                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50">
+                                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6 text-blue-400">
+                                                        <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                                <h4 className="text-sm font-bold text-slate-600">No questions yet</h4>
+                                                <p className="mt-1 max-w-xs text-xs text-slate-400">This assessment has no items.</p>
                                             </div>
-                                            <h4 className="text-sm font-bold text-slate-600">No questions yet</h4>
-                                            <p className="mt-1 max-w-xs text-xs text-slate-400">This assessment has no items.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {selectedAssessmentDetail.items.map((item, index) => (
-                                                <div
-                                                    key={item.item_id ?? index}
-                                                    className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-4 transition-all duration-200 hover:border-slate-200 hover:shadow-sm"
-                                                >
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-[11px] font-bold text-blue-700">
-                                                                {item.item_no ?? index + 1}
-                                                            </span>
-                                                            <div>
-                                                                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                                                                    {item.question_type || 'Question'}
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {selectedAssessmentDetail.items.map((item, index) => (
+                                                    <div
+                                                        key={item.item_id ?? index}
+                                                        className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-4 transition-all duration-200 hover:border-slate-200 hover:shadow-sm"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-[11px] font-bold text-blue-700">
+                                                                    {item.item_no ?? index + 1}
                                                                 </span>
+                                                                <div>
+                                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                                                        {item.question_type || 'Question'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                                                                {item.max_score ?? 0} pts
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-2 text-xs leading-6 text-slate-700">
+                                                            <MathText text={item.question_content} />
+                                                        </p>
+                                                        {item.model_solution && (
+                                                            <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                                                                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-emerald-600">Model Solution</p>
+                                                                <p className="mt-0.5 text-xs text-slate-700">{item.model_solution}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        </motion.div>
+                                    )}
+
+                                    {detailTab === 'tracker' && (
+                                        <motion.div
+                                            key="tracker-content"
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -8 }}
+                                            transition={{ duration: 0.18, ease: 'easeInOut' }}
+                                            className="space-y-4"
+                                        >
+                                            {trackerLoading ? (
+                                                <div className="flex items-center justify-center py-12">
+                                                    <div className="relative">
+                                                        <div className="h-8 w-8 rounded-full border-[3px] border-blue-200 border-t-blue-500 animate-spin" />
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                                                        </div>
+                                                    </div>
+                                                    <span className="ml-3 text-sm font-medium text-slate-500">Loading tracker...</span>
+                                                </div>
+                                            ) : trackerError ? (
+                                                <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+                                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100">
+                                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-rose-500">
+                                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-rose-800">Error</p>
+                                                        <p className="mt-0.5 text-xs text-rose-600">{trackerError}</p>
+                                                    </div>
+                                                </div>
+                                            ) : trackerData ? (
+                                                <>
+                                                    <div className="rounded-2xl bg-slate-50 p-4">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex-1">
+                                                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Submission Progress</p>
+                                                                <p className="mt-1 text-lg font-black text-slate-900">
+                                                                    <span className="text-emerald-600">{trackerData.total_submitted}</span>
+                                                                    <span className="text-slate-400"> / </span>
+                                                                    {trackerData.total_enrolled}
+                                                                    <span className="ml-1 text-sm font-medium text-slate-400">students</span>
+                                                                </p>
+                                                            </div>
+                                                            <div className="h-14 w-14 shrink-0">
+                                                                <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
+                                                                    <circle cx="18" cy="18" r="15.91" fill="none" stroke="#e2e8f0" strokeWidth="3" />
+                                                                    <circle
+                                                                        cx="18" cy="18" r="15.91" fill="none" stroke="#10b981" strokeWidth="3"
+                                                                        strokeDasharray={`${trackerData.total_enrolled > 0 ? (trackerData.total_submitted / trackerData.total_enrolled) * 100 : 0} 100`}
+                                                                        strokeLinecap="round"
+                                                                    />
+                                                                </svg>
                                                             </div>
                                                         </div>
-                                                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
-                                                            {item.max_score ?? 0} pts
-                                                        </span>
                                                     </div>
-                                                    <p className="mt-2 text-xs leading-6 text-slate-700">
-                                                        {item.question_content}
-                                                    </p>
-                                                    {item.model_solution && (
-                                                        <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
-                                                            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-emerald-600">Model Solution</p>
-                                                            <p className="mt-0.5 text-xs text-slate-700">{item.model_solution}</p>
+
+                                                    {trackerData.students.filter((s) => s.submitted).length > 0 && (
+                                                        <div>
+                                                            <div className="mb-2 flex items-center gap-2">
+                                                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">
+                                                                    Submitted ({trackerData.students.filter((s) => s.submitted).length})
+                                                                </p>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                {trackerData.students.filter((s) => s.submitted).map((student) => {
+                                                                    const stColor = String(student.status || '').toLowerCase() === 'graded'
+                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                        : String(student.status || '').toLowerCase() === 'needs review'
+                                                                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                                            : 'bg-amber-50 text-amber-700 border-amber-200';
+                                                                    return (
+                                                                        <div key={student.student_user_id} className="flex items-center gap-3 rounded-xl border border-emerald-200/60 bg-white px-4 py-3 transition hover:shadow-sm">
+                                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 text-xs font-bold text-white">
+                                                                                {(student.student_name || 'S').charAt(0).toUpperCase()}
+                                                                            </div>
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <p className="truncate text-sm font-semibold text-slate-900">{student.student_name}</p>
+                                                                                <p className="text-[11px] text-slate-400">ID {student.student_id} {student.date_uploaded && `\u00B7 ${student.date_uploaded}`}</p>
+                                                                            </div>
+                                                                            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${stColor}`}>
+                                                                                {student.status || 'Submitted'}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
                                                     )}
-                                                </div>
-                                            ))}
-                                        </div>
+
+                                                    {trackerData.students.filter((s) => !s.submitted).length > 0 && (
+                                                        <div>
+                                                            <div className="mb-2 flex items-center gap-2">
+                                                                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">
+                                                                    Not Submitted ({trackerData.students.filter((s) => !s.submitted).length})
+                                                                </p>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                {trackerData.students.filter((s) => !s.submitted).map((student) => (
+                                                                    <div key={student.student_user_id} className="flex items-center gap-3 rounded-xl border border-amber-200/60 bg-white px-4 py-3 transition hover:shadow-sm">
+                                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-500 text-xs font-bold text-white">
+                                                                            {(student.student_name || 'S').charAt(0).toUpperCase()}
+                                                                        </div>
+                                                                        <div className="min-w-0 flex-1">
+                                                                            <p className="truncate text-sm font-semibold text-slate-900">{student.student_name}</p>
+                                                                            <p className="text-[11px] text-slate-400">ID {student.student_id}</p>
+                                                                        </div>
+                                                                        <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">
+                                                                            No submission
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {trackerData.students.length === 0 && (
+                                                        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center">
+                                                            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
+                                                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6 text-slate-400">
+                                                                    <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                                                                </svg>
+                                                            </div>
+                                                            <h4 className="text-sm font-bold text-slate-600">No students enrolled</h4>
+                                                            <p className="mt-1 max-w-xs text-xs text-slate-400">Enroll students in this subject to track their submissions.</p>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : null}
+                                        </motion.div>
                                     )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 

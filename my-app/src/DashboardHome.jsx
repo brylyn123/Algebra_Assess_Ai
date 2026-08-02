@@ -139,7 +139,7 @@ const DashboardHome = () => {
                 ) : (
                     <>
                         {/* Welcome Banner */}
-                        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 p-4 text-white shadow-lg shadow-blue-500/20">
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 p-4 text-white shadow-lg shadow-blue-500/20">
                             <div className="relative z-10">
                                 <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100">Welcome back</p>
                                 <h1 className="mt-0.5 text-lg font-bold">{teacherName}!</h1>
@@ -157,13 +157,13 @@ const DashboardHome = () => {
                         </div>
 
                         {/* Stats Row */}
-                        <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                        <div className="rounded-2xl border border-slate-200/60 bg-white p-3 shadow-sm">
                             <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Overview</p>
                             <div className="grid grid-cols-3 gap-2">
                                 {stats.map((stat) => (
                                     <div
                                         key={stat.id}
-                                        className="flex items-center gap-2 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                                        className="flex items-center gap-2 rounded-xl bg-slate-50 p-2.5 transition hover:bg-slate-100"
                                     >
                                         <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-sm text-white shadow-sm`}>
                                             {stat.icon}
@@ -180,7 +180,7 @@ const DashboardHome = () => {
                         {/* Main Content Grid */}
                         <div className="grid gap-4 lg:grid-cols-3">
                             {/* Recent Assessments - Takes 2 columns */}
-                            <div className="lg:col-span-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                            <div className="lg:col-span-2 rounded-[1.1rem] border border-slate-200/60 bg-white p-3 shadow-sm">
                                 <div className="flex items-center justify-between">
                                     <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Recent Assessments</p>
                                     <button
@@ -231,7 +231,7 @@ const DashboardHome = () => {
                             </div>
 
                             {/* Quick Actions - Takes 1 column */}
-                            <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                            <div className="rounded-[1.1rem] border border-slate-200/60 bg-white p-3 shadow-sm">
                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
                                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                                     {quickActions.map((action) => (
@@ -239,7 +239,7 @@ const DashboardHome = () => {
                                             key={action.label}
                                             type="button"
                                             onClick={() => navigate(action.path)}
-                                            className="group flex flex-col items-center rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                                            className="group flex flex-col items-center rounded-xl bg-slate-50 p-2.5 transition hover:bg-slate-100"
                                         >
                                             <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${action.color} text-sm text-white shadow-sm transition group-hover:scale-105`}>
                                                 {action.icon}
@@ -253,11 +253,11 @@ const DashboardHome = () => {
                         </div>
 
                         {/* Bottom Row - Status Cards */}
-                        <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+                        <div className="rounded-2xl border border-slate-200/60 bg-white p-3 shadow-sm">
                             <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Status</p>
                             <div className="grid gap-2 sm:grid-cols-3">
                                 {/* Subjects */}
-                                <div className="rounded-lg bg-slate-50 p-3">
+                                <div className="rounded-xl border-l-2 border-l-blue-200 bg-slate-50 p-3">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-[10px] font-bold text-slate-700">My Subjects</h3>
                                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[9px] font-bold text-blue-600">
@@ -268,14 +268,14 @@ const DashboardHome = () => {
                                     <button
                                         type="button"
                                         onClick={() => navigate('/teacher/subjects')}
-                                        className="mt-2 w-full rounded-md bg-blue-50 py-1 text-[9px] font-semibold text-blue-600 transition hover:bg-blue-100"
+                                        className="mt-2 w-full rounded-lg bg-blue-50 py-1 text-[9px] font-semibold text-blue-600 transition hover:bg-blue-100"
                                     >
                                         View All
                                     </button>
                                 </div>
 
                                 {/* Grading Queue */}
-                                <div className="rounded-lg bg-slate-50 p-3">
+                                <div className="rounded-xl border-l-2 border-l-amber-200 bg-slate-50 p-3">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-[10px] font-bold text-slate-700">Grading Queue</h3>
                                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-[9px] font-bold text-amber-600">
@@ -286,14 +286,14 @@ const DashboardHome = () => {
                                     <button
                                         type="button"
                                         onClick={() => navigate('/teacher/grade-submissions')}
-                                        className="mt-2 w-full rounded-md bg-amber-50 py-1 text-[9px] font-semibold text-amber-600 transition hover:bg-amber-100"
+                                        className="mt-2 w-full rounded-lg bg-amber-50 py-1 text-[9px] font-semibold text-amber-600 transition hover:bg-amber-100"
                                     >
                                         Start Grading
                                     </button>
                                 </div>
 
                                 {/* Reports */}
-                                <div className="rounded-lg bg-slate-50 p-3">
+                                <div className="rounded-xl border-l-2 border-l-emerald-200 bg-slate-50 p-3">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-[10px] font-bold text-slate-700">Performance</h3>
                                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[9px] font-bold text-emerald-600">
@@ -304,7 +304,7 @@ const DashboardHome = () => {
                                     <button
                                         type="button"
                                         onClick={() => navigate('/teacher/reports')}
-                                        className="mt-2 w-full rounded-md bg-emerald-50 py-1 text-[9px] font-semibold text-emerald-600 transition hover:bg-emerald-100"
+                                        className="mt-2 w-full rounded-lg bg-emerald-50 py-1 text-[9px] font-semibold text-emerald-600 transition hover:bg-emerald-100"
                                     >
                                         View Reports
                                     </button>

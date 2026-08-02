@@ -1,6 +1,7 @@
 <?php
 require_once 'auth.php';
 require_once 'db_connection.php';
+require_once 'cache_headers.php';
 
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
@@ -91,6 +92,7 @@ try {
     }
     $assessmentStmt->close();
 
+    setCacheHeaders(60);
     echo json_encode([
         'status' => 'success',
         'report' => [

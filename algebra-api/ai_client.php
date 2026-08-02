@@ -50,7 +50,9 @@ function buildDeepSeekGradePrompt(array $submission): string
             "2. Process: Does the student show clear, logical work? Are algebraic steps properly sequenced?",
             "3. Completeness: Are all parts of the question answered? Are all steps shown?",
             "4. Notation: Does the student use proper mathematical notation and symbols?",
+            "5. Effort: Did the student attempt the problem? Even if the answer is wrong, give partial credit for showing work, writing equations, or demonstrating understanding of the problem structure.",
             "For each item, evaluate these criteria and assign a score proportional to max_score.",
+            "IMPORTANT: If a student has submitted work (OCR text is not empty), each item's score_earned must be at least 10% of max_score, even if all answers are incorrect. This ensures students receive credit for attempting the problem.",
             "Provide specific feedback explaining what the student did correctly and what errors were found.",
         ]);
     }
@@ -168,6 +170,14 @@ function generateDeepSeekGrade(array $submission): array
 
         $maxScore = isset($matchedItem['max_score']) ? (float)$matchedItem['max_score'] : 0.0;
         $scoreEarned = isset($itemScore['score_earned']) ? (float)$itemScore['score_earned'] : 0.0;
+
+        // Apply 10% minimum floor when using default grading (no custom rubric)
+        $hasCustomRubric = !empty(trim((string)($submission['rubric_criteria'] ?? ''))) || !empty(trim((string)($submission['rubric_ai_instructions'] ?? '')));
+        $minScoreForAttempt = $maxScore * 0.10;
+        if (!$hasCustomRubric && $scoreEarned < $minScoreForAttempt) {
+            $scoreEarned = $minScoreForAttempt;
+        }
+
         $scoreEarned = max(0.0, min($maxScore, $scoreEarned));
 
         $normalizedItemScores[] = [
@@ -190,13 +200,81 @@ function generateDeepSeekGrade(array $submission): array
     ];
 }
 
+function sanitizeOcrText(string $text): string
+{
+    $lines = explode("\n", $text);
+    $filtered = array_filter($lines, function ($line) {
+        $trimmed = trim($line);
+        if ($trimmed === '') return false;
+        if (preg_match('/^Estimating resolution/i', $trimmed)) return false;
+        if (preg_match('/^Warning:/i', $trimmed)) return false;
+        if (preg_match('/^Empty page/i', $trimmed)) return false;
+        if (preg_match('/^Page \d+/i', $trimmed)) return false;
+        return true;
+    });
+    return trim(implode("\n", $filtered));
+}
+
 function extractOcrTextFromSavedFiles(array $savedFiles): array
 {
     $config = getAiConfig();
     $ocrProvider = strtolower((string)($config['ocr_provider'] ?? 'tesseract'));
 
+    // Try Tesseract first with preprocessing (for all providers as primary attempt)
+    $tesseractResult = null;
+    try {
+        $tesseractResult = extractTextWithTesseract($savedFiles, $config);
+        $tesseractText = trim((string)($tesseractResult['ocr_text'] ?? ''));
+        // Sanitize to remove any diagnostic messages
+        $tesseractText = sanitizeOcrText($tesseractText);
+        $tesseractResult['ocr_text'] = $tesseractText;
+        // If Tesseract produced meaningful text (at least 10 chars), use it
+        if (strlen($tesseractText) >= 10) {
+            return $tesseractResult;
+        }
+        error_log('Tesseract produced too short output (' . strlen($tesseractText) . ' chars), trying AI provider.');
+    } catch (Exception $e) {
+        error_log('Tesseract OCR failed: ' . $e->getMessage());
+    }
+
+    // Fallback to AI vision provider if configured and available
+    if ($ocrProvider === 'gemini') {
+        try {
+            $result = extractTextWithGeminiApi($savedFiles);
+            if (!empty(trim((string)($result['ocr_text'] ?? '')))) {
+                return $result;
+            }
+        } catch (Exception $e) {
+            error_log('Gemini vision OCR failed: ' . $e->getMessage());
+        }
+    } elseif ($ocrProvider === 'deepseek_vision' || $ocrProvider === 'vision') {
+        try {
+            $result = extractTextWithVisionApi($savedFiles);
+            if (!empty(trim((string)($result['ocr_text'] ?? '')))) {
+                return $result;
+            }
+        } catch (Exception $e) {
+            error_log('DeepSeek Vision OCR failed: ' . $e->getMessage());
+        }
+    }
+
+    // If we have a partial Tesseract result, return it as last resort
+    if ($tesseractResult && !empty(trim((string)($tesseractResult['ocr_text'] ?? '')))) {
+        return $tesseractResult;
+    }
+
+    throw new Exception('All OCR methods failed. Please type the student answer manually using the Edit button.');
+}
+
+function extractTextWithTesseract(array $savedFiles, array $config): array
+{
     $combinedText = [];
     $fileResults = [];
+
+    $tesseractPath = trim((string)($config['tesseract_path'] ?? ''));
+    if ($tesseractPath === '' || !is_file($tesseractPath)) {
+        throw new Exception('Tesseract OCR is not available.');
+    }
 
     foreach ($savedFiles as $file) {
         $relativePath = trim((string)($file['file_path'] ?? ''));
@@ -220,36 +298,45 @@ function extractOcrTextFromSavedFiles(array $savedFiles): array
                 'file_path' => $relativePath,
                 'status' => 'unsupported',
                 'ocr_text' => '',
-                'message' => 'Only JPG, JPEG, and PNG OCR is currently supported by this integration.',
+                'message' => 'Only JPG, JPEG, and PNG files can be processed by Tesseract.',
             ];
             continue;
         }
 
-        if ($ocrProvider !== 'tesseract') {
-            throw new Exception(
-                'OCR provider "' . $ocrProvider . '" is not supported by this app. '
-                . 'Set ocr_provider to "tesseract" and configure tesseract_path in algebra-api/ai_secrets.local.php.'
-            );
+        // Preprocess image with Imagick for better OCR accuracy
+        $processedPath = $absolutePath;
+        if (class_exists('Imagick')) {
+            try {
+                $imagick = new Imagick();
+                $imagick->readImage($absolutePath);
+                $imagick->setImageColorspace(Imagick::COLORSPACE_GRAY);
+                $imagick->normalizeImage(Imagick::CHANNEL_ALL);
+                $imagick->brightnessContrastImage(10, 20);
+                $imagick->sharpenImage(0, 1.0);
+                $tempProcessed = tempnam(sys_get_temp_dir(), 'ocr_preprocessed_') . '.png';
+                $imagick->writeImage($tempProcessed);
+                $imagick->destroy();
+                $processedPath = $tempProcessed;
+            } catch (Exception $e) {
+                error_log('Image preprocessing failed, using original: ' . $e->getMessage());
+                $processedPath = $absolutePath;
+            }
         }
 
-        $tesseractPath = trim((string)($config['tesseract_path'] ?? ''));
-        if ($tesseractPath === '') {
-            throw new Exception('OCR is configured for Tesseract, but tesseract_path is missing in algebra-api/ai_secrets.local.php.');
-        }
-        if (!is_file($tesseractPath)) {
-            throw new Exception('Tesseract executable was not found at: ' . $tesseractPath);
-        }
-
+        // Run Tesseract with PSM 3 (fully automatic) for better handwriting support
+        // Redirect stderr to /dev/null to suppress diagnostic messages like "Estimating resolution as ..."
         $command = escapeshellarg($tesseractPath)
             . ' '
-            . escapeshellarg($absolutePath)
-            . ' stdout --psm 6 2>&1';
+            . escapeshellarg($processedPath)
+            . ' stdout --psm 3 --oem 1 2>/dev/null';
         $output = shell_exec($command);
-        if ($output === null) {
-            throw new Exception('Tesseract OCR command failed to run.');
+
+        // Clean up preprocessed temp file
+        if ($processedPath !== $absolutePath && is_file($processedPath)) {
+            @unlink($processedPath);
         }
 
-        $ocrText = trim((string)$output);
+        $ocrText = trim((string)($output ?? ''));
         $fileResults[] = [
             'file_path' => $relativePath,
             'status' => 'completed',
@@ -264,6 +351,380 @@ function extractOcrTextFromSavedFiles(array $savedFiles): array
     return [
         'ocr_text' => trim(implode("\n\n", $combinedText)),
         'files' => $fileResults,
-        'model' => $ocrProvider === 'tesseract' ? 'tesseract' : ($config['ocr_model'] ?? $config['model'] ?? 'ocr'),
+        'model' => 'tesseract',
+    ];
+}
+
+function convertPdfToImage(string $pdfPath): ?string
+{
+    if (!class_exists('Imagick')) {
+        return null;
+    }
+
+    try {
+        $imagick = new Imagick();
+        $imagick->setResolution(200, 200);
+        $imagick->readImage($pdfPath . '[0]');
+        $imagick->setImageFormat('png');
+        $tempImage = tempnam(sys_get_temp_dir(), 'ocr_pdf_') . '.png';
+        $imagick->writeImage($tempImage);
+        $imagick->destroy();
+        return $tempImage;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+function extractTextWithGeminiApi(array $savedFiles): array
+{
+    $config = getAiConfig();
+    $apiKey = trim((string)($config['gemini_api_key'] ?? ''));
+    if ($apiKey === '') {
+        throw new Exception('Gemini API key is not configured.');
+    }
+
+    $model = trim((string)($config['gemini_model'] ?? 'gemini-2.0-flash'));
+    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+
+    $parts = [
+        ['text' => 'Extract ALL text, numbers, and mathematical expressions from this student answer sheet. '
+            . 'Preserve the structure: keep item numbers aligned with their answers. '
+            . 'If there are multiple questions, label them clearly (e.g., "Question 1:", "Question 2:"). '
+            . 'For handwritten math, transcribe it using standard mathematical notation (e.g., x^2, √3, ½). '
+            . 'Return ONLY the extracted text with no commentary.'],
+    ];
+
+    $fileResults = [];
+    $tempFiles = [];
+
+    foreach ($savedFiles as $file) {
+        $relativePath = trim((string)($file['file_path'] ?? ''));
+        if ($relativePath === '') {
+            continue;
+        }
+
+        $absolutePath = __DIR__ . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath);
+        if (!is_file($absolutePath)) {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'missing',
+                'ocr_text' => '',
+            ];
+            continue;
+        }
+
+        $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
+        $imagePath = $absolutePath;
+        $mimeType = 'image/jpeg';
+
+        if ($extension === 'pdf') {
+            if (class_exists('Imagick')) {
+                try {
+                    $imagick = new Imagick();
+                    $imagick->setResolution(200, 200);
+                    $imagick->readImage($absolutePath . '[0]');
+                    $imagick->setImageFormat('png');
+                    $tempImage = tempnam(sys_get_temp_dir(), 'ocr_gemini_') . '.png';
+                    $imagick->writeImage($tempImage);
+                    $imagick->destroy();
+                    $imagePath = $tempImage;
+                    $mimeType = 'image/png';
+                    $tempFiles[] = $tempImage;
+                } catch (Exception $e) {
+                    $fileResults[] = [
+                        'file_path' => $relativePath,
+                        'status' => 'unsupported',
+                        'ocr_text' => '',
+                        'message' => 'PDF to image conversion failed.',
+                    ];
+                    continue;
+                }
+            } else {
+                $fileResults[] = [
+                    'file_path' => $relativePath,
+                    'status' => 'unsupported',
+                    'ocr_text' => '',
+                    'message' => 'PDF to image conversion requires the Imagick PHP extension.',
+                ];
+                continue;
+            }
+        } elseif ($extension === 'png') {
+            $mimeType = 'image/png';
+        } elseif ($extension === 'webp') {
+            $mimeType = 'image/webp';
+        } else {
+            $mimeType = 'image/jpeg';
+        }
+
+        $imageData = file_get_contents($imagePath);
+        if ($imageData === false) {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'read_error',
+                'ocr_text' => '',
+            ];
+            continue;
+        }
+
+        $parts[] = [
+            'inlineData' => [
+                'mimeType' => $mimeType,
+                'data' => base64_encode($imageData),
+            ],
+        ];
+    }
+
+    foreach ($tempFiles as $tmp) {
+        if (is_file($tmp)) {
+            @unlink($tmp);
+        }
+    }
+
+    if (count($parts) <= 1) {
+        return [
+            'ocr_text' => '',
+            'files' => $fileResults,
+            'model' => $model,
+        ];
+    }
+
+    $payload = [
+        'contents' => [
+            ['parts' => $parts],
+        ],
+        'generationConfig' => [
+            'temperature' => 0.1,
+            'maxOutputTokens' => 4096,
+        ],
+    ];
+
+    $ch = curl_init($endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT => (int)($config['timeout_seconds'] ?? 120),
+    ]);
+
+    $rawResponse = curl_exec($ch);
+    if ($rawResponse === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        throw new Exception('Gemini vision request failed: ' . $error);
+    }
+
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $decodedResponse = json_decode($rawResponse, true);
+    if ($httpCode >= 400) {
+        $message = $decodedResponse['error']['message'] ?? $rawResponse;
+        throw new Exception('Gemini API error (HTTP ' . $httpCode . ': ' . $message);
+    }
+
+    $extractedText = '';
+    $candidates = $decodedResponse['candidates'] ?? [];
+    if (!empty($candidates[0]['content']['parts'])) {
+        foreach ($candidates[0]['content']['parts'] as $part) {
+            if (!empty($part['text'])) {
+                $extractedText .= $part['text'];
+            }
+        }
+    }
+    $extractedText = trim($extractedText);
+
+    foreach ($savedFiles as $file) {
+        $relativePath = trim((string)($file['file_path'] ?? ''));
+        if ($relativePath !== '') {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'completed',
+                'ocr_text' => $extractedText,
+            ];
+        }
+    }
+
+    return [
+        'ocr_text' => $extractedText,
+        'files' => $fileResults,
+        'model' => $model,
+    ];
+}
+
+function extractTextWithVisionApi(array $savedFiles): array
+{
+    $config = getAiConfig();
+
+    if (empty($config['api_key'])) {
+        throw new Exception('DeepSeek API key is not configured for vision OCR.');
+    }
+
+    $endpoint = rtrim((string)$config['base_url'], '/') . '/chat/completions';
+    $ocrModel = $config['ocr_model'] ?? $config['model'] ?? 'deepseek-chat';
+
+    $combinedText = [];
+    $fileResults = [];
+    $contentParts = [
+        [
+            'type' => 'text',
+            'text' => 'Extract ALL text, numbers, and mathematical expressions from this student answer sheet. '
+                . 'Preserve the structure: keep item numbers aligned with their answers. '
+                . 'If there are multiple questions, label them clearly (e.g., "Question 1:", "Question 2:"). '
+                . 'For handwritten math, transcribe it using standard mathematical notation (e.g., x^2, √3, ½). '
+                . 'Return ONLY the extracted text with no commentary.',
+        ],
+    ];
+
+    $tempFiles = [];
+
+    foreach ($savedFiles as $file) {
+        $relativePath = trim((string)($file['file_path'] ?? ''));
+        if ($relativePath === '') {
+            continue;
+        }
+
+        $absolutePath = __DIR__ . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath);
+        if (!is_file($absolutePath)) {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'missing',
+                'ocr_text' => '',
+            ];
+            continue;
+        }
+
+        $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
+
+        $imagePath = $absolutePath;
+        $mimeType = 'image/jpeg';
+
+        if ($extension === 'pdf') {
+            $convertedPath = convertPdfToImage($absolutePath);
+            if ($convertedPath && is_file($convertedPath)) {
+                $imagePath = $convertedPath;
+                $mimeType = 'image/png';
+                $tempFiles[] = $convertedPath;
+            } else {
+                $fileResults[] = [
+                    'file_path' => $relativePath,
+                    'status' => 'unsupported',
+                    'ocr_text' => '',
+                    'message' => 'PDF to image conversion requires the Imagick PHP extension.',
+                ];
+                continue;
+            }
+        } elseif ($extension === 'png') {
+            $mimeType = 'image/png';
+        } else {
+            $mimeType = 'image/jpeg';
+        }
+
+        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'pdf'], true)) {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'unsupported',
+                'ocr_text' => '',
+                'message' => 'Unsupported file type for vision OCR.',
+            ];
+            continue;
+        }
+
+        $imageData = file_get_contents($imagePath);
+        if ($imageData === false) {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'read_error',
+                'ocr_text' => '',
+            ];
+            continue;
+        }
+
+        $base64 = base64_encode($imageData);
+        $contentParts[] = [
+            'type' => 'image_url',
+            'image_url' => [
+                'url' => 'data:' . $mimeType . ';base64,' . $base64,
+            ],
+        ];
+    }
+
+    foreach ($tempFiles as $tmp) {
+        if (is_file($tmp)) {
+            @unlink($tmp);
+        }
+    }
+
+    if (count($contentParts) <= 1) {
+        return [
+            'ocr_text' => '',
+            'files' => $fileResults,
+            'model' => $ocrModel,
+        ];
+    }
+
+    $payload = [
+        'model' => $ocrModel,
+        'temperature' => 0.1,
+        'max_tokens' => 4096,
+        'messages' => [
+            [
+                'role' => 'system',
+                'content' => 'You are a precise OCR assistant for student answer sheets. Extract text accurately, preserving mathematical notation. Output only the extracted text.',
+            ],
+            [
+                'role' => 'user',
+                'content' => $contentParts,
+            ],
+        ],
+    ];
+
+    $ch = curl_init($endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $config['api_key'],
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT => (int)($config['timeout_seconds'] ?? 120),
+    ]);
+
+    $rawResponse = curl_exec($ch);
+    if ($rawResponse === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        throw new Exception('DeepSeek vision request failed: ' . $error);
+    }
+
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $decodedResponse = json_decode($rawResponse, true);
+    if ($httpCode >= 400) {
+        $message = $decodedResponse['error']['message'] ?? $rawResponse;
+        throw new Exception('DeepSeek vision API error (HTTP ' . $httpCode . '): ' . $message);
+    }
+
+    $extractedText = trim((string)($decodedResponse['choices'][0]['message']['content'] ?? ''));
+
+    foreach ($savedFiles as $file) {
+        $relativePath = trim((string)($file['file_path'] ?? ''));
+        if ($relativePath !== '') {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'completed',
+                'ocr_text' => $extractedText,
+            ];
+        }
+    }
+
+    return [
+        'ocr_text' => $extractedText,
+        'files' => $fileResults,
+        'model' => $ocrModel,
     ];
 }

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { storeLocalUser, findLocalUser, setCurrentLocalUserEmail } from './localAuthStore';
 import { apiFetch } from './fetchClient';
+import { clearCsrfToken } from './csrf';
 import ForgotPasswordModal from './components/ForgotPasswordModal';
 import { useToast } from './components/Toast';
 
@@ -94,6 +95,7 @@ const Login = () => {
             }
 
             if (result.status === 'success') {
+                clearCsrfToken();
                 const userData = result.user;
                 const idToStore = userData.user_id || userData.teacher_id;
                 if (idToStore) {
@@ -134,26 +136,26 @@ const Login = () => {
                 <div className="absolute right-[10%] top-24 -z-10 h-56 w-56 rounded-full bg-indigo-100/30 blur-3xl" />
 
                 <header className="sticky top-0 z-20 bg-blue-500 text-white shadow-sm">
-                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 lg:px-10">
+                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5 lg:px-10">
                         <div
                             onClick={() => navigate('/')}
-                            className="flex cursor-pointer items-center gap-2"
+                            className="flex cursor-pointer items-center gap-2.5"
                             role="button"
                             aria-label="Go back to landing page"
                         >
-                            <div className="rounded-lg bg-white/20 p-1.5 text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <div className="rounded-lg bg-white/20 p-2 text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
                             <div>
-                                <p className="text-xs font-black tracking-tight text-white">AlgebraAssess</p>
-                                <p className="text-[9px] font-medium text-white/70">Login to continue</p>
+                                <p className="text-sm font-black tracking-tight text-white">AlgebraAssess</p>
+                                <p className="text-xs font-medium text-white/70">Login to continue</p>
                             </div>
                         </div>
                         <Link
                             to="/"
-                            className="rounded-full border border-white/20 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-white/80 transition hover:bg-white/10 hover:text-white"
+                            className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-white/80 transition hover:bg-white/10 hover:text-white"
                         >
                             Back to Landing
                         </Link>
@@ -162,23 +164,23 @@ const Login = () => {
 
                 <main className="mx-auto flex min-h-[calc(100vh-56px)] max-w-7xl items-center justify-center px-6 py-8 lg:px-10">
                     <motion.section initial="hidden" animate="show" variants={pageVariants} className="relative w-full max-w-sm">
-                        <div className="auth-card p-4">
-                            <div className="auth-panel p-5">
+                        <div className="auth-card">
+                            <div className="auth-panel">
                                 <div className="mb-6 text-center">
-                                    <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-500 text-white shadow-md shadow-sky-100">
-                                        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-500 text-white shadow-md shadow-sky-100">
+                                        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.55-2.27A1 1 0 0121 8.62v6.76a1 1 0 01-1.45.89L15 14" />
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" />
                                         </svg>
                                     </div>
                                     <p className="auth-badge mx-auto mb-2">Welcome back</p>
-                                    <h1 className="text-xl font-black text-slate-900">Sign In</h1>
-                                    <p className="mt-1 text-[11px] text-slate-500">Access your dashboard and classes.</p>
+                                    <h1 className="text-2xl font-black text-slate-900">Login</h1>
+                                    <p className="mt-1.5 text-sm text-slate-500">Access your dashboard and classes.</p>
                                 </div>
 
-                                <form className="space-y-3" onSubmit={handleSubmit}>
+                                <form className="space-y-4" onSubmit={handleSubmit}>
                                     <div>
-                                        <label className="mb-1 ml-1 block text-[10px] font-bold text-slate-600">Email address</label>
+                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Email address</label>
                                         <input
                                             type="email"
                                             name="email"
@@ -188,12 +190,12 @@ const Login = () => {
                                             className={`auth-input ${errors.email ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : ''}`}
                                         />
                                         {errors.email && (
-                                            <p className="mt-1 ml-1 text-[10px] font-medium text-rose-600">{errors.email}</p>
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.email}</p>
                                         )}
                                     </div>
 
                                     <div>
-                                        <label className="mb-1 ml-1 block text-[10px] font-bold text-slate-600">Password</label>
+                                        <label className="mb-1.5 ml-1 block text-sm font-semibold text-slate-700">Password</label>
                                         <div className="relative">
                                             <input
                                                 type={showPassword ? 'text' : 'password'}
@@ -201,20 +203,20 @@ const Login = () => {
                                                 value={formData.password}
                                                 onChange={handleChange}
                                                 placeholder="Enter your password"
-                                                className={`auth-input pr-10 ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : ''}`}
+                                                className={`auth-input pr-11 ${errors.password ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100' : ''}`}
                                             />
                                             <button
                                                 type="button"
                                                 onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition hover:text-slate-600"
                                                 tabIndex={-1}
                                             >
                                                 {showPassword ? (
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
                                                     </svg>
                                                 ) : (
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                     </svg>
@@ -222,7 +224,7 @@ const Login = () => {
                                             </button>
                                         </div>
                                         {errors.password && (
-                                            <p className="mt-1 ml-1 text-[10px] font-medium text-rose-600">{errors.password}</p>
+                                            <p className="mt-1 ml-1 text-xs font-medium text-rose-600">{errors.password}</p>
                                         )}
                                     </div>
 
@@ -230,7 +232,7 @@ const Login = () => {
                                         <button
                                             type="button"
                                             onClick={() => setShowForgotModal(true)}
-                                            className="text-[10px] font-semibold text-indigo-500 transition hover:text-indigo-600 hover:underline"
+                                            className="text-sm font-semibold text-indigo-500 transition hover:text-indigo-600 hover:underline"
                                         >
                                             Forgot Password?
                                         </button>
@@ -240,7 +242,7 @@ const Login = () => {
                                         whileHover={{ y: -1 }}
                                         whileTap={{ scale: 0.99 }}
                                         type="submit"
-                                        className={`w-full rounded-xl py-2.5 text-xs font-bold text-white shadow-md transition duration-300 ${loading
+                                        className={`w-full rounded-xl py-3 text-sm font-bold text-white shadow-md transition duration-300 ${loading
                                             ? 'cursor-wait bg-sky-400 shadow-sky-200'
                                             : 'bg-gradient-to-r from-indigo-500 via-sky-500 to-cyan-400 shadow-sky-200/80 hover:shadow-lg'
                                             }`}
@@ -251,7 +253,7 @@ const Login = () => {
                                 </form>
 
                                 <div className="mt-5 text-center">
-                                    <p className="text-[11px] font-medium text-slate-500">
+                                    <p className="text-sm font-medium text-slate-500">
                                         Don't have an account?
                                         <button onClick={() => navigate('/signup')} className="ml-1 font-bold text-indigo-500 transition hover:text-indigo-600">
                                             Register
@@ -265,12 +267,12 @@ const Login = () => {
 
                 {loading && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm">
-                        <div className="flex items-center gap-2 rounded-xl border border-white/80 bg-white px-4 py-3 shadow-xl">
-                            <svg className="h-5 w-5 animate-spin text-sky-500" viewBox="0 0 24 24">
+                        <div className="flex items-center gap-3 rounded-xl border border-white/80 bg-white px-5 py-4 shadow-xl">
+                            <svg className="h-6 w-6 animate-spin text-sky-500" viewBox="0 0 24 24">
                                 <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
                                 <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4z" />
                             </svg>
-                            <div className="text-[11px] font-semibold text-slate-700">Checking credentials...</div>
+                            <div className="text-sm font-semibold text-slate-700">Checking credentials...</div>
                         </div>
                     </div>
                 )}

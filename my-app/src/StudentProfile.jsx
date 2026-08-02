@@ -105,137 +105,129 @@ const StudentProfile = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="rounded-[2rem] border border-slate-100 bg-white/90 p-8 shadow-[0_25px_60px_rgba(15,23,42,0.08)]">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-2xl font-bold text-white shadow-xl">
-              {profileSummary.avatarInitials}
+    <div className="mx-auto flex h-full max-w-[1100px] flex-col px-1 pt-3 sm:px-2" style={{ height: 'calc(100vh - 6rem)' }}>
+      <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-white">Profile</h2>
             </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Student Profile</p>
-              <h1 className="text-3xl font-bold text-slate-900">{profileSummary.fullName}</h1>
-              <p className="text-sm text-slate-500">Manage your classes, submissions, and personal details here.</p>
-            </div>
+            <p className="text-xs text-blue-100 ml-[42px]">
+              View and manage your personal details and account information.
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 ml-[42px] sm:ml-0">
             <button
               type="button"
               onClick={() => {
                 setSaveMessage('');
                 setIsEditing((current) => !current);
               }}
-              className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:border-blue-400 hover:text-blue-700"
+              className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-white/20"
             >
-              {isEditing ? 'Close editor' : 'Edit profile'}
-            </button>
-            <button type="button" className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white shadow-lg">
-              Share progress
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+              {isEditing ? 'Close' : 'Edit'}
             </button>
           </div>
         </div>
       </div>
 
-      {isEditing && (
-        <div className="rounded-[2rem] border border-blue-100 bg-blue-50/60 p-6 shadow-sm">
-          <div className="mb-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-blue-500">Edit Details</p>
-            <h2 className="text-2xl font-semibold text-slate-900">Update Profile</h2>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <input
-              name="firstName"
-              value={formValues.firstName}
-              onChange={handleChange}
-              placeholder="First name"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-            />
-            <input
-              name="middleName"
-              value={formValues.middleName}
-              onChange={handleChange}
-              placeholder="Middle name"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-            />
-            <input
-              name="lastName"
-              value={formValues.lastName}
-              onChange={handleChange}
-              placeholder="Last name"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-            />
-            <input
-              name="school"
-              value={formValues.school}
-              onChange={handleChange}
-              placeholder="School"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-            />
-            <input
-              name="section"
-              value={formValues.section}
-              onChange={handleChange}
-              placeholder="Section"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-            />
-            <input
-              name="year"
-              value={formValues.year}
-              onChange={handleChange}
-              placeholder="Year level"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-            />
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleSave}
-              className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              Save Changes
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsEditing(false)}
-              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {saveMessage && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-          {saveMessage}
-        </div>
-      )}
-
-      <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Details</p>
-            <h2 className="text-2xl font-semibold text-slate-900">Personal Information</h2>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {[
-            { label: 'Student ID', value: profileSummary.studentId },
-            { label: 'School', value: profileSummary.school },
-            { label: 'Course', value: profileSummary.course },
-            { label: 'Email', value: profileSummary.email },
-            { label: 'Section', value: profileSummary.section },
-            { label: 'Year Level', value: profileSummary.year },
-            { label: 'Role', value: profileSummary.role },
-          ].map((field) => (
-            <div key={field.label} className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{field.label}</p>
-              <p className="text-sm font-semibold text-slate-900">{field.value}</p>
+      <div className="flex-1 min-h-0 overflow-y-auto rounded-lg bg-white border border-slate-200/60 shadow-sm" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 transparent' }}>
+        <style>{`
+          .profile-scroll::-webkit-scrollbar { width: 7px; }
+          .profile-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 9999px; }
+          .profile-scroll::-webkit-scrollbar-thumb { background-color: #94a3b8; border-radius: 9999px; }
+          .profile-scroll::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
+        `}</style>
+        <div className="profile-scroll p-4 space-y-4">
+          <div className="flex items-center gap-4 rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-lg font-bold text-white shadow-md shadow-blue-200/60">
+              {profileSummary.avatarInitials}
             </div>
-          ))}
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-slate-900 truncate">{profileSummary.fullName}</h3>
+              <p className="text-xs text-slate-500">{profileSummary.email}</p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">{profileSummary.role}</span>
+                <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">{profileSummary.course}</span>
+                <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">{profileSummary.section}</span>
+              </div>
+            </div>
+          </div>
+
+          {isEditing && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-blue-500 mb-3">Edit Details</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {[
+                  { name: 'firstName', label: 'First Name', value: formValues.firstName },
+                  { name: 'middleName', label: 'Middle Name', value: formValues.middleName },
+                  { name: 'lastName', label: 'Last Name', value: formValues.lastName },
+                  { name: 'school', label: 'School', value: formValues.school },
+                  { name: 'section', label: 'Section', value: formValues.section },
+                  { name: 'year', label: 'Year Level', value: formValues.year },
+                ].map((field) => (
+                  <div key={field.name}>
+                    <label className="mb-1 block text-[10px] font-semibold text-slate-500">{field.label}</label>
+                    <input
+                      name={field.name}
+                      value={field.value}
+                      onChange={handleChange}
+                      placeholder={field.label}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {saveMessage && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700">
+              {saveMessage}
+            </div>
+          )}
+
+          <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400 mb-3">Personal Information</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                { label: 'Student ID', value: profileSummary.studentId },
+                { label: 'School', value: profileSummary.school },
+                { label: 'Course', value: profileSummary.course },
+                { label: 'Email', value: profileSummary.email },
+                { label: 'Section', value: profileSummary.section },
+                { label: 'Year Level', value: profileSummary.year },
+                { label: 'Role', value: profileSummary.role },
+              ].map((field) => (
+                <div key={field.label} className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">{field.label}</p>
+                  <p className="text-sm font-semibold text-slate-700">{field.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

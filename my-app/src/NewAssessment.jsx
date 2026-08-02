@@ -9,6 +9,7 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { useToast } from './components/Toast';
 import Select from './components/Select';
+import MathText from './MathText';
 
 
 
@@ -18,6 +19,7 @@ import Select from './components/Select';
 const DIFFICULTY_LEVELS = ['Easy', 'Medium', 'Hard'];
 const NEW_RUBRIC_STORAGE_KEY = 'teacher:new-rubric-created';
 const ASSESSMENT_DRAFT_STORAGE_KEY = 'teacher:new-assessment-draft';
+const EDITOR_ITEMS_KEY = 'teacher:question-editor-items';
 
 const ASSESSMENT_STEPS = [
     { id: 'details', label: 'Details', description: 'Title & subject' },
@@ -88,10 +90,48 @@ function reducer(state, action) {
         ...state,
         testItems: state.testItems.filter((_, i) => i !== action.payload),
       };
+    case 'SET_TEST_ITEMS':
+      return {
+        ...state,
+        testItems: action.payload,
+      };
     default:
       return state;
   }
 }
+
+const DEFAULT_GRADING_CRITERIA = [
+  {
+    key: 'correctness',
+    title: 'Correctness',
+    icon: '✓',
+    description: 'Does the student arrive at the correct answer? Are the mathematical steps valid?',
+  },
+  {
+    key: 'process',
+    title: 'Process',
+    icon: '→',
+    description: 'Does the student show clear, logical work? Are algebraic steps properly sequenced?',
+  },
+  {
+    key: 'completeness',
+    title: 'Completeness',
+    icon: '■',
+    description: 'Are all parts of the question answered? Are all steps shown?',
+  },
+  {
+    key: 'notation',
+    title: 'Notation',
+    icon: '∑',
+    description: 'Does the student use proper mathematical notation and symbols?',
+  },
+  {
+    key: 'effort',
+    title: 'Effort',
+    icon: '★',
+    description: 'Did the student attempt the problem? Even if wrong, give partial credit for showing work or demonstrating understanding.',
+  },
+];
 
 const NewAssessment = () => {
 
@@ -100,6 +140,7 @@ const NewAssessment = () => {
 
   const [mathExpression, setMathExpression] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
+  const [showDefaultRubricModal, setShowDefaultRubricModal] = useState(false);
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const {
@@ -213,6 +254,24 @@ const NewAssessment = () => {
     });
   };
 
+  const handleOpenQuestionEditor = () => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(
+        ASSESSMENT_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          newAssessment,
+          testItems,
+          selectedRubric,
+          mathExpression,
+          previewValue,
+          savedAt: new Date().toISOString(),
+        })
+      );
+      window.sessionStorage.setItem(EDITOR_ITEMS_KEY, JSON.stringify(testItems));
+    }
+    navigate('/teacher/assessments/edit-questions');
+  };
+
 
   const syncMathExpression = () => {
     const value = mathfieldRef.current?.getValue?.() ?? '';
@@ -289,6 +348,22 @@ const NewAssessment = () => {
       console.error('Unable to restore saved assessment draft', error);
     } finally {
       window.sessionStorage.removeItem(ASSESSMENT_DRAFT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(EDITOR_ITEMS_KEY);
+      if (raw) {
+        const savedItems = JSON.parse(raw);
+        if (Array.isArray(savedItems)) {
+          dispatch({ type: 'SET_TEST_ITEMS', payload: savedItems });
+        }
+        window.sessionStorage.removeItem(EDITOR_ITEMS_KEY);
+      }
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -391,17 +466,15 @@ const NewAssessment = () => {
 
       .then((response) => {
 
-        const payload = response.data || [];
+        const payload = response.data || {};
 
         const subjectsArray = Array.isArray(payload.subjects)
-
           ? payload.subjects
-
-          : Array.isArray(payload)
-
-            ? payload
-
-            : [];
+          : Array.isArray(payload.data)
+            ? payload.data
+            : Array.isArray(payload)
+              ? payload
+              : [];
 
         dispatch({ type: 'SET_SUBJECTS', payload: subjectsArray.map(normalizeSubjectRecord).filter((subject) => subject.id) });
 
@@ -685,7 +758,9 @@ const NewAssessment = () => {
         return null;
       }
 
-      return createPortal(
+      return (
+        <>
+      {createPortal(
         <div className="fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-slate-950/55 px-4 py-6 backdrop-blur-md md:px-6 md:py-8">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(191,219,254,0.22),transparent_38%)]" />
       <div className="pointer-events-none absolute inset-0 bg-white/10" />
@@ -835,6 +910,42 @@ const NewAssessment = () => {
                     ) : rubricError ? (
                       <p className="mt-1 text-[10px] text-red-500">{rubricError}</p>
                     ) : null}
+
+                    {/* Default rubric preview when no rubric is selected */}
+                    {!selectedRubric && !rubricLoading && (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 text-amber-600">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-amber-800">Default AI Grading Criteria</p>
+                            <p className="mt-0.5 text-[11px] text-amber-700/80">
+                              When no rubric is provided, the AI evaluates submissions using 5 built-in criteria:
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {DEFAULT_GRADING_CRITERIA.map((c) => (
+                                <span key={c.key} className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200/60">
+                                  <span className="text-amber-500">{c.icon}</span> {c.title}
+                                </span>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowDefaultRubricModal(true)}
+                              className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 underline decoration-amber-300 underline-offset-2 transition hover:text-amber-900 hover:decoration-amber-500"
+                            >
+                              View Details
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+                                <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -901,102 +1012,67 @@ const NewAssessment = () => {
                 </div>
               )}
 
-              {/* Step 3: Items */}
+              {/* Step 3: Items — Summary & link to Question Editor */}
               {currentStep === 2 && (
                 <div className="space-y-4">
-                  {/* Math editor */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Question #{testItems.length + 1}</p>
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-semibold text-blue-700">{testItems.length} added</span>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Questions</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-700">
+                          {testItems.length > 0
+                            ? `${testItems.length} question${testItems.length !== 1 ? 's' : ''} · ${testItems.reduce((s, it) => s + (it.max_score || 0), 0).toFixed(1)} total pts`
+                            : 'No questions yet'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenQuestionEditor}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                          {testItems.length > 0 ? (
+                            <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                          ) : (
+                            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                          )}
+                        </svg>
+                        {testItems.length > 0 ? 'Edit Questions' : 'Create Questions'}
+                      </button>
                     </div>
 
-                    {mathLiveReady ? (
-                      <>
-                        <div
-                          className="rounded-xl border border-slate-200 bg-white p-3 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100"
-                          onClick={handleMathfieldFocus}
-                        >
-                          <math-field
-                            ref={mathfieldRef}
-                            onInput={syncMathExpression}
-                            onFocus={handleMathfieldFocus}
-                            onClick={handleMathfieldFocus}
-                            virtual-keyboard-mode="manual"
-                            smart-mode="auto"
-                            placeholder="Type your equation here..."
-                            className="block w-full max-w-full cursor-text rounded-lg bg-transparent px-3 py-3 text-base font-medium transition"
-                            style={{ minHeight: '3.5rem' }}
-                          ></math-field>
-                        </div>
-
-                        <div className="mt-2 flex items-center justify-between">
-                          <p className="text-[10px] text-slate-400">Click field to open MathLive keyboard</p>
-                          <button
-                            type="button"
-                            onClick={toggleMathKeyboard}
-                            className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                    {testItems.length > 0 ? (
+                      <div className="space-y-2">
+                        {testItems.map((item, index) => (
+                          <div
+                            key={`${item.question_content}-${index}`}
+                            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:shadow-sm"
                           >
-                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                              <path d="M0 3a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H2a2 2 0 01-2-2V3zm2-1a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1V3a1 1 0 00-1-1H2z" />
-                            </svg>
-                            Keyboard
-                          </button>
-                        </div>
-
-                        <div className="mt-3 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={handleAddItem}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:bg-emerald-700 hover:shadow-lg active:scale-[0.97]"
-                          >
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                            </svg>
-                            Add Item
-                          </button>
-                        </div>
-                      </>
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">
+                              {index + 1}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              {item.question_label && (
+                                <p className="mb-0.5 text-[10px] font-medium text-slate-400">{item.question_label}</p>
+                              )}
+                              <p className="truncate text-sm font-medium text-slate-700"><MathText text={item.question_content} /></p>
+                              <p className="text-[10px] text-slate-400">{item.max_score} pts</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
-                      <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center">
-                        <p className="text-xs text-slate-400">Loading math editor...</p>
+                      <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white px-6 py-8 text-center">
+                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100">
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-blue-500">
+                            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                          </svg>
+                        </div>
+                        <p className="text-sm font-medium text-slate-600">Compose your algebra questions</p>
+                        <p className="mt-1 text-xs text-slate-400">Click "Create Questions" to open the full question editor.</p>
                       </div>
                     )}
                   </div>
-
-                  {/* Items list */}
-                  {testItems.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Added Items</p>
-                      {testItems.map((item, index) => (
-                        <div
-                          key={`${item.question_content}-${index}`}
-                          className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:shadow-sm"
-                        >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">
-                            {index + 1}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-slate-700">{item.question_content}</p>
-                            <p className="text-[10px] text-slate-400">{item.max_score} pts</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(index)}
-                            className="shrink-0 rounded-lg px-2 py-1 text-[10px] font-semibold text-red-500 transition hover:bg-red-50 hover:text-red-700"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {testItems.length === 0 && (
-                    <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-8 text-center">
-                      <p className="text-xs text-slate-400">Add at least one question to continue.</p>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1036,10 +1112,93 @@ const NewAssessment = () => {
       </div>
     </div>,
     modalRoot
-  );
+  )}
+      <DefaultRubricModal isOpen={showDefaultRubricModal} onClose={() => setShowDefaultRubricModal(false)} />
+        </>
+      );
 
 };
 
+const DefaultRubricModal = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
 
+  const modalRoot = typeof document !== 'undefined' ? document.body : null;
+  if (!modalRoot) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-slate-950/60 px-4 py-6 backdrop-blur-md">
+      <div className="relative w-full max-w-lg max-h-[85vh]">
+        <div className="mx-auto flex max-h-[85vh] flex-col rounded-2xl border border-white/60 bg-white shadow-2xl">
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Default AI Grading Criteria</h3>
+                <p className="text-[11px] text-slate-400">How the AI evaluates submissions without a custom rubric</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Body - scrollable */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              When you create an assessment <strong>without a rubric</strong>, the AI automatically grades student submissions using these 5 built-in criteria:
+            </p>
+
+            <div className="space-y-3">
+              {DEFAULT_GRADING_CRITERIA.map((c, i) => (
+                <div key={c.key} className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-xs font-bold text-white shadow-sm">
+                    {i + 1}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-700">{c.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">{c.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+              <p className="text-xs font-semibold text-blue-800">How scoring works</p>
+              <p className="mt-1 text-xs text-blue-700/80 leading-relaxed">
+                For each question, the AI evaluates all 5 criteria and assigns a score <strong>proportional to the max points</strong> set for that item. The overall score is calculated as a percentage (0–100%).
+              </p>
+              <p className="mt-2 text-xs text-blue-700/80 leading-relaxed">
+                <strong>Effort credit:</strong> Students who submit work receive a <strong>minimum of 10%</strong> of the item's max score, even if all answers are incorrect. This encourages students to attempt every problem rather than leave answers blank.
+              </p>
+            </div>
+          </div>
+
+          {/* Footer - fixed */}
+          <div className="flex shrink-0 items-center justify-end border-t border-slate-100 px-6 py-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full bg-slate-800 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    modalRoot
+  );
+};
 
 export default NewAssessment;

@@ -8,6 +8,8 @@ const AdminCatalog = () => {
   const [catalog, setCatalog] = useState({ colleges: [], courses: [] });
   const [collegeName, setCollegeName] = useState('');
   const [courseForm, setCourseForm] = useState({ name: '', courseCode: '', collegeId: '' });
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [editCourseForm, setEditCourseForm] = useState({ name: '', courseCode: '', collegeId: '' });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -150,6 +152,44 @@ const AdminCatalog = () => {
     );
   };
 
+  const startEditCourse = (course) => {
+    setEditingCourse(course.course_id);
+    setEditCourseForm({
+      name: course.course_name,
+      courseCode: course.course_code || '',
+      collegeId: String(course.college_id || ''),
+    });
+  };
+
+  const cancelEditCourse = () => {
+    setEditingCourse(null);
+    setEditCourseForm({ name: '', courseCode: '', collegeId: '' });
+  };
+
+  const handleUpdateCourse = async (e, course) => {
+    e.preventDefault();
+    const trimmedName = editCourseForm.name.trim();
+    if (!trimmedName || !editCourseForm.collegeId) {
+      setMessage('Course name and college are required.');
+      showToast('Course name and college are required.', 'error');
+      return;
+    }
+
+    await postCatalogChange(
+      {
+        action: 'update',
+        type: 'course',
+        id: course.course_id,
+        name: trimmedName,
+        courseCode: editCourseForm.courseCode.trim(),
+        collegeId: Number(editCourseForm.collegeId),
+      },
+      'Course updated successfully.'
+    );
+    setEditingCourse(null);
+    setEditCourseForm({ name: '', courseCode: '', collegeId: '' });
+  };
+
   const collegeLookup = useMemo(() => {
     const map = new Map();
     catalog.colleges.forEach((college) => map.set(String(college.college_id), college.college_name));
@@ -288,27 +328,86 @@ const AdminCatalog = () => {
 
             <div className="space-y-2 pt-1">
               {catalog.courses.map((course) => (
-                <div key={course.course_id} className="teacher-float-card flex items-center justify-between gap-3 px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {course.course_name}{' '}
-                      <span className="text-[10px] font-medium text-slate-400">
-                        {course.course_code ? `(${course.course_code})` : ''}
-                      </span>
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      {collegeLookup.get(String(course.college_id)) || 'No college'} -{' '}
-                      {Number(course.is_active) === 1 ? 'Active' : 'Inactive'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleCourse(course)}
-                    disabled={saving}
-                    className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {Number(course.is_active) === 1 ? 'Disable' : 'Enable'}
-                  </button>
+                <div key={course.course_id} className="teacher-float-card px-3 py-2.5">
+                  {editingCourse === course.course_id ? (
+                    <form className="space-y-2" onSubmit={(e) => handleUpdateCourse(e, course)}>
+                      <input
+                        type="text"
+                        value={editCourseForm.name}
+                        onChange={(e) => setEditCourseForm((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="Course name"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
+                      />
+                      <input
+                        type="text"
+                        value={editCourseForm.courseCode}
+                        onChange={(e) => setEditCourseForm((prev) => ({ ...prev, courseCode: e.target.value }))}
+                        placeholder="Course code"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-200 focus:ring-4 focus:ring-blue-100"
+                      />
+                      <Select
+                        value={editCourseForm.collegeId}
+                        onChange={(e) => setEditCourseForm((prev) => ({ ...prev, collegeId: e.target.value }))}
+                        placeholder="Select college"
+                      >
+                        {catalog.colleges.map((college) => (
+                          <option key={college.college_id} value={college.college_id}>
+                            {college.college_name}
+                          </option>
+                        ))}
+                      </Select>
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          className="rounded-xl bg-blue-600 px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditCourse}
+                          disabled={saving}
+                          className="rounded-xl border border-slate-200 px-3 py-1.5 text-[10px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-70"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {course.course_name}{' '}
+                          <span className="text-[10px] font-medium text-slate-400">
+                            {course.course_code ? `(${course.course_code})` : ''}
+                          </span>
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          {collegeLookup.get(String(course.college_id)) || 'No college'} -{' '}
+                          {Number(course.is_active) === 1 ? 'Active' : 'Inactive'}
+                        </p>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => startEditCourse(course)}
+                          disabled={saving}
+                          className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-amber-300 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleCourse(course)}
+                          disabled={saving}
+                          className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {Number(course.is_active) === 1 ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

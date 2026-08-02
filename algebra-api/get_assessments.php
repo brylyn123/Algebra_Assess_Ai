@@ -2,6 +2,7 @@
 require_once 'auth.php';
 include 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'cache_headers.php';
 
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
@@ -129,6 +130,7 @@ try {
         $itemStmt->close();
     }
 
+    setCacheHeaders(60);
     echo json_encode(["status" => "success", "assessments" => array_values($assessmentsById)]);
 } catch (Exception $e) {
     http_response_code(500);

@@ -45,6 +45,7 @@ $score = isset($data['total_score_earned']) ? (float)$data['total_score_earned']
 $ai_feedback = trim((string)($data['ai_feedback'] ?? $data['teacher_feedback'] ?? $extractOverallFeedback($ai_generation)));
 $item_scores = isset($data['item_scores']) && is_array($data['item_scores']) ? $data['item_scores'] : $extractItemScores($ai_generation);
 $ai_model = trim((string)($data['ai_model'] ?? $ai_generation['model'] ?? ''));
+$ocrText = isset($data['ocr_text']) ? trim((string)$data['ocr_text']) : null;
 
 if (!$solution_id || $score === null) {
     http_response_code(400);
@@ -231,6 +232,15 @@ try {
     $solutionUpdateStmt->execute();
     $solutionUpdateStmt->close();
 
+    if ($ocrText !== null) {
+        $ocrUpdateStmt = $conn->prepare(
+            "UPDATE Captured_Solution SET ocr_text = ? WHERE solution_id = ?"
+        );
+        $ocrUpdateStmt->bind_param("si", $ocrText, $solution_id);
+        $ocrUpdateStmt->execute();
+        $ocrUpdateStmt->close();
+    }
+
     $conn->commit();
 
     echo json_encode([
@@ -244,6 +254,7 @@ try {
         'ai_feedback' => $ai_feedback,
         'item_scores_saved' => count($item_scores),
         'ai_status' => 'completed',
+        'ocr_text' => $ocrText,
     ]);
 } catch (Exception $e) {
     if ($conn->in_transaction) {

@@ -667,6 +667,14 @@ try {
     ensureExerciseSchema($conn);
     ensureScoreSchema($conn);
 
+    $conn->query("CREATE TABLE IF NOT EXISTS schema_migration_log (
+        migration_key VARCHAR(100) PRIMARY KEY,
+        ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )");
+    $conn->query("INSERT IGNORE INTO schema_migration_log (migration_key, ran_at) VALUES ('live_schema_v1', NOW())");
+
+    @unlink(__DIR__ . '/.schema_cache.php');
+
     out('Migration completed successfully.');
 } catch (Throwable $e) {
     http_response_code(500);
