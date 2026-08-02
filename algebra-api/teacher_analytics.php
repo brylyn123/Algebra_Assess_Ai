@@ -1,6 +1,6 @@
 <?php
 require_once 'cors.php';
-require_once 'db_connection.php';
+require_once 'db_connect.php';
 require_once 'auth.php';
 require_once 'cache_headers.php';
 

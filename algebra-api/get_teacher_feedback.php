@@ -1,6 +1,6 @@
 <?php
 require_once 'auth.php';
-require_once 'db_connection.php';
+require_once 'db_connect.php';
 require_once 'schema_utils.php';
 require_once 'cache_headers.php';
 

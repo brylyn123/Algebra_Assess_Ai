@@ -1,6 +1,6 @@
 <?php
 require_once 'auth.php';
-require_once 'db_connection.php';
+require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 $data = json_decode(file_get_contents("php://input"), true);

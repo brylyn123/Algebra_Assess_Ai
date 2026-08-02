@@ -18,9 +18,12 @@ function checkRateLimit(mysqli $conn, int $userId, string $endpoint, int $maxHit
 
     $windowStart = date('Y-m-d H:i:s', time() - $windowSeconds);
 
-    $conn->query(
-        "DELETE FROM rate_limits WHERE window_start < NOW() - INTERVAL {$windowSeconds} SECOND"
+    $deleteStmt = $conn->prepare(
+        "DELETE FROM rate_limits WHERE window_start < NOW() - INTERVAL ? SECOND"
     );
+    $deleteStmt->bind_param('i', $windowSeconds);
+    $deleteStmt->execute();
+    $deleteStmt->close();
 
     $stmt = $conn->prepare(
         "SELECT hit_count FROM rate_limits

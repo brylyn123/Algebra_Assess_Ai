@@ -54,6 +54,11 @@ if (empty($subject_name)) {
     exit;
 }
 
+if (strlen($subject_name) > 255) {
+    echo json_encode(["status" => "error", "message" => "Subject name must be 255 characters or less."]);
+    exit;
+}
+
 // 3. Prepared Statement
 try {
     ensureArchivedColumn($conn);
