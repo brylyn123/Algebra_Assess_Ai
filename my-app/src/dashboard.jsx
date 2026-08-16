@@ -235,10 +235,6 @@ const Dashboard = () => {
   const isTeacherZone = location.pathname.startsWith('/teacher');
   const profilePath = isTeacherZone ? '/teacher/profile' : '/dashboard/profile';
   const settingsPath = isTeacherZone ? '/teacher/settings' : '/dashboard/settings';
-  const isReportsRoute = location.pathname === '/teacher/reports';
-  const isSettingsRoute = location.pathname === '/teacher/settings' || location.pathname === '/dashboard/settings';
-  const isQuestionEditor = location.pathname === '/teacher/assessments/edit-questions';
-  const usesLargePanelScroll = isReportsRoute || isSettingsRoute || isQuestionEditor;
   const sidebarActions = userRole === 'admin'
     ? [...quickActions, { label: 'Catalog', icon: navIcons.catalog, path: '/dashboard/catalog' }]
     : quickActions;
@@ -276,7 +272,7 @@ const Dashboard = () => {
       )}
 
       <div
-        className="min-h-screen bg-slate-50"
+        className="flex h-screen flex-col overflow-hidden bg-slate-50"
         style={{
           backgroundImage:
             'linear-gradient(#cbd7ed 1px, transparent 1px), linear-gradient(90deg, #cbd7ed 1px, transparent 1px)',
@@ -284,9 +280,9 @@ const Dashboard = () => {
           backgroundColor: '#e0edff',
         }}
       >
-        <header className="sticky top-0 z-50 border-b border-slate-200/50 bg-blue-500 text-white shadow-sm">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-1.5 sm:px-6">
-            <div className="flex items-center gap-1.5">
+        <header className="sticky top-0 z-50 border-b border-blue-600/40 bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+            <div className="flex items-center gap-2">
               <MobileNav
                 actions={sidebarActions.map((a) => ({ label: a.label, icon: a.icon, path: a.path }))}
                 accountActions={[
@@ -297,33 +293,33 @@ const Dashboard = () => {
               />
               <motion.div
                 whileHover={prefersReducedMotion ? undefined : { x: 2 }}
-                className="flex cursor-pointer items-center gap-1.5"
+                className="flex cursor-pointer items-center gap-2"
                 onClick={() => navigate('/dashboard')}
               >
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/20">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
                   {navIcons.home}
                 </div>
                 <div>
-                  <p className="text-[8px] uppercase tracking-[0.2em] text-white/70">AlgebraAssess</p>
-                  <p className="text-[11px] font-bold sm:text-xs">{homeLabel}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">AlgebraAssess</p>
+                  <p className="text-sm font-bold leading-tight sm:text-base">{homeLabel}</p>
                 </div>
               </motion.div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <div className="hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2.5 py-1 sm:flex">
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold text-blue-600">
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 backdrop-blur-sm sm:flex">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-600">
                   {teacherName.charAt(0)}
                 </div>
-                <div className="text-[10px] leading-tight">
+                <div className="text-xs leading-tight">
                   <p className="font-semibold text-white">{teacherName}</p>
-                  <p className="text-white/60">Online</p>
+                  <p className="text-white/70">Online</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(true)}
-                className="rounded-full border border-white/20 px-2.5 py-1 text-[10px] font-semibold transition hover:border-red-400 hover:bg-red-500"
+                className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm transition hover:border-red-400 hover:bg-red-500"
               >
                 Logout
               </button>
@@ -331,10 +327,9 @@ const Dashboard = () => {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <main className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-1 py-1 sm:px-3 sm:py-2 lg:px-4">
           <div
-            className="flex overflow-hidden rounded-[2rem] border border-slate-100 bg-slate-50 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)]"
-            style={{ height: 'calc(100vh - 68px)' }}
+            className="flex min-h-0 flex-1 overflow-hidden rounded-xl sm:rounded-[2rem] border border-slate-100 bg-slate-50 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)]"
           >
             {/* Sidebar - inside the main panel */}
             <aside
@@ -392,9 +387,8 @@ const Dashboard = () => {
             {/* Content area - inside the same panel */}
             <div className="min-w-0 flex-1 overflow-hidden rounded-r-[2rem] bg-slate-100/80">
               <div
-                className={`h-full ${usesLargePanelScroll ? 'teacher-scrollbar overflow-y-auto' : 'overflow-hidden'
-                  }`}
-                style={usesLargePanelScroll ? { scrollbarGutter: 'stable' } : undefined}
+                className="h-full teacher-scrollbar overflow-y-auto"
+                style={{ scrollbarGutter: 'stable' }}
               >
                 <Outlet context={{ teacherName }} />
               </div>

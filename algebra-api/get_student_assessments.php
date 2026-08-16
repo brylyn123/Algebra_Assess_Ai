@@ -48,7 +48,11 @@ try {
         LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
         LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
         LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
-        INNER JOIN Enrollment e ON e.$enrollmentCol = s.subject_id AND e.student_user_id = ?
+        LEFT JOIN assessment_subjects asub ON asub.assessment_id = ep.exercise_id
+        INNER JOIN Enrollment e ON (
+            e.$enrollmentCol = s.subject_id
+            OR (asub.subject_id IS NOT NULL AND e.$enrollmentCol = asub.subject_id)
+        ) AND e.student_user_id = ?
         LEFT JOIN exercise_items ei ON ei.exercise_id = ep.exercise_id
         LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_user_id = ?
         LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
@@ -187,7 +191,7 @@ try {
         $solutionTypes = str_repeat('i', count($allSolutionIds));
 
         $fileStmt = $conn->prepare(
-            "SELECT solution_id, file_path, ai_raw_json
+            "SELECT solution_id, file_path, ocr_text, ai_raw_json
              FROM Captured_Solution
              WHERE solution_id IN ($solutionPlaceholders)
              ORDER BY solution_id ASC"
@@ -197,23 +201,50 @@ try {
         $fileResult = $fileStmt->get_result();
 
         $filesBySolution = [];
+        $criteriaScoresBySolution = [];
+        $ocrTextBySolution = [];
         while ($fileRow = $fileResult->fetch_assoc()) {
             $solId = (int)$fileRow['solution_id'];
             $files = [];
+            $criteriaScores = [];
+            // Use ocr_text from database column first, fallback to ai_raw_json
+            $ocrText = trim((string)($fileRow['ocr_text'] ?? ''));
             $rawJson = $fileRow['ai_raw_json'] ?? null;
             if ($rawJson) {
                 $decoded = json_decode($rawJson, true);
-                if (json_last_error() === JSON_ERROR_NONE && isset($decoded['files']) && is_array($decoded['files'])) {
-                    foreach ($decoded['files'] as $f) {
-                        $path = trim((string)($f['file_path'] ?? ''));
-                        if ($path === '') continue;
-                        $name = trim((string)($f['original_name'] ?? basename($path)));
-                        $ext = strtolower(pathinfo($name !== '' ? $name : $path, PATHINFO_EXTENSION));
-                        $files[] = [
-                            'name' => $name !== '' ? $name : basename($path),
-                            'path' => $path,
-                            'type' => $ext === 'pdf' ? 'pdf' : 'image',
-                        ];
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    // Parse files
+                    if (isset($decoded['files']) && is_array($decoded['files'])) {
+                        foreach ($decoded['files'] as $f) {
+                            $path = trim((string)($f['file_path'] ?? ''));
+                            if ($path === '') continue;
+                            $name = trim((string)($f['original_name'] ?? basename($path)));
+                            $ext = strtolower(pathinfo($name !== '' ? $name : $path, PATHINFO_EXTENSION));
+                            $files[] = [
+                                'name' => $name !== '' ? $name : basename($path),
+                                'path' => $path,
+                                'type' => $ext === 'pdf' ? 'pdf' : 'image',
+                            ];
+                        }
+                    }
+                    // Parse criteria_scores from grading_draft
+                    $draft = $decoded['grading_draft'] ?? null;
+                    if (is_array($draft) && isset($draft['criteria_scores']) && is_array($draft['criteria_scores'])) {
+                        foreach ($draft['criteria_scores'] as $c) {
+                            $weight = isset($c['weight']) ? (float)$c['weight'] : 0;
+                            $earned = isset($c['earned']) ? (float)$c['earned'] : (isset($c['score']) ? (float)$c['score'] : 0);
+                            $earned = max(0, min($weight, $earned));
+                            $criteriaScores[] = [
+                                'name' => trim((string)($c['name'] ?? '')),
+                                'weight' => $weight,
+                                'earned' => round($earned, 2),
+                                'explanation' => trim((string)($c['explanation'] ?? '')),
+                            ];
+                        }
+                    }
+                    // Parse ocr_text from ai_raw_json if not in database column
+                    if ($ocrText === '' && isset($decoded['ocr']) && is_array($decoded['ocr']) && !empty($decoded['ocr']['text'])) {
+                        $ocrText = trim((string)$decoded['ocr']['text']);
                     }
                 }
             }
@@ -230,6 +261,8 @@ try {
                 }
             }
             $filesBySolution[$solId] = $files;
+            $criteriaScoresBySolution[$solId] = $criteriaScores;
+            $ocrTextBySolution[$solId] = $ocrText;
         }
         $fileStmt->close();
 
@@ -237,8 +270,12 @@ try {
             $solId = $assessment['solution_id'] ?? null;
             if ($solId !== null && isset($filesBySolution[$solId])) {
                 $assessment['submission_files'] = $filesBySolution[$solId];
+                $assessment['criteria_scores'] = $criteriaScoresBySolution[$solId] ?? [];
+                $assessment['ocr_text'] = $ocrTextBySolution[$solId] ?? '';
             } else {
                 $assessment['submission_files'] = [];
+                $assessment['criteria_scores'] = [];
+                $assessment['ocr_text'] = '';
             }
         }
         unset($assessment);
@@ -303,6 +340,12 @@ try {
         }
         if (!isset($assessment['item_scores'])) {
             $assessment['item_scores'] = [];
+        }
+        if (!isset($assessment['criteria_scores'])) {
+            $assessment['criteria_scores'] = [];
+        }
+        if (!isset($assessment['ocr_text'])) {
+            $assessment['ocr_text'] = '';
         }
     }
     unset($assessment);

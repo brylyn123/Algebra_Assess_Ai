@@ -54,7 +54,7 @@ const PageTransition = ({ children }) => {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
         onAnimationComplete={() => window.dispatchEvent(new Event('route-change-end'))}
-        style={{ position: 'relative', minHeight: '100vh', willChange: 'opacity' }}
+        style={{ position: 'relative', willChange: 'opacity' }}
       >
         {children}
       </motion.div>

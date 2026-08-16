@@ -79,8 +79,8 @@ const TeacherSettings = () => {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-1 pt-3 sm:px-2">
-      <div className="mx-auto flex max-w-[1100px] flex-col gap-2">
-      <section className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-0">
+      <div className="mx-auto flex w-full flex-col gap-2">
+      <section className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">

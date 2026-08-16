@@ -82,6 +82,7 @@ try {
             "due_date" => $row["due_date"] ?? null,
             "subject" => $row["subject_name"],
             "subject_meta" => implode(" - ", $subjectMeta),
+            "subjects" => [], // Will be populated below
             "date_created" => $row["date_created"],
             "assessment_status" => $row["assessment_status"],
             "status" => $row["assessment_status"],
@@ -90,6 +91,66 @@ try {
         ];
     }
     $stmt->close();
+
+    // Load all linked subjects from assessment_subjects
+    if (count($assessmentsById) > 0) {
+        $exerciseIds = array_keys($assessmentsById);
+        $placeholders = implode(',', array_fill(0, count($exerciseIds), '?'));
+        $types = str_repeat('i', count($exerciseIds));
+
+        $asStmt = $conn->prepare(
+            "SELECT
+                asub.assessment_id,
+                s.subject_id,
+                s.subject_name,
+                COALESCE(c.course_code, c.course_name) AS course,
+                sec.section_name AS section,
+                COALESCE(sem.semester_name, s.semester) AS semester,
+                COALESCE(sy.label, '') AS school_year
+             FROM assessment_subjects asub
+             INNER JOIN subject s ON asub.subject_id = s.subject_id
+             LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
+             LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
+             LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
+             LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
+             WHERE asub.assessment_id IN ({$placeholders})
+             ORDER BY asub.assessment_id, s.subject_name"
+        );
+        $asStmt->bind_param($types, ...$exerciseIds);
+        $asStmt->execute();
+        $asResult = $asStmt->get_result();
+
+        while ($asRow = $asResult->fetch_assoc()) {
+            $eid = (int)$asRow['assessment_id'];
+            if (!isset($assessmentsById[$eid])) continue;
+
+            $meta = [];
+            foreach (['course', 'section', 'semester', 'school_year'] as $field) {
+                if (!empty($asRow[$field])) {
+                    $meta[] = $asRow[$field];
+                }
+            }
+
+            $assessmentsById[$eid]['subjects'][] = [
+                'subject_id' => (int)$asRow['subject_id'],
+                'subject_name' => $asRow['subject_name'],
+                'subject_meta' => implode(' - ', $meta),
+            ];
+        }
+        $asStmt->close();
+
+        // If no assessment_subjects rows exist, fall back to primary subject
+        foreach ($assessmentsById as $eid => &$assessment) {
+            if (empty($assessment['subjects'])) {
+                $assessment['subjects'] = [[
+                    'subject_id' => $assessment['subject_id'],
+                    'subject_name' => $assessment['subject'],
+                    'subject_meta' => $assessment['subject_meta'],
+                ]];
+            }
+        }
+        unset($assessment);
+    }
 
     if (count($assessmentsById) > 0) {
         $itemStmt = $conn->prepare(

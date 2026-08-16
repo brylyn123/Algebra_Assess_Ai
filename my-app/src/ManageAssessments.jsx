@@ -163,39 +163,37 @@ const ManageAssessments = () => {
     ];
 
     return (
-        <div className="mx-auto w-full max-w-[1400px] px-4 pt-3 sm:px-6 md:px-8" style={{ height: 'calc(100vh - 6rem)' }}>
-            <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.06)]">
+        <div className="h-full overflow-hidden px-3 py-3 sm:px-4 sm:py-4">
+            <div className="flex h-full flex-col overflow-hidden">
 
-                <div className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white px-6 py-5">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-blue-600 shadow-sm shadow-blue-200">
-                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
+                <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-0.5">
+                            <div className="flex items-center gap-2.5">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                                         <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zM9 9a.75.75 0 000 1.5h.75a.75.75 0 000-1.5H9z" clipRule="evenodd" />
                                     </svg>
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold tracking-tight text-slate-900">Assessments</h2>
-                                </div>
+                                <h2 className="text-lg font-bold text-white">Assessments</h2>
                             </div>
-                            <p className="text-sm text-slate-500 ml-10">Create and manage your quizzes, exams, and rubrics.</p>
+                            <p className="text-xs text-blue-100 ml-[42px]">Create and manage your quizzes, exams, and rubrics.</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="shrink-0 border-b border-slate-100 bg-slate-50/50 px-6 py-3">
+                <div className="shrink-0 border-b border-slate-100 bg-slate-50/50 px-3 sm:px-6 py-2 sm:py-3">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="inline-flex w-full max-w-[320px] rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                        <div className="inline-flex w-full max-w-[280px] sm:max-w-[320px] rounded-lg sm:rounded-xl border border-slate-200 bg-white p-0.5 sm:p-1 shadow-sm">
                             <button
                                 type="button"
                                 onClick={() => setActivePanel('assessments')}
-                                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 ${activePanel === 'assessments'
+                                className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 rounded-md sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold transition-all duration-200 ${activePanel === 'assessments'
                                     ? 'bg-blue-600 text-white shadow-md shadow-blue-200/60'
                                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                                     }`}
                             >
-                                <span className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full text-[10px] font-bold ${activePanel === 'assessments' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                <span className={`inline-flex h-4 sm:h-5 min-w-[16px] sm:min-w-[20px] items-center justify-center rounded-full text-[9px] sm:text-[10px] font-bold ${activePanel === 'assessments' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                     {assessments.length}
                                 </span>
                                 Assessments
@@ -203,12 +201,12 @@ const ManageAssessments = () => {
                             <button
                                 type="button"
                                 onClick={() => setActivePanel('rubrics')}
-                                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 ${activePanel === 'rubrics'
+                                className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 rounded-md sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold transition-all duration-200 ${activePanel === 'rubrics'
                                     ? 'bg-blue-600 text-white shadow-md shadow-blue-200/60'
                                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                                     }`}
                             >
-                                <span className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full text-[10px] font-bold ${activePanel === 'rubrics' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                <span className={`inline-flex h-4 sm:h-5 min-w-[16px] sm:min-w-[20px] items-center justify-center rounded-full text-[9px] sm:text-[10px] font-bold ${activePanel === 'rubrics' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                     {rubrics.length}
                                 </span>
                                 Rubrics
@@ -232,19 +230,12 @@ const ManageAssessments = () => {
                                     ))}
                                 </div>
                             )}
-                            <button
-                                type="button"
-                                onClick={() => setShowHistoryModal(true)}
-                                className="rounded-full border border-blue-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50"
-                            >
-                                View All
-                            </button>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex flex-1 min-h-0 flex-col">
-                    <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+                    <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
                         <style>{`
                             .assess-scroll::-webkit-scrollbar { width: 6px; }
                             .assess-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -267,7 +258,7 @@ const ManageAssessments = () => {
                             ) : activePanel === 'assessments' ? (
                                 <>
                                     {/* Quick Actions - Compact horizontal row */}
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {actionCards.map((card, index) => (
                                             <motion.article
                                                 key={card.title}
@@ -294,7 +285,8 @@ const ManageAssessments = () => {
                                                         onClick={card.onClick}
                                                         className={`inline-flex shrink-0 items-center justify-center rounded-full bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] shadow-md transition hover:-translate-y-0.5 ${card.buttonClass}`}
                                                     >
-                                                        {card.buttonLabel}
+                                                        <span className="hidden sm:inline">{card.buttonLabel}</span>
+                                                        <span className="sm:hidden">Create</span>
                                                     </button>
                                                 </div>
                                             </motion.article>
@@ -335,35 +327,39 @@ const ManageAssessments = () => {
                                                             setSelectedAssessmentDetail(item);
                                                             setShowAssessmentDetail(true);
                                                         }}
-                                                        className={`group relative overflow-hidden rounded-[1.1rem] border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer flex flex-col min-h-[180px] ${subjectTheme.cardClass}`}
+                                                        className={`group relative overflow-hidden rounded-xl sm:rounded-[1.1rem] border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer flex flex-col min-h-[110px] sm:min-h-[180px] ${subjectTheme.cardClass}`}
                                                     >
                                                         <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${subjectTheme.accentClass}`} />
-                                                        <div className="flex flex-1 flex-col gap-2.5 p-4 pl-5">
-                                                            <div className="flex items-center gap-3 min-w-0">
-                                                                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${subjectTheme.cardBadgeClass} text-xs font-bold`}>
+                                                        <div className="flex flex-1 flex-col gap-1.5 sm:gap-2.5 p-3 pl-4 sm:p-4 sm:pl-5">
+                                                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                                                <div className={`flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl ${subjectTheme.cardBadgeClass} text-[10px] sm:text-xs font-bold`}>
                                                                     {item.title?.charAt(0)?.toUpperCase() || 'A'}
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
                                                                     <div className="flex items-center gap-1.5">
-                                                                        <h3 className={`text-sm font-bold truncate ${subjectTheme.cardTextClass}`}>{item.title}</h3>
-                                                                        <span className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${statusBadge.badge}`}>
+                                                                        <h3 className={`text-xs sm:text-sm font-bold truncate ${subjectTheme.cardTextClass}`}>{item.title}</h3>
+                                                                        <span className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wider ${statusBadge.badge}`}>
                                                                             {statusValue}
                                                                         </span>
                                                                     </div>
-                                                                    <p className={`mt-0.5 text-[11px] truncate ${subjectTheme.cardSubtextClass}`}>{item.subject || 'No subject yet'}</p>
+                                                                    <p className={`mt-0.5 text-[10px] sm:text-[11px] truncate ${subjectTheme.cardSubtextClass}`}>
+                                                                        {item.subjects?.length > 0
+                                                                            ? item.subjects.map((s) => s.subject_name).join(', ')
+                                                                            : item.subject || 'No subject yet'}
+                                                                    </p>
                                                                 </div>
                                                             </div>
                                                             {item.description && (
-                                                                <p className={`text-[10px] leading-4 line-clamp-2 ${subjectTheme.cardSubtextClass}`}>{item.description}</p>
+                                                                <p className={`hidden sm:block text-[10px] leading-4 line-clamp-2 ${subjectTheme.cardSubtextClass}`}>{item.description}</p>
                                                             )}
                                                             <div className="mt-auto flex flex-wrap gap-1">
-                                                                <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-medium ${subjectTheme.chipClass}`}>
+                                                                <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] sm:text-[9px] font-medium ${subjectTheme.chipClass}`}>
                                                                     {item.topic || 'No topic'}
                                                                 </span>
-                                                                <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-medium ${subjectTheme.chipClass}`}>
+                                                                <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] sm:text-[9px] font-medium ${subjectTheme.chipClass}`}>
                                                                     {item.difficulty || 'Medium'}
                                                                 </span>
-                                                                <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-medium ${subjectTheme.chipClass}`}>
+                                                                <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] sm:text-[9px] font-medium ${subjectTheme.chipClass}`}>
                                                                     {item.item_count ?? item.items?.length ?? 0} items
                                                                 </span>
                                                             </div>
@@ -397,29 +393,29 @@ const ManageAssessments = () => {
                                             {rubrics.map((rubric) => (
                                                 <div
                                                     key={rubric.rubric_set_id}
-                                                    className="group relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg flex flex-col min-h-[180px]"
+                                                    className="group relative overflow-hidden rounded-xl sm:rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg flex flex-col min-h-[110px] sm:min-h-[180px]"
                                                 >
                                                     <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-emerald-400 to-teal-600" />
-                                                    <div className="flex flex-1 flex-col gap-2.5 p-4 pl-5">
-                                                        <div className="flex items-center gap-3 min-w-0">
-                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 text-xs font-bold">
+                                                    <div className="flex flex-1 flex-col gap-1.5 sm:gap-2.5 p-3 pl-4 sm:p-4 sm:pl-5">
+                                                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                                            <div className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs font-bold">
                                                                 {rubric.rubric_name?.charAt(0)?.toUpperCase() || 'R'}
                                                             </div>
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="flex items-center gap-1.5">
-                                                                    <h3 className="text-sm font-bold text-slate-900 truncate">{rubric.rubric_name}</h3>
-                                                                    <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-emerald-700">
+                                                                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{rubric.rubric_name}</h3>
+                                                                    <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wider text-emerald-700">
                                                                         Criteria
                                                                     </span>
                                                                 </div>
-                                                                <p className="mt-0.5 text-[11px] text-emerald-600/80">{formatDate(rubric.created_at)}</p>
+                                                                <p className="mt-0.5 text-[10px] sm:text-[11px] text-emerald-600/80">{formatDate(rubric.created_at)}</p>
                                                             </div>
                                                         </div>
-                                                        <p className="text-[10px] leading-4 text-slate-600 line-clamp-2">
+                                                        <p className="hidden sm:block text-[10px] leading-4 text-slate-600 line-clamp-2">
                                                             {rubric.criteria || 'No criteria added yet.'}
                                                         </p>
                                                         {rubric.ai_instructions && (
-                                                            <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-2 py-1.5">
+                                                            <div className="hidden sm:block rounded-lg border border-blue-100 bg-blue-50/70 px-2 py-1.5">
                                                                 <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-blue-600">AI Instructions</p>
                                                                 <p className="mt-0.5 text-[9px] leading-4 text-slate-600 line-clamp-2">{rubric.ai_instructions}</p>
                                                             </div>
@@ -429,7 +425,7 @@ const ManageAssessments = () => {
                                                                 {rubric.level_definitions.map((level, index) => (
                                                                     <span
                                                                         key={`${rubric.rubric_set_id}-level-${index}`}
-                                                                        className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700"
+                                                                        className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold text-emerald-700"
                                                                     >
                                                                         {formatLevelLabel(level)}
                                                                     </span>
@@ -549,7 +545,11 @@ const ManageAssessments = () => {
                                                                                     {statusValue}
                                                                                 </span>
                                                                             </div>
-                                                                            <p className={`mt-0.5 text-xs truncate ${subjectTheme.cardSubtextClass}`}>{item.subject || 'Assessment'}</p>
+                                                                            <p className={`mt-0.5 text-xs truncate ${subjectTheme.cardSubtextClass}`}>
+                                                                                {item.subjects?.length > 0
+                                                                                    ? item.subjects.map((s) => s.subject_name).join(', ')
+                                                                                    : item.subject || 'Assessment'}
+                                                                            </p>
                                                                             <p className={`mt-1 text-[10px] leading-5 line-clamp-2 ${subjectTheme.cardSubtextClass}`}>
                                                                                 {item.description || 'No description provided yet.'}
                                                                             </p>
@@ -683,28 +683,28 @@ const ManageAssessments = () => {
 
                             <div className="flex flex-1 min-h-0 flex-col overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
                                 <div className="px-8 py-6">
-                                    <div className="mb-6 grid grid-cols-3 gap-3">
-                                        <div className="rounded-2xl border-l-[3px] border-l-blue-300 bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Questions</p>
-                                            <p className="mt-1 text-3xl font-black text-blue-600">{selectedAssessmentDetail.items?.length ?? 0}</p>
-                                            <p className="mt-0.5 text-[11px] font-medium text-blue-400">Total items</p>
+                                    <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                                        <div className="rounded-xl sm:rounded-2xl border-l-[3px] border-l-blue-300 bg-blue-50 p-3 sm:p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Questions</p>
+                                            <p className="mt-1 text-2xl sm:text-3xl font-black text-blue-600">{selectedAssessmentDetail.items?.length ?? 0}</p>
+                                            <p className="mt-0.5 text-[10px] sm:text-[11px] font-medium text-blue-400">Total items</p>
                                         </div>
-                                        <div className="rounded-2xl border-l-[3px] border-l-amber-300 bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Total Points</p>
-                                            <p className="mt-1 text-3xl font-black text-amber-600">
+                                        <div className="rounded-xl sm:rounded-2xl border-l-[3px] border-l-amber-300 bg-amber-50 p-3 sm:p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Total Points</p>
+                                            <p className="mt-1 text-2xl sm:text-3xl font-black text-amber-600">
                                                 {(selectedAssessmentDetail.items || []).reduce((sum, item) => sum + (item.max_score ?? 0), 0)}
                                             </p>
-                                            <p className="mt-0.5 text-[11px] font-medium text-amber-400">Maximum score</p>
+                                            <p className="mt-0.5 text-[10px] sm:text-[11px] font-medium text-amber-400">Maximum score</p>
                                         </div>
-                                        <div className="rounded-2xl border-l-[3px] border-l-emerald-300 bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Due Date</p>
-                                            <p className="mt-1 text-3xl font-black text-emerald-600">
+                                        <div className="rounded-xl sm:rounded-2xl border-l-[3px] border-l-emerald-300 bg-emerald-50 p-3 sm:p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Due Date</p>
+                                            <p className="mt-1 text-2xl sm:text-3xl font-black text-emerald-600">
                                                 {(() => {
                                                     const due = getDueDateStatus(selectedAssessmentDetail.due_date);
                                                     return due ? due.label : 'None';
                                                 })()}
                                             </p>
-                                            <p className="mt-0.5 text-[11px] font-medium text-emerald-400">Deadline status</p>
+                                            <p className="mt-0.5 text-[10px] sm:text-[11px] font-medium text-emerald-400">Deadline status</p>
                                         </div>
                                     </div>
 
@@ -735,7 +735,22 @@ const ManageAssessments = () => {
                                         })()}
                                     </div>
 
-                                    {selectedAssessmentDetail.subject_meta && (
+                                    {selectedAssessmentDetail.subjects?.length > 0 && (
+                                        <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Subjects</p>
+                                            <div className="mt-1 space-y-1">
+                                                {selectedAssessmentDetail.subjects.map((s) => (
+                                                    <div key={s.subject_id} className="flex items-center gap-2 text-xs text-slate-600">
+                                                        <span className="font-medium">{s.subject_name}</span>
+                                                        {s.subject_meta && (
+                                                            <span className="text-[10px] text-slate-400">({s.subject_meta})</span>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {selectedAssessmentDetail.subjects?.length === 0 && selectedAssessmentDetail.subject_meta && (
                                         <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
                                             <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Subject Meta</p>
                                             <p className="mt-0.5 text-xs text-slate-600">{selectedAssessmentDetail.subject_meta}</p>

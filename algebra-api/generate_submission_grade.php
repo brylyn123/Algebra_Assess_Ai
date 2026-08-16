@@ -201,6 +201,48 @@ try {
         }
     }
 
+    // If existing ocr_text looks like Tesseract garbage (short or contains diagnostics), re-run OCR
+    if ($ocrText !== '' && $ocrTextOverride === '') {
+        $looksLikeGarbage = (
+            strlen($ocrText) < 20 ||
+            preg_match('/Estimating resolution/i', $ocrText) ||
+            preg_match('/Warning:/i', $ocrText) ||
+            preg_match('/^\d{2,4}$/m', $ocrText) // lines with only numbers
+        );
+        if ($looksLikeGarbage && !empty($savedFiles)) {
+            error_log('Existing ocr_text looks like Tesseract garbage, re-running OCR for solution ' . $solution_id);
+            try {
+                $visionResult = extractOcrTextFromSavedFiles($savedFiles);
+                $extractedText = trim((string)($visionResult['ocr_text'] ?? ''));
+
+                if ($extractedText !== '' && strlen($extractedText) > strlen($ocrText)) {
+                    $ocrText = $extractedText;
+                    $existingRawPayload['ocr'] = [
+                        'status' => 'completed',
+                        'source' => 'ai_vision_retry',
+                        'model' => $visionResult['model'] ?? 'unknown',
+                        'generated_at' => gmdate('c'),
+                        'files' => $visionResult['files'] ?? [],
+                    ];
+
+                    $ocrTextOrNull = $ocrText !== '' ? $ocrText : null;
+                    $ocrUpdateJson = json_encode($existingRawPayload);
+                    $ocrUpdateStmt = $conn->prepare(
+                        "UPDATE Captured_Solution
+                         SET ocr_text = ?, ai_raw_json = ?
+                         WHERE solution_id = ?"
+                    );
+                    $ocrUpdateStmt->bind_param('ssi', $ocrTextOrNull, $ocrUpdateJson, $solution_id);
+                    $ocrUpdateStmt->execute();
+                    $ocrUpdateStmt->close();
+                    error_log('Re-extracted OCR text: ' . strlen($ocrText) . ' chars');
+                }
+            } catch (Exception $retryError) {
+                error_log('OCR retry failed for solution ' . $solution_id . ': ' . $retryError->getMessage());
+            }
+        }
+    }
+
     if ($ocrText === '' && $ocrTextOverride === '') {
         http_response_code(422);
         echo json_encode([
@@ -220,6 +262,7 @@ try {
         'generated_at' => gmdate('c'),
         'overall_score' => $aiGeneration['overall_score'],
         'overall_feedback' => $aiGeneration['overall_feedback'],
+        'criteria_scores' => $aiGeneration['criteria_scores'],
         'item_scores' => $aiGeneration['item_scores'],
         'raw_response' => $aiGeneration['raw_response'],
     ];

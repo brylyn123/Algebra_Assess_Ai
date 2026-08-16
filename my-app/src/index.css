@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&display=swap');
-@import 'mathlive/dist/mathlive.css';
+@import 'mathlive/static.css';
 
 @tailwind base;
 @tailwind components;

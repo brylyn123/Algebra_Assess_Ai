@@ -216,7 +216,8 @@ try {
     $checkStmt = $conn->prepare(
          "SELECT
             ep.exercise_id,
-            ep.subject_id
+            ep.subject_id,
+            ep.due_date
          FROM exercises_problem ep
          INNER JOIN Enrollment e ON e.$enrollmentCol = ep.subject_id AND e.student_user_id = ?
          WHERE ep.exercise_id = ?
@@ -231,6 +232,41 @@ try {
     if (!$assessmentRow) {
         throw new Exception('This assessment is not available for the selected student.');
     }
+
+    // Check if due date has passed
+    $dueDate = $assessmentRow['due_date'] ?? null;
+    if ($dueDate !== null && $dueDate !== '') {
+        $dueTimestamp = strtotime($dueDate);
+        if ($dueTimestamp !== false && time() > $dueTimestamp) {
+            http_response_code(403);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'This assessment is past its due date and can no longer be submitted.',
+                'error_code' => 'PAST_DUE_DATE',
+                'due_date' => $dueDate,
+            ]);
+            exit();
+        }
+    }
+
+    // Check if student already submitted
+    $existingCheck = $conn->prepare(
+        "SELECT solution_id FROM Captured_Solution WHERE exercise_id = ? AND student_user_id = ? LIMIT 1"
+    );
+    $existingCheck->bind_param('ii', $exercise_id, $student_id);
+    $existingCheck->execute();
+    $existingResult = $existingCheck->get_result();
+    if ($existingResult && $existingResult->num_rows > 0) {
+        $existingCheck->close();
+        http_response_code(409);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'You have already submitted this assessment.',
+            'error_code' => 'ALREADY_SUBMITTED',
+        ]);
+        exit();
+    }
+    $existingCheck->close();
 
     $uploadRoot = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'captured_solutions';
     if (!is_dir($uploadRoot) && !mkdir($uploadRoot, 0755, true) && !is_dir($uploadRoot)) {

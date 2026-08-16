@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/Toast';
 import MathText from './MathText';
+import Select from './components/Select';
+import axios from './axiosClient';
+import { findLocalUser } from './localAuthStore';
 
 const DRAFT_KEY = 'teacher:new-assessment-draft';
 const EDITOR_ITEMS_KEY = 'teacher:question-editor-items';
@@ -29,10 +32,26 @@ export default function QuestionEditor() {
   const [questionScore, setQuestionScore] = useState('1.0');
   const [items, setItems] = useState(loadEditorItems);
   const [editingIndex, setEditingIndex] = useState(null);
+  const [rubrics, setRubrics] = useState([]);
+  const [rubricLoading, setRubricLoading] = useState(false);
 
   useEffect(() => {
     saveEditorItems(items);
   }, [items]);
+
+  // Load rubrics
+  useEffect(() => {
+    const user = findLocalUser();
+    if (!user) return;
+    setRubricLoading(true);
+    axios.get(`/get_rubric_sets.php?teacher_id=${user.id}`)
+      .then((res) => {
+        const list = Array.isArray(res.data?.rubrics) ? res.data.rubrics : [];
+        setRubrics(list);
+      })
+      .catch(() => setRubrics([]))
+      .finally(() => setRubricLoading(false));
+  }, []);
 
   const handleAddItem = () => {
     const mathValue = mathExpression.trim();
@@ -257,6 +276,37 @@ export default function QuestionEditor() {
                         Remove
                       </button>
                     </div>
+                  </div>
+                  {/* Per-item rubric selector */}
+                  <div className="mt-2.5 flex items-center gap-2 border-t border-slate-100 pt-2.5">
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-slate-400">
+                      <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                    </svg>
+                    <Select
+                      value={item.rubric_id || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setItems((prev) => prev.map((it, i) => i === index ? { ...it, rubric_id: val ? Number(val) : null } : it));
+                      }}
+                      className="flex-1 text-[11px]"
+                    >
+                      <option value="">No rubric (AI default)</option>
+                      {rubrics.map((rubric) => (
+                        <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
+                          {rubric.rubric_name}
+                        </option>
+                      ))}
+                    </Select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        saveEditorItems(items);
+                        navigate('/teacher/assessments/new-rubric', { state: { returnToQuestionEditor: true } });
+                      }}
+                      className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[10px] font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                    >
+                      + New
+                    </button>
                   </div>
                 </div>
               ))}

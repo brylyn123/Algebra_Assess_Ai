@@ -120,8 +120,8 @@ const DashboardHome = () => {
     const isLoading = analytics === null;
 
     return (
-        <div className="h-full overflow-y-auto teacher-scrollbar px-4 py-4">
-            <div className="mx-auto max-w-[1400px] space-y-4">
+        <div className="h-full overflow-y-auto teacher-scrollbar px-3 py-3 sm:px-4 sm:py-4">
+            <div className="mx-auto w-full space-y-4">
                 {isLoading ? (
                     <>
                         <SkeletonWelcome />
@@ -139,7 +139,7 @@ const DashboardHome = () => {
                 ) : (
                     <>
                         {/* Welcome Banner */}
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 p-4 text-white shadow-lg shadow-blue-500/20">
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 p-4 text-white shadow-lg shadow-blue-500/20 mb-3">
                             <div className="relative z-10">
                                 <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100">Welcome back</p>
                                 <h1 className="mt-0.5 text-lg font-bold">{teacherName}!</h1>
@@ -159,7 +159,7 @@ const DashboardHome = () => {
                         {/* Stats Row */}
                         <div className="rounded-2xl border border-slate-200/60 bg-white p-3 shadow-sm">
                             <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">Overview</p>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 {stats.map((stat) => (
                                     <div
                                         key={stat.id}
@@ -233,7 +233,7 @@ const DashboardHome = () => {
                             {/* Quick Actions - Takes 1 column */}
                             <div className="rounded-[1.1rem] border border-slate-200/60 bg-white p-3 shadow-sm">
                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Quick Actions</p>
-                                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                                <div className="mt-2 grid grid-cols-2 sm:grid-cols-2 gap-1.5">
                                     {quickActions.map((action) => (
                                         <button
                                             key={action.label}

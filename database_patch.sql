@@ -235,3 +235,12 @@ SET @add_scores_unique_sql := IF(
 PREPARE stmt FROM @add_scores_unique_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Create assessment_subjects join table for multi-subject assessments
+CREATE TABLE IF NOT EXISTS assessment_subjects (
+    assessment_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    PRIMARY KEY (assessment_id, subject_id),
+    FOREIGN KEY (assessment_id) REFERENCES Exercises_Problem(exercise_id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES Subject(subject_id) ON DELETE CASCADE
+) ENGINE=InnoDB;

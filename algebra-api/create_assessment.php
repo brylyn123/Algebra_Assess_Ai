@@ -8,7 +8,19 @@ $data = json_decode(file_get_contents("php://input"), true);
 $authUser = requireAuthenticatedUser('teacher');
 validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
-$subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
+
+// Support multi-subject: subject_ids array or fallback to single subject_id
+$subject_ids = [];
+if (!empty($data['subject_ids']) && is_array($data['subject_ids'])) {
+    $subject_ids = array_map('intval', $data['subject_ids']);
+    $subject_ids = array_filter($subject_ids, fn($id) => $id > 0);
+    $subject_ids = array_values(array_unique($subject_ids));
+}
+if (empty($subject_ids) && !empty($data['subject_id'])) {
+    $subject_ids = [(int)$data['subject_id']];
+}
+$subject_id = $subject_ids[0] ?? null; // Primary subject for backward compat
+
 $rubric_set_id = isset($data['rubric_set_id']) ? intval($data['rubric_set_id']) : null;
 $title = trim($data['title'] ?? '');
 $description = trim($data['description'] ?? '');
@@ -23,9 +35,9 @@ if (!in_array($difficulty, $allowedDifficulties, true)) {
     $difficulty = 'Medium';
 }
 
-if (!$subject_id || $title === '') {
+if (empty($subject_ids) || $title === '') {
     http_response_code(422);
-    echo json_encode(["status" => "error", "message" => "Assessment needs a subject and a title."]);
+    echo json_encode(["status" => "error", "message" => "Assessment needs at least one subject and a title."]);
     exit;
 }
 
@@ -54,22 +66,27 @@ if (count($items) === 0) {
 }
 
 try {
-    $subjectStmt = $conn->prepare(
-        "SELECT subject_id, teacher_user_id FROM subject WHERE subject_id = ? LIMIT 1"
-    );
-    $subjectStmt->bind_param("i", $subject_id);
-    $subjectStmt->execute();
-    $subjectResult = $subjectStmt->get_result();
-    $subjectRow = $subjectResult ? $subjectResult->fetch_assoc() : null;
-    $subjectStmt->close();
+    // Validate all subjects exist and belong to this teacher
+    $validSubjectIds = [];
+    foreach ($subject_ids as $sid) {
+        $subjectStmt = $conn->prepare(
+            "SELECT subject_id, teacher_user_id FROM subject WHERE subject_id = ? LIMIT 1"
+        );
+        $subjectStmt->bind_param("i", $sid);
+        $subjectStmt->execute();
+        $subjectResult = $subjectStmt->get_result();
+        $subjectRow = $subjectResult ? $subjectResult->fetch_assoc() : null;
+        $subjectStmt->close();
 
-    if (!$subjectRow) {
-        throw new Exception("Subject not found.");
+        if (!$subjectRow) {
+            throw new Exception("Subject ID {$sid} not found.");
+        }
+        if ((int)$subjectRow['teacher_user_id'] !== $teacher_id) {
+            throw new Exception("Teacher is not assigned to subject ID {$sid}.");
+        }
+        $validSubjectIds[] = $sid;
     }
-
-    if ((int)$subjectRow['teacher_user_id'] !== $teacher_id) {
-        throw new Exception("Teacher is not assigned to this subject.");
-    }
+    $subject_id = $validSubjectIds[0]; // Primary for backward compat
 
     ensureAssessmentRubricColumn($conn);
     ensureAssessmentDueDate($conn);
@@ -157,6 +174,18 @@ try {
         $itemStmt->execute();
     }
     $itemStmt->close();
+
+    // Insert into assessment_subjects for multi-subject support
+    if (!empty($validSubjectIds)) {
+        $asStmt = $conn->prepare(
+            "INSERT INTO assessment_subjects (assessment_id, subject_id) VALUES (?, ?)"
+        );
+        foreach ($validSubjectIds as $sid) {
+            $asStmt->bind_param("ii", $exerciseId, $sid);
+            $asStmt->execute();
+        }
+        $asStmt->close();
+    }
 
     $conn->commit();
 

@@ -32,7 +32,7 @@ function getAiConfig(): array
         'ocr_model' => 'deepseek-v4-flash',
         'ocr_provider' => 'gemini',
         'gemini_api_key' => null,
-        'gemini_model' => 'gemini-2.0-flash',
+        'gemini_model' => 'gemini-3-flash-preview',
         'tesseract_path' => null,
         'timeout_seconds' => 60,
     ], $localConfig, $envConfig), static fn($value) => $value !== null && $value !== '');

@@ -26,7 +26,7 @@ const SubjectDetails = () => {
     const theme = getSubjectCardTheme(subjectData);
 
     return (
-        <div className="p-8">
+        <div className="h-full overflow-y-auto teacher-scrollbar p-8">
             <div className={`relative overflow-hidden rounded-[1.8rem] border p-6 shadow-sm ${theme.surfaceClass}`}>
                 <div className={`absolute left-0 right-0 top-0 h-1.5 bg-gradient-to-r ${theme.accentClass}`} />
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">

@@ -23,7 +23,7 @@ export function SkeletonStatRow() {
   return (
     <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
       <Skeleton className="mb-2 h-2 w-16 rounded-full" />
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {[1, 2, 3].map((i) => (
           <div key={i} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2.5">
             <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
@@ -84,7 +84,7 @@ export function SkeletonStatusCards() {
   return (
     <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
       <Skeleton className="mb-2 h-2 w-12 rounded-full" />
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {[1, 2, 3].map((i) => (
           <div key={i} className="rounded-lg bg-slate-50 p-3">
             <div className="mb-1.5 flex items-center justify-between">

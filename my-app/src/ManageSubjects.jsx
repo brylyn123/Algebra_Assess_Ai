@@ -700,24 +700,22 @@ const ManageSubjects = () => {
                     </div>
                 </div>
             )}
-            <div className="mx-auto w-full max-w-[1400px] px-4 pt-3 sm:px-6 md:px-8" style={{ height: 'calc(100vh - 6rem)' }}>
-                <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.06)]">
+            <div className="h-full overflow-hidden px-3 py-3 sm:px-4 sm:py-4">
+                <div className="flex h-full flex-col overflow-hidden">
 
-                    <div className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white px-6 py-5">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-blue-600 shadow-sm shadow-blue-200">
-                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
+                    <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
+                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                                             <path d="M3.75 3a1.25 1.25 0 100 2.5 1.25 1.25 0 000-2.5zM6 5.25A2.25 2.25 0 003.75 7.5h8.5A2.25 2.25 0 0014.5 5.25v-.75a.75.75 0 00-1.5 0v.75a.75.75 0 01-.75.75h-8.5a.75.75 0 01-.75-.75v-.75a.75.75 0 00-1.5 0v.75z" />
                                             <path d="M13.25 9a.75.75 0 000 1.5h-6.5a.75.75 0 000-1.5h6.5zM12 11.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zM12 14.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zM3.75 9a.75.75 0 000 1.5h3.5a.75.75 0 000-1.5h-3.5zM3 11.25a.75.75 0 01.75-.75H6a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75zM3.75 14a.75.75 0 000 1.5h.75a.75.75 0 000-1.5h-.75z" />
                                         </svg>
                                     </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold tracking-tight text-slate-900">Subjects</h2>
-                                    </div>
+                                    <h2 className="text-lg font-bold text-white">Subjects</h2>
                                 </div>
-                                <p className="text-sm text-slate-500 ml-10">
+                                <p className="text-xs text-blue-100 ml-[42px]">
                                     Browse your classes and jump into enrollment details quickly.
                                 </p>
                             </div>
@@ -782,9 +780,6 @@ const ManageSubjects = () => {
                                             <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${theme.accentClass}`} />
                                             <div className="flex flex-col gap-3 p-4 pl-5">
                                                 <div className="flex items-center gap-3 min-w-0">
-                                                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${theme.cardBadgeClass} text-sm font-bold`}>
-                                                        {subject.name?.charAt(0)?.toUpperCase() || 'S'}
-                                                    </div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2">
                                                             <h3 className={`text-sm font-bold truncate ${theme.cardTextClass}`}>{subject.name}</h3>
@@ -883,47 +878,47 @@ const ManageSubjects = () => {
             </div>
 
             {showAddSubjectForm && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
-                    <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 px-2 sm:px-4 backdrop-blur-sm">
+                    <div className="relative w-full max-w-3xl max-h-[92vh] overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]">
 
-                        <div className="bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 px-8 pb-8 pt-7">
+                        <div className="bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 px-5 sm:px-8 pb-5 sm:pb-8 pt-5 sm:pt-7">
                             <div className="flex items-start justify-between">
-                                <div className="space-y-2">
-                                    <h3 className="text-2xl font-bold text-white">Add New Subject</h3>
-                                    <p className="max-w-md text-sm text-blue-100/80">Fill in the details below to create a new class. Students can join using the auto-generated code.</p>
+                                <div className="space-y-1 sm:space-y-2">
+                                    <h3 className="text-lg sm:text-2xl font-bold text-white">Add New Subject</h3>
+                                    <p className="max-w-md text-xs sm:text-sm text-blue-100/80">Fill in the details below to create a new class. Students can join using the auto-generated code.</p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => setShowAddSubjectForm(false)}
-                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/70 transition hover:bg-white/15 hover:text-white"
+                                    className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-white/70 transition hover:bg-white/15 hover:text-white"
                                 >
-                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 sm:h-5 sm:w-5">
                                         <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
                                     </svg>
                                 </button>
                             </div>
                         </div>
 
-                        <form onSubmit={handleAddSubject} className="px-8 pb-8 pt-6">
-                            <div className="mb-6">
-                                <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-600">1</span>
+                        <form onSubmit={handleAddSubject} className="overflow-y-auto max-h-[calc(92vh-140px)] px-5 sm:px-8 pb-6 sm:pb-8 pt-5 sm:pt-6">
+                            <div className="mb-4 sm:mb-6">
+                                <p className="mb-2 sm:mb-3 flex items-center gap-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                                    <span className="inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-blue-50 text-[9px] sm:text-[10px] font-bold text-blue-600">1</span>
                                     Subject Details
                                 </p>
-                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                                     <div className="sm:col-span-2">
-                                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">Subject Name</label>
+                                        <label className="mb-1 block text-[11px] sm:text-xs font-semibold text-slate-600">Subject Name</label>
                                         <input
                                             type="text"
                                             name="name"
                                             value={newSubject.name}
                                             onChange={handleInputChange}
                                             placeholder="e.g., Algebra 101"
-                                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                                         />
                                     </div>
                                     <div className="sm:col-span-2">
-                                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">Course</label>
+                                        <label className="mb-1 block text-[11px] sm:text-xs font-semibold text-slate-600">Course</label>
                                         <Select
                                             name="courseId"
                                             value={newSubject.courseId}
@@ -940,14 +935,14 @@ const ManageSubjects = () => {
                                 </div>
                             </div>
 
-                            <div className="mb-6">
-                                <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-600">2</span>
+                            <div className="mb-4 sm:mb-6">
+                                <p className="mb-2 sm:mb-3 flex items-center gap-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                                    <span className="inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-blue-50 text-[9px] sm:text-[10px] font-bold text-blue-600">2</span>
                                     Schedule
                                 </p>
-                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                                     <div>
-                                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">Year Level</label>
+                                        <label className="mb-1 block text-[11px] sm:text-xs font-semibold text-slate-600">Year Level</label>
                                         <Select
                                             name="yearId"
                                             value={newSubject.yearId}
@@ -962,7 +957,7 @@ const ManageSubjects = () => {
                                         </Select>
                                     </div>
                                     <div>
-                                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">Section</label>
+                                        <label className="mb-1 block text-[11px] sm:text-xs font-semibold text-slate-600">Section</label>
                                         <Select
                                             name="sectionId"
                                             value={newSubject.sectionId}
@@ -977,7 +972,7 @@ const ManageSubjects = () => {
                                         </Select>
                                     </div>
                                     <div>
-                                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">School Year</label>
+                                        <label className="mb-1 block text-[11px] sm:text-xs font-semibold text-slate-600">School Year</label>
                                         <Select
                                             name="schoolYear"
                                             value={newSubject.schoolYear}
@@ -992,7 +987,7 @@ const ManageSubjects = () => {
                                         </Select>
                                     </div>
                                     <div>
-                                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">Semester</label>
+                                        <label className="mb-1 block text-[11px] sm:text-xs font-semibold text-slate-600">Semester</label>
                                         <Select
                                             name="semester"
                                             value={newSubject.semester}
@@ -1009,25 +1004,25 @@ const ManageSubjects = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/50 px-4 py-3 mb-6">
-                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0 text-blue-500">
+                            <div className="flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl border border-blue-100 bg-blue-50/50 px-3 sm:px-4 py-2.5 sm:py-3 mb-4 sm:mb-6">
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-blue-500">
                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
                                 </svg>
-                                <p className="text-xs text-blue-700">A unique join code will be generated automatically for student enrollment.</p>
+                                <p className="text-[11px] sm:text-xs text-blue-700">A unique join code will be generated automatically for student enrollment.</p>
                             </div>
 
-                            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
+                            <div className="flex items-center justify-end gap-2 sm:gap-3 border-t border-slate-100 pt-3 sm:pt-5">
                                 <button
                                     type="button"
                                     onClick={() => setShowAddSubjectForm(false)}
-                                    className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
+                                    className="rounded-full border border-slate-200 bg-white px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isAdding}
-                                    className="flex items-center gap-2 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-300/50 active:scale-[0.97] disabled:cursor-wait disabled:opacity-60"
+                                    className="flex items-center gap-2 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 px-5 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-300/50 active:scale-[0.97] disabled:cursor-wait disabled:opacity-60"
                                 >
                                     {isAdding ? (
                                         <>
@@ -1097,21 +1092,21 @@ const ManageSubjects = () => {
 
                         <div className="flex flex-1 min-h-0 flex-col overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
                             <div className="px-8 py-6">
-                                <div className="mb-6 grid grid-cols-3 gap-3">
-                                    <div className="rounded-2xl bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Enrolled</p>
-                                        <p className="mt-1 text-3xl font-black text-blue-600">{enrolledList.length}</p>
-                                        <p className="mt-0.5 text-[11px] font-medium text-blue-400">Students currently in this subject</p>
+                                <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                                    <div className="rounded-xl sm:rounded-2xl bg-blue-50 p-3 sm:p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Enrolled</p>
+                                        <p className="mt-1 text-2xl sm:text-3xl font-black text-blue-600">{enrolledList.length}</p>
+                                        <p className="mt-0.5 text-[10px] sm:text-[11px] font-medium text-blue-400">Students currently in this subject</p>
                                     </div>
-                                    <div className="rounded-2xl bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Pending</p>
-                                        <p className="mt-1 text-3xl font-black text-amber-600">{selectedSubjectAssessmentStats.pending}</p>
-                                        <p className="mt-0.5 text-[11px] font-medium text-amber-400">Awaiting review</p>
+                                    <div className="rounded-xl sm:rounded-2xl bg-amber-50 p-3 sm:p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Pending</p>
+                                        <p className="mt-1 text-2xl sm:text-3xl font-black text-amber-600">{selectedSubjectAssessmentStats.pending}</p>
+                                        <p className="mt-0.5 text-[10px] sm:text-[11px] font-medium text-amber-400">Awaiting review</p>
                                     </div>
-                                    <div className="rounded-2xl bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Graded</p>
-                                        <p className="mt-1 text-3xl font-black text-emerald-600">{selectedSubjectAssessmentStats.graded}</p>
-                                        <p className="mt-0.5 text-[11px] font-medium text-emerald-400">Already graded</p>
+                                    <div className="rounded-xl sm:rounded-2xl bg-emerald-50 p-3 sm:p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Graded</p>
+                                        <p className="mt-1 text-2xl sm:text-3xl font-black text-emerald-600">{selectedSubjectAssessmentStats.graded}</p>
+                                        <p className="mt-0.5 text-[10px] sm:text-[11px] font-medium text-emerald-400">Already graded</p>
                                     </div>
                                 </div>
 

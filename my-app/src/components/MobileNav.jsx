@@ -60,7 +60,9 @@ export default function MobileNav({ actions = [], accountActions = [], label = '
                 {actions.map((action) => {
                   const isActive =
                     action.path === location.pathname ||
-                    (action.path !== '/' && location.pathname.startsWith(action.path + '/'));
+                    (action.path !== '/dashboard' && action.path !== '/student' && location.pathname.startsWith(action.path + '/')) ||
+                    (action.path === '/dashboard' && location.pathname === '/dashboard') ||
+                    (action.path === '/student' && location.pathname === '/student');
                   return (
                     <button
                       key={action.label}

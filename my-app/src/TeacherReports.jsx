@@ -138,7 +138,7 @@ const ProgressBar = ({ score, submissions, graded, label, isHovered, onHover, on
               transition={{ duration: 0.2 }}
               className="overflow-hidden border-t border-slate-100"
             >
-              <div className="grid grid-cols-3 gap-3 bg-slate-50/80 px-4 py-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 bg-slate-50/80 px-4 py-3">
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Avg Score</p>
                   <p className="text-sm font-black text-slate-800">{score !== null ? `${clamped.toFixed(1)}%` : 'N/A'}</p>
@@ -159,25 +159,6 @@ const ProgressBar = ({ score, submissions, graded, label, isHovered, onHover, on
     </motion.div>
   );
 };
-
-const StatCard = ({ label, value, accent, icon, index, prefersReducedMotion }) => (
-  <motion.div
-    initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.35, delay: index * 0.05, ease: 'easeOut' }}
-    className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/50"
-  >
-    <div className="flex items-start justify-between">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${accent} transition-transform duration-300 group-hover:scale-110`}>
-        {icon}
-      </div>
-    </div>
-    <p className="mt-3 text-2xl font-black text-slate-900 tracking-tight">
-      <AnimatedCounter value={value} />
-    </p>
-    <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{label}</p>
-  </motion.div>
-);
 
 const TeacherReports = () => {
   const currentEmail = getCurrentLocalUserEmail();
@@ -226,15 +207,6 @@ const TeacherReports = () => {
     ? Math.round((summary.graded_submissions / summary.total_submissions) * 100) : 0;
   const scoreVal = summary.average_score !== null && summary.average_score !== undefined ? Number(summary.average_score) : null;
   const scoreTier = scoreVal !== null ? getScoreTier(scoreVal) : null;
-
-  const statCards = [
-    { label: 'Total Submissions', value: summary.total_submissions ?? 0, accent: 'bg-blue-50 text-blue-600', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path d="M3 3.5A1.5 1.5 0 014.5 2h6.879a1.5 1.5 0 011.06.44l4.122 4.12A1.5 1.5 0 0117 7.622V16.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 16.5v-13z" /></svg> },
-    { label: 'Graded', value: summary.graded_submissions ?? 0, accent: 'bg-emerald-50 text-emerald-600', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg> },
-    { label: 'Pending', value: summary.pending_submissions ?? 0, accent: 'bg-amber-50 text-amber-600', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" /></svg> },
-    { label: 'Average Score', value: scoreVal !== null ? `${scoreVal.toFixed(1)}%` : 'N/A', accent: `${scoreTier ? scoreTier.bg + ' ' + scoreTier.text : 'bg-violet-50 text-violet-600'}`, icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902 1.168.188 2.352.327 3.55.414.28.02.521.18.642.413l1.713 3.293a.75.75 0 001.33 0l1.713-3.293a.783.783 0 01.642-.413 41.102 41.102 0 003.55-.414c1.437-.231 2.43-1.49 2.43-2.902V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0010 2z" clipRule="evenodd" /></svg> },
-    { label: 'Highest Score', value: summary.highest_score !== null && summary.highest_score !== undefined ? `${Number(summary.highest_score).toFixed(1)}%` : 'N/A', accent: 'bg-cyan-50 text-cyan-600', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102 1.106 4.637c.194.813.691 1.456 1.405 1.705a.75.75 0 01-.176 1.395l-3.83 2.716a.75.75 0 01-1.091-.243l-3.224-3.094-3.556 2.887a.75.75 0 01-1.045-.295l-1.29-4.495a.75.75 0 01.396-.953l4.265-.794a.75.75 0 01.686.227L6.5 13.09l3.63-2.993a.75.75 0 01.938 0l2.8 2.31 1.106-4.637a.75.75 0 01.536-1.65l4.753-.382 1.83-4.401z" clipRule="evenodd" /></svg> },
-    { label: 'Lowest Score', value: summary.lowest_score !== null && summary.lowest_score !== undefined ? `${Number(summary.lowest_score).toFixed(1)}%` : 'N/A', accent: 'bg-rose-50 text-rose-600', icon: <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102 1.106 4.637c.194.813.691 1.456 1.405 1.705a.75.75 0 01-.176 1.395l-3.83 2.716a.75.75 0 01-1.091-.243l-3.224-3.094-3.556 2.887a.75.75 0 01-1.045-.295l-1.29-4.495a.75.75 0 01.396-.953l4.265-.794a.75.75 0 01.686.227L6.5 13.09l3.63-2.993a.75.75 0 01.938 0l2.8 2.31 1.106-4.637a.75.75 0 01.536-1.65l4.753-.382 1.83-4.401z" clipRule="evenodd" /></svg> },
-  ];
 
   const subjectChartData = useMemo(
     () => (report?.subjects ?? []).map((subject) => ({
@@ -303,18 +275,19 @@ const TeacherReports = () => {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-1 pt-3 sm:px-2">
-      <div className="mx-auto flex max-w-[1100px] flex-col gap-3">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        {/* Header */}
         <motion.div
           initial={prefersReducedMotion ? false : { opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3"
+          className="shrink-0 rounded-2xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-5 py-4 shadow-lg shadow-blue-200/50"
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-0.5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-white">
                     <path d="M15.5 2A1.5 1.5 0 0014 3.5v13a1.5 1.5 0 001.5 1.5h1a1.5 1.5 0 001.5-1.5v-13A1.5 1.5 0 0016.5 2h-1zM9.5 6A1.5 1.5 0 008 7.5v9A1.5 1.5 0 009.5 18h1a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0010.5 6h-1zM3.5 10A1.5 1.5 0 002 11.5v5A1.5 1.5 0 003.5 18h1A1.5 1.5 0 006 16.5v-5A1.5 1.5 0 004.5 10h-1z" />
                   </svg>
                 </div>
@@ -322,7 +295,7 @@ const TeacherReports = () => {
               </div>
               <p className="text-xs text-blue-100 ml-[42px]">Performance insights across subjects and assessments.</p>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {loading ? 'Updating...' : 'Live Snapshot'}
             </div>
@@ -335,155 +308,219 @@ const TeacherReports = () => {
           </motion.div>
         )}
 
+        {/* Summary Cards - Key Metrics */}
         {!loading && summary.total_submissions > 0 && (
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.1 }}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Grading Progress</p>
-              <p className="text-sm font-black text-slate-800">{gradedRatio}%</p>
-            </div>
-            <div className="relative h-2.5 overflow-hidden rounded-full bg-slate-100">
-              <motion.div
-                className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                initial={prefersReducedMotion ? false : { width: 0 }}
-                animate={{ width: `${gradedRatio}%` }}
-                transition={{ duration: 1, delay: 0.3, ease: 'easeOut' }}
-              />
-            </div>
-            <div className="mt-1.5 flex justify-between text-[10px] text-slate-400">
-              <span>{summary.graded_submissions ?? 0} graded</span>
-              <span>{summary.pending_submissions ?? 0} pending</span>
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Overview</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl bg-blue-50 p-3">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-blue-500">Total Submissions</p>
+                <p className="mt-1 text-2xl font-black text-blue-700">{summary.total_submissions ?? 0}</p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 p-3">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Graded</p>
+                <p className="mt-1 text-2xl font-black text-emerald-700">{summary.graded_submissions ?? 0}</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-3">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-amber-500">Pending</p>
+                <p className="mt-1 text-2xl font-black text-amber-700">{summary.pending_submissions ?? 0}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Grading Progress</p>
+                <p className="mt-1 text-2xl font-black text-slate-700">{gradedRatio}%</p>
+                <div className="mt-1.5 relative h-1.5 overflow-hidden rounded-full bg-slate-200">
+                  <motion.div
+                    className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                    initial={prefersReducedMotion ? false : { width: 0 }}
+                    animate={{ width: `${gradedRatio}%` }}
+                    transition={{ duration: 1, delay: 0.3, ease: 'easeOut' }}
+                  />
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {statCards.map((card, index) => (
-            <StatCard key={card.label} {...card} index={index} prefersReducedMotion={prefersReducedMotion} />
-          ))}
-        </div>
-
-        <section className="space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-3">
-              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
-                {['subjects', 'assessments'].map((chart) => (
-                  <button
-                    key={chart}
-                    type="button"
-                    onClick={() => setActiveChart(chart)}
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold capitalize transition-all duration-200 ${activeChart === chart
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                      : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    {chart}
-                  </button>
-                ))}
-              </div>
-              <div>
-                <p className="text-base font-semibold text-slate-900">
-                  {activeChart === 'subjects' ? 'Subject Performance' : 'Assessment Performance'}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {activeChart === 'subjects'
-                    ? 'Average score and grading progress per subject.'
-                    : 'Average score and grading progress for each assessment.'}
-                </p>
-              </div>
+        {/* Score Summary */}
+        {!loading && scoreVal !== null && (
+          <motion.div
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.15 }}
+            className="grid grid-cols-3 gap-3"
+          >
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Average Score</p>
+              <p className={`mt-1 text-3xl font-black ${scoreTier?.text ?? 'text-slate-900'}`}>{scoreVal.toFixed(1)}%</p>
+              {scoreTier && (
+                <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${scoreTier.bg} ${scoreTier.text} ring-1 ${scoreTier.ring}`}>
+                  {scoreTier.label}
+                </span>
+              )}
             </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 text-center shadow-sm">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Highest</p>
+              <p className="mt-1 text-3xl font-black text-emerald-600">
+                {summary.highest_score !== null ? `${Number(summary.highest_score).toFixed(1)}%` : 'N/A'}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 text-center shadow-sm">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Lowest</p>
+              <p className="mt-1 text-3xl font-black text-rose-500">
+                {summary.lowest_score !== null ? `${Number(summary.lowest_score).toFixed(1)}%` : 'N/A'}
+              </p>
+            </div>
+          </motion.div>
+        )}
 
-            <div className="grid gap-2 sm:grid-cols-2 xl:w-[380px]">
-              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible</p>
-                <p className="mt-1 text-xl font-black text-slate-900">{chartSummary.visibleCount}</p>
+        {/* Performance Analysis Section */}
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {/* Section Header */}
+          <div className="border-b border-slate-100 px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 p-0.5">
+                  {['subjects', 'assessments'].map((chart) => (
+                    <button
+                      key={chart}
+                      type="button"
+                      onClick={() => setActiveChart(chart)}
+                      className={`rounded-full px-3 py-1 text-[11px] font-semibold capitalize transition-all duration-200 ${activeChart === chart
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      {chart}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">
+                    {activeChart === 'subjects' ? 'Subject Performance' : 'Assessment Performance'}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {activeChart === 'subjects' ? 'Average score per subject' : 'Average score per assessment'}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Visible Avg</p>
-                <p className="mt-1 text-xl font-black text-blue-700">{chartSummary.average}</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 shadow-sm">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Top Performer</p>
-                <p className="mt-1 text-xs font-semibold text-slate-900 truncate">{topPerformer?.label ?? 'No scored data yet'}</p>
-              </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2 shadow-sm">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-amber-700">Needs Attention</p>
-                <p className="mt-1 text-xs font-semibold text-slate-900 truncate">{needsAttention?.label ?? 'No scored data yet'}</p>
+
+              {/* Quick Stats */}
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Visible</p>
+                  <p className="text-sm font-black text-slate-700">{chartSummary.visibleCount}</p>
+                </div>
+                <div className="h-6 w-px bg-slate-200" />
+                <div className="text-right">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Avg</p>
+                  <p className="text-sm font-black text-blue-600">{chartSummary.average}</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {activeChart === 'assessments' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Difficulty</p>
-              <div className="flex flex-wrap gap-1">
-                {difficultyOptions.map((difficulty) => (
-                  <button
-                    key={difficulty}
-                    type="button"
-                    onClick={() => setSelectedDifficulty(difficulty)}
-                    className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${selectedDifficulty === difficulty
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
-                    }`}
-                  >
-                    {difficulty}
-                  </button>
-                ))}
+          {/* Filters & Highlights */}
+          <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {activeChart === 'assessments' && (
+                  <>
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Difficulty:</p>
+                    <div className="flex gap-1">
+                      {difficultyOptions.map((difficulty) => (
+                        <button
+                          key={difficulty}
+                          type="button"
+                          onClick={() => setSelectedDifficulty(difficulty)}
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition ${selectedDifficulty === difficulty
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-200'
+                          }`}
+                        >
+                          {difficulty}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Top Performers */}
+              <div className="flex items-center gap-3">
+                {topPerformer && (
+                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1">
+                    <svg className="h-3 w-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102 1.106 4.637c.194.813.691 1.456 1.405 1.705a.75.75 0 01-.176 1.395l-3.83 2.716a.75.75 0 01-1.091-.243l-3.224-3.094-3.556 2.887a.75.75 0 01-1.045-.295l-1.29-4.495a.75.75 0 01.396-.953l4.265-.794a.75.75 0 01.686.227L6.5 13.09l3.63-2.993a.75.75 0 01.938 0l2.8 2.31 1.106-4.637a.75.75 0 01.536-1.65l4.753-.382 1.83-4.401z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[10px] font-semibold text-emerald-700 truncate max-w-[120px]">{topPerformer.label}</span>
+                  </div>
+                )}
+                {needsAttention && topPerformer?.id !== needsAttention?.id && (
+                  <div className="flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1">
+                    <svg className="h-3 w-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[10px] font-semibold text-amber-700 truncate max-w-[120px]">{needsAttention.label}</span>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
-          <div className="space-y-3">
+          {/* Content */}
+          <div className="p-4">
             {!loading && visibleEntries.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 px-4 py-12 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6 text-slate-400">
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-10 text-center">
+                <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-slate-400">
                     <path d="M15.5 2A1.5 1.5 0 0014 3.5v13a1.5 1.5 0 001.5 1.5h1a1.5 1.5 0 001.5-1.5v-13A1.5 1.5 0 0016.5 2h-1zM9.5 6A1.5 1.5 0 008 7.5v9A1.5 1.5 0 009.5 18h1a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0010.5 6h-1zM3.5 10A1.5 1.5 0 002 11.5v5A1.5 1.5 0 003.5 18h1A1.5 1.5 0 006 16.5v-5A1.5 1.5 0 004.5 10h-1z" />
                   </svg>
                 </div>
                 <h4 className="text-sm font-bold text-slate-600">No data yet</h4>
-                <p className="mt-1 max-w-xs mx-auto text-xs text-slate-400">
+                <p className="mt-1 max-w-xs mx-auto text-[11px] text-slate-400">
                   {activeChart === 'subjects'
                     ? 'Create subjects and receive submissions to see analytics.'
                     : 'Create assessments and receive submissions to see analytics.'}
                 </p>
               </div>
             ) : (
-              (activeChart === 'assessments' ? visibleAssessmentGroups : [{ difficulty: '', entries: activeChartData }]).map((group) => (
-                <div key={group.difficulty || 'all'} className="space-y-3">
-                  {group.difficulty && (
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
-                        group.difficulty === 'Easy' ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                          : group.difficulty === 'Hard' ? 'bg-rose-50 text-rose-600 border-rose-200'
-                            : 'bg-amber-50 text-amber-600 border-amber-200'
-                      }`}>
-                        {group.difficulty}
-                      </span>
-                      <span className="text-[10px] text-slate-400">{group.entries.length} assessment{group.entries.length !== 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                  {group.entries.map((entry, i) => (
-                    <ProgressBar
-                      key={entry.id}
-                      score={entry.score}
-                      submissions={entry.submissions}
-                      graded={entry.graded}
-                      label={entry.label}
-                      isHovered={hoveredId === entry.id}
-                      onHover={() => setHoveredId(entry.id)}
-                      onLeave={() => setHoveredId(null)}
-                      index={i}
-                      prefersReducedMotion={prefersReducedMotion}
-                    />
-                  ))}
-                </div>
-              ))
+              <div className="space-y-2">
+                {(activeChart === 'assessments' ? visibleAssessmentGroups : [{ difficulty: '', entries: activeChartData }]).map((group) => (
+                  <div key={group.difficulty || 'all'} className="space-y-2">
+                    {group.difficulty && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${
+                          group.difficulty === 'Easy' ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                            : group.difficulty === 'Hard' ? 'bg-rose-50 text-rose-600 border-rose-200'
+                              : 'bg-amber-50 text-amber-600 border-amber-200'
+                        }`}>
+                          {group.difficulty}
+                        </span>
+                        <span className="text-[9px] text-slate-400">{group.entries.length}</span>
+                      </div>
+                    )}
+                    {group.entries.map((entry, i) => (
+                      <ProgressBar
+                        key={entry.id}
+                        score={entry.score}
+                        submissions={entry.submissions}
+                        graded={entry.graded}
+                        label={entry.label}
+                        isHovered={hoveredId === entry.id}
+                        onHover={() => setHoveredId(entry.id)}
+                        onLeave={() => setHoveredId(null)}
+                        index={i}
+                        prefersReducedMotion={prefersReducedMotion}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </section>

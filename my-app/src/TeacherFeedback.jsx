@@ -5,6 +5,64 @@ import { API_BASE_URL } from './apiBase';
 import Select from './components/Select';
 import MathText from './MathText';
 
+const toAbsoluteFileUrl = (path) => {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = String(path).replace(/^\/+/, '');
+  return `${API_BASE_URL}/${normalizedPath}`;
+};
+
+const normalizeSubmissionFiles = (submission) => {
+  if (!Array.isArray(submission?.files)) {
+    return [];
+  }
+  return submission.files
+    .map((file, index) => {
+      const path = file?.path ?? '';
+      const name = file?.name ?? `File ${index + 1}`;
+      const extension = String(name).split('.').pop()?.toLowerCase() ?? '';
+      const type = file?.type ?? (extension === 'pdf' ? 'pdf' : 'image');
+      return {
+        id: `${submission.score_id ?? submission.id}-${index}-${name}`,
+        name,
+        path,
+        url: toAbsoluteFileUrl(path),
+        type,
+      };
+    })
+    .filter((file) => file.path && file.url);
+};
+
+const formatOcrText = (text) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    const trimmed = line.trim();
+    const labelMatch = trimmed.match(/^(Question|Item|Problem|Part|Q|P|No\.?|Number)\s*(\d+[\.:)]?)\s*(.*)/i);
+    if (labelMatch) {
+      return (
+        <div key={i} className="mt-2 first:mt-0">
+          <span className="font-bold text-slate-900">{labelMatch[1]} {labelMatch[2]}</span>
+          {labelMatch[3] && <span className="text-slate-700"> {labelMatch[3]}</span>}
+        </div>
+      );
+    }
+    const numberedMatch = trimmed.match(/^(\d+[\.:)]?)\s+(.*)/);
+    if (numberedMatch && numberedMatch[2]) {
+      return (
+        <div key={i} className="mt-1.5 first:mt-0">
+          <span className="font-semibold text-slate-800">{numberedMatch[1]}</span>
+          <span className="text-slate-700"> {numberedMatch[2]}</span>
+        </div>
+      );
+    }
+    if (trimmed === '') {
+      return <div key={i} className="h-2" />;
+    }
+    return <div key={i} className="text-slate-700">{line}</div>;
+  });
+};
+
 const TeacherFeedback = () => {
   const currentEmail = getCurrentLocalUserEmail();
   const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
@@ -16,6 +74,8 @@ const TeacherFeedback = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const assessmentOptions = useMemo(() => {
     const grouped = new Map();
@@ -138,17 +198,24 @@ const TeacherFeedback = () => {
 
   const openDetailsModal = (record) => {
     setSelectedRecord(record);
+    setSelectedFileIndex(0);
     setDetailsModalOpen(true);
   };
 
   const closeDetailsModal = () => {
     setDetailsModalOpen(false);
+    setIsPreviewOpen(false);
   };
 
+  const totalMaxScore = useMemo(() => {
+    if (!selectedRecord?.criteria_scores?.length) return 100;
+    return selectedRecord.criteria_scores.reduce((sum, c) => sum + (c.weight || 0), 0) || 100;
+  }, [selectedRecord]);
+
   return (
-    <div className="h-full min-h-0 overflow-hidden px-1 pt-3 sm:px-2">
-      <div className="mx-auto flex h-full min-h-0 max-w-[1100px] flex-col gap-2 pb-2">
-        <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3">
+    <div className="h-full min-h-0 overflow-hidden px-3 py-3 sm:px-4 sm:py-4">
+      <div className="mx-auto flex h-full min-h-0 w-full flex-col gap-2 pb-2">
+        <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2.5">
@@ -296,6 +363,36 @@ const TeacherFeedback = () => {
                 </div>
               </div>
 
+              {Array.isArray(selectedRecord.criteria_scores) && selectedRecord.criteria_scores.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400 mb-3">Criteria Breakdown</p>
+                  <div className="space-y-3">
+                    {selectedRecord.criteria_scores.map((criterion, idx) => {
+                      const pct = criterion.weight > 0 ? Math.round((criterion.earned / criterion.weight) * 100) : 0;
+                      const equivMax = (criterion.weight / 100) * totalMaxScore;
+                      const equivEarned = (criterion.earned / 100) * totalMaxScore;
+                      return (
+                        <div key={idx} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-700">{criterion.name}</span>
+                            <span className="text-xs font-bold text-blue-600">{equivEarned.toFixed(1)} / {equivMax.toFixed(1)} pts ({pct}%)</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                            />
+                          </div>
+                          {criterion.explanation && (
+                            <p className="text-[11px] leading-relaxed text-slate-500">{criterion.explanation}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs uppercase tracking-[0.35em] text-blue-400">Generated Result</p>
@@ -312,6 +409,93 @@ const TeacherFeedback = () => {
                   </div>
                 </div>
               </div>
+
+              {(() => {
+                const submissionFiles = normalizeSubmissionFiles(selectedRecord);
+                const activeFile = submissionFiles[selectedFileIndex] ?? submissionFiles[0] ?? null;
+                return submissionFiles.length > 0 || selectedRecord.ocr_text ? (
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 0 0 1.5-1.5V4.5a1.5 1.5 0 0 0-1.5-1.5H3.75a1.5 1.5 0 0 0-1.5 1.5v15a1.5 1.5 0 0 0 1.5 1.5Z" />
+                      </svg>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Submitted Work & Extracted Text</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        {submissionFiles.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center">
+                            <p className="text-sm text-slate-400">No files uploaded</p>
+                          </div>
+                        ) : (
+                            <div className="space-y-2">
+                            <div className="flex flex-wrap gap-1.5">
+                              {submissionFiles.map((file, index) => {
+                                const isActive = activeFile?.id === file.id;
+                                return (
+                                  <button
+                                    key={file.id}
+                                    type="button"
+                                    onClick={() => setSelectedFileIndex(index)}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                                      isActive
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {submissionFiles.length > 1 ? `Page ${index + 1}` : 'View File'}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setIsPreviewOpen(true)}
+                              className="block w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-300 hover:shadow-sm"
+                            >
+                              {activeFile?.type === 'pdf' ? (
+                                <div className="flex h-64 items-center justify-center bg-slate-50">
+                                  <div className="text-center">
+                                    <svg className="mx-auto h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                    </svg>
+                                    <p className="mt-1 text-xs font-medium text-slate-500">PDF - Click to preview</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <img
+                                  src={activeFile?.url}
+                                  alt={`Submission ${selectedFileIndex + 1}`}
+                                  className="h-64 w-full object-contain bg-slate-50"
+                                />
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        {selectedRecord.ocr_text ? (
+                          <div className="h-full">
+                            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Extracted Solution</p>
+                            <div
+                              className="max-h-72 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-sm leading-relaxed"
+                              style={{ scrollbarWidth: 'thin' }}
+                            >
+                              <p className="mb-2 text-[10px] text-slate-400 italic">Extracted text may contain errors.</p>
+                              {formatOcrText(selectedRecord.ocr_text)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 py-8">
+                            <p className="text-sm text-slate-400">No extracted text available</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
 
               {/* Item Explanations */}
               {Array.isArray(selectedRecord.item_scores) && selectedRecord.item_scores.length > 0 && (
@@ -357,6 +541,109 @@ const TeacherFeedback = () => {
           </div>
         </div>
       ), document.body)}
+
+      {isPreviewOpen && selectedRecord && typeof document !== 'undefined' && createPortal((() => {
+        const previewFiles = normalizeSubmissionFiles(selectedRecord);
+        const previewFile = previewFiles[selectedFileIndex] ?? previewFiles[0] ?? null;
+        if (!previewFile) return null;
+        return (
+          <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
+            <div className="relative flex h-[92vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-xl bg-white shadow-[0_40px_120px_rgba(0,0,0,0.5)]">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100">
+                    <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 0 0 1.5-1.5V4.5a1.5 1.5 0 0 0-1.5-1.5H3.75a1.5 1.5 0 0 0-1.5 1.5v15a1.5 1.5 0 0 0 1.5 1.5Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{previewFile.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {selectedRecord.student_name} &middot; {selectedRecord.assessment_title}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {previewFiles.length > 1 && (
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500">
+                      {selectedFileIndex + 1} / {previewFiles.length}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsPreviewOpen(false)}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {previewFiles.length > 1 && (
+                <div className="flex gap-1.5 border-b border-slate-100 px-6 py-2.5">
+                  {previewFiles.map((file, index) => {
+                    const isActive = previewFile.id === file.id;
+                    return (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onClick={() => setSelectedFileIndex(index)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                      >
+                        Page {index + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-4">
+                <div className="relative flex h-full items-center justify-center">
+                  {previewFiles.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFileIndex((current) => (current - 1 + previewFiles.length) % previewFiles.length)}
+                      className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-lg transition hover:bg-white hover:text-blue-600"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                      </svg>
+                    </button>
+                  )}
+
+                  {previewFile.type === 'pdf' ? (
+                    <iframe
+                      title={previewFile.name}
+                      src={previewFile.url}
+                      className="h-full w-full rounded-2xl border border-slate-200 bg-white"
+                    />
+                  ) : (
+                    <img
+                      src={previewFile.url}
+                      alt={`${selectedRecord.student_name} submission ${selectedFileIndex + 1}`}
+                      className="h-full rounded-2xl border border-slate-200 bg-white object-contain shadow-lg"
+                    />
+                  )}
+
+                  {previewFiles.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFileIndex((current) => (current + 1) % previewFiles.length)}
+                      className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-600 shadow-lg transition hover:bg-white hover:text-blue-600"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })(), document.body)}
     </div>
   );
 };

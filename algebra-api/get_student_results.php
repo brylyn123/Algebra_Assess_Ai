@@ -12,6 +12,10 @@ try {
     ensureScoreMetricsColumns($conn);
     ensureScoreReturnColumn($conn);
 
+    if (!schemaColumnExists($conn, 'captured_solution', 'ocr_text')) {
+        $conn->query("ALTER TABLE captured_solution ADD COLUMN ocr_text LONGTEXT NULL AFTER file_path");
+    }
+
     $stmt = $conn->prepare("
         SELECT
             sc.score_id,
@@ -35,6 +39,7 @@ try {
             subj.subject_name,
             subj.join_code AS subject_code,
             cs.file_path,
+            cs.ocr_text,
             cs.ai_raw_json,
             DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date
         FROM Scores sc
@@ -101,6 +106,7 @@ try {
             'raw_score_earned' => $row['raw_score_earned'] !== null ? round((float)$row['raw_score_earned'], 2) : null,
             'max_score_possible' => $row['max_score_possible'] !== null ? round((float)$row['max_score_possible'], 2) : null,
             'ai_feedback' => $row['ai_feedback'] ?? '',
+            'ocr_text' => $row['ocr_text'] ?? '',
             'date_scored' => $row['date_scored'],
             'returned_at' => $row['returned_at'],
             'files' => $files,

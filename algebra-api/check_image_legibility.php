@@ -118,26 +118,28 @@ try {
     $legibilityLine = trim($lines[1] ?? '');
     $reason = trim($lines[2] ?? $legibilityLine);
 
-    // Reject non-math content
-    $invalidTypes = ['PERSON_SELFIE', 'PHOTO_OBJECT', 'SCREENSHOT', 'PRINTED_TEXT', 'BLANK'];
-    $isValidContent = true;
-    $friendlyName = '';
-    foreach ($invalidTypes as $bad) {
-        if (str_contains($contentType, $bad)) {
-            $isValidContent = false;
-            $friendlyNames = [
-                'PERSON_SELFIE' => 'photo of a person/selfie',
-                'PHOTO_OBJECT' => 'photo of an object (not a math solution)',
-                'SCREENSHOT' => 'screenshot (not handwritten work)',
-                'PRINTED_TEXT' => 'printed/typed text (not handwritten)',
-                'BLANK' => 'blank or empty image',
-            ];
-            $friendlyName = $friendlyNames[$bad] ?? $contentType;
-            break;
-        }
-    }
-
+    // Whitelist: ONLY allow HANDWRITTEN_MATH - reject everything else
+    $isValidContent = str_contains($contentType, 'HANDWRITTEN_MATH');
+    
     if (!$isValidContent) {
+        // Friendly names for common non-math types
+        $friendlyNames = [
+            'PERSON_SELFIE' => 'photo of a person/selfie',
+            'PHOTO_OBJECT' => 'photo of an object',
+            'SCREENSHOT' => 'screenshot',
+            'PRINTED_TEXT' => 'printed/typed text',
+            'BLANK' => 'blank or empty image',
+            'HANDWRITTEN_TEXT' => 'handwritten text (not math)',
+            'OTHER' => 'non-math content',
+        ];
+        $friendlyName = 'non-math content';
+        foreach ($friendlyNames as $key => $name) {
+            if (str_contains($contentType, $key)) {
+                $friendlyName = $name;
+                break;
+            }
+        }
+
         echo json_encode([
             'status' => 'success',
             'readable' => false,
@@ -148,7 +150,7 @@ try {
     }
 
     // Check legibility for valid content
-    $readable = str_starts_with($legibilityLine, 'YES') || str_starts_with($contentType, 'HANDWRITTEN_MATH');
+    $readable = str_starts_with($legibilityLine, 'YES') || str_contains($contentType, 'HANDWRITTEN_MATH');
 
     echo json_encode([
         'status' => 'success',

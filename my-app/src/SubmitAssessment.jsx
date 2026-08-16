@@ -279,10 +279,10 @@ const SubmitAssessment = () => {
     const startIndex = selectedFiles.length;
     setSelectedFiles((current) => [...current, ...fileList]);
 
-    for (let i = 0; i < fileList.length; i++) {
+    const checks = fileList.map(async (file, i) => {
       const fileIndex = startIndex + i;
       // Step 1: Check image quality (instant, client-side)
-      const qualityResult = await analyzeImageQuality(fileList[i]);
+      const qualityResult = await analyzeImageQuality(file);
       setFileQualityResults((prev) => {
         const next = new Map(prev);
         next.set(fileIndex, { ...qualityResult, checking: true });
@@ -290,21 +290,28 @@ const SubmitAssessment = () => {
       });
       if (!qualityResult.pass) {
         const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
-        toast.warning(`${fileList[i].name}: ${reasons}. Please retake with better lighting.`);
+        toast.warning(`${file.name}: ${reasons}. Please retake with better lighting.`);
       }
 
       // Step 2: Check image content (AI, server-side)
-      const contentResult = await checkImageContent(fileList[i]);
+      const contentResult = await checkImageContent(file);
       setFileQualityResults((prev) => {
         const next = new Map(prev);
-        const existing = next.get(fileIndex) || {};
-        next.set(fileIndex, { ...existing, ...contentResult, checking: false });
+        next.set(fileIndex, { ...qualityResult, ...contentResult, checking: false });
         return next;
       });
-      if (!contentResult.pass) {
-        toast.error(`${fileList[i].name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
+
+      // Show warnings/errors
+      if (!qualityResult.pass) {
+        const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
+        toast.warning(`${file.name}: ${reasons}. Please retake with better lighting.`);
       }
-    }
+      if (!contentResult.pass) {
+        toast.error(`${file.name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
+      }
+    });
+
+    await Promise.all(checks);
   };
 
   const handleDrop = async (event) => {
@@ -315,30 +322,40 @@ const SubmitAssessment = () => {
     const startIndex = selectedFiles.length;
     setSelectedFiles((current) => [...current, ...fileList]);
 
-    for (let i = 0; i < fileList.length; i++) {
-      const fileIndex = startIndex + i;
-      const qualityResult = await analyzeImageQuality(fileList[i]);
-      setFileQualityResults((prev) => {
-        const next = new Map(prev);
-        next.set(fileIndex, { ...qualityResult, checking: true });
-        return next;
+    // Mark all files as checking immediately
+    setFileQualityResults((prev) => {
+      const next = new Map(prev);
+      fileList.forEach((_, i) => {
+        next.set(startIndex + i, { checking: true, pass: true });
       });
-      if (!qualityResult.pass) {
-        const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
-        toast.warning(`${fileList[i].name}: ${reasons}. Please retake with better lighting.`);
-      }
+      return next;
+    });
 
-      const contentResult = await checkImageContent(fileList[i]);
+    // Check all files in parallel for faster processing
+    const checks = fileList.map(async (file, i) => {
+      const fileIndex = startIndex + i;
+      
+      const [quality, content] = await Promise.all([
+        analyzeImageQuality(file),
+        checkImageContent(file),
+      ]);
+      
       setFileQualityResults((prev) => {
         const next = new Map(prev);
-        const existing = next.get(fileIndex) || {};
-        next.set(fileIndex, { ...existing, ...contentResult, checking: false });
+        next.set(fileIndex, { ...quality, ...content, checking: false });
         return next;
       });
-      if (!contentResult.pass) {
-        toast.error(`${fileList[i].name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
+
+      if (!quality.pass) {
+        const reasons = quality.reasons?.join(', ') || 'Image quality is poor';
+        toast.warning(`${file.name}: ${reasons}. Please retake with better lighting.`);
       }
-    }
+      if (!content.pass) {
+        toast.error(`${file.name}: ${content.reason || 'This is not a handwritten math solution.'}`);
+      }
+    });
+
+    await Promise.all(checks);
   };
 
   const clearFiles = () => {
@@ -433,8 +450,8 @@ const SubmitAssessment = () => {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-[1100px] flex-col px-1 pt-3 sm:px-2" style={{ height: 'calc(100vh - 6rem)' }}>
-      <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-2">
+    <div className="mx-auto flex h-full w-full flex-col px-1 pt-3 sm:px-2 overflow-y-auto teacher-scrollbar">
+      <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">

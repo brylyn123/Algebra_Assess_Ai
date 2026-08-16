@@ -428,16 +428,21 @@ const StudentDashboard = () => {
     const completedAssessments = availableAssessments.filter((assessment) => assessment.already_submitted).length;
     const pendingAssessments = availableAssessments.filter((assessment) => !assessment.already_submitted).length;
 
+    // Calculate average from actual scored assessments
+    const scoredAssessments = availableAssessments.filter(
+      (assessment) => assessment.score !== null && assessment.score !== undefined && !Number.isNaN(Number(assessment.score))
+    );
+    const averageScore = scoredAssessments.length > 0
+      ? Math.round(scoredAssessments.reduce((sum, a) => sum + Number(a.score), 0) / scoredAssessments.length)
+      : null;
+
     return {
       enrolledSubjects: enrolledSubjects.length > 0 ? enrolledSubjects.length : '-',
       completedAssessments,
-      averageScore:
-        typeof currentUser?.averageScore === 'number' || typeof currentUser?.averageScore === 'string'
-          ? `${currentUser.averageScore}%`
-          : 'TBD',
+      averageScore: averageScore !== null ? `${averageScore}%` : 'TBD',
       pendingAssessments,
     };
-  }, [availableAssessments, currentUser?.averageScore, enrolledSubjects.length]);
+  }, [availableAssessments, enrolledSubjects.length]);
 
   const pendingAssessments = useMemo(
     () => availableAssessments.filter((assessment) => !assessment.already_submitted),
@@ -1062,19 +1067,20 @@ export const StudentSubjects = () => {
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
       {!isSubjectAssessmentPage && (
-        <section className="mb-2 space-y-2">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex flex-col gap-1">
-              <p className={sectionHeaderEyebrowClass}>
-                Subjects
-              </p>
-              <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-[1.85rem]">
-                My Subjects
-              </h1>
-              <p className="max-w-2xl text-xs leading-6 text-slate-500">
-                Keep track of your enrolled classes, revisit archived subjects, and join a new subject with your teacher's code.
-              </p>
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 px-5 py-4 text-white shadow-lg shadow-blue-200/50">
+          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-indigo-400/20 blur-2xl" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
+                <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                </svg>
+              </div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.3em] text-blue-100">Subjects</p>
             </div>
+            <h1 className="text-xl font-black tracking-tight">My Subjects</h1>
+            <p className="mt-1 text-xs text-blue-100">Keep track of your enrolled classes and join a new subject with your teacher's code.</p>
           </div>
         </section>
       )}
@@ -1334,72 +1340,88 @@ export const StudentSubjects = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="teacher-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
+                  <div className="teacher-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-2">
                     {subjectAssessments.map((assessment) => {
                       const isSelected = String(assessment.exercise_id) === String(selectedAssessmentId);
                       const isSubmitted = Boolean(assessment.already_submitted || assessment.submission_status);
-                      const statusLabel = isSubmitted ? 'Submitted' : 'Pending';
+                      const isOverdue = (() => {
+                        if (!assessment.due_date) return false;
+                        const due = new Date(assessment.due_date);
+                        if (Number.isNaN(due.getTime())) return false;
+                        return new Date() > due;
+                      })();
+                      const statusLabel = isSubmitted ? 'Submitted' : isOverdue ? 'Closed' : 'Pending';
                       const statusClass =
                         statusLabel === 'Submitted'
                           ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-amber-100 text-amber-700';
+                          : statusLabel === 'Closed'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-amber-100 text-amber-700';
 
                       return (
                         <div
                           key={assessment.exercise_id}
                           onClick={() => setSelectedAssessmentId(String(assessment.exercise_id))}
-                          className={`relative overflow-hidden rounded-[0.85rem] border px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.04),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_4px_14px_rgba(0,0,0,0.05)] ${isSelected
-                            ? `${subjectTheme.surfaceClass} border-blue-300 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(59,130,246,0.1)]`
-                            : `${subjectTheme.surfaceClass} border-slate-100`
+                          className={`group relative overflow-hidden rounded-xl border transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:shadow-md ${isSelected
+                            ? 'border-blue-300 bg-white shadow-[0_4px_16px_rgba(59,130,246,0.12)]'
+                            : 'border-slate-100 bg-white hover:border-slate-200'
                             }`}
                         >
-                          <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${subjectTheme.accentClass}`} />
-                          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                          <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${subjectTheme.accentClass}`} />
+                          <div className="flex items-center gap-3 p-3 pl-4">
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${subjectTheme.cardBadgeClass} text-xs font-bold`}>
+                              {assessment.title?.charAt(0)?.toUpperCase() || 'Q'}
+                            </div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-[9px] uppercase tracking-[0.3em] text-slate-400">
-                                {assessment.subject_name} {assessment.subject_code ? `(${assessment.subject_code})` : ''}
-                              </p>
-                              <h3 className="mt-0.5 truncate text-sm font-bold text-slate-900">{assessment.title}</h3>
-                              <p className="mt-0.5 text-[11px] leading-snug text-slate-500 line-clamp-2">{assessment.description || 'No description provided.'}</p>
+                              <div className="flex items-center gap-2">
+                                <h3 className="truncate text-sm font-bold text-slate-900">{assessment.title}</h3>
+                                <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[9px] font-bold ${statusClass}`}>
+                                  {statusLabel}
+                                </span>
+                              </div>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-400">
+                                <span>{assessment.topic || 'General'}</span>
+                                <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
+                                <span>{assessment.difficulty || 'Medium'}</span>
+                                <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
+                                <span>{assessment.item_count ?? 0} items</span>
+                                {assessment.due_date && (() => {
+                                  const now = new Date();
+                                  const due = new Date(assessment.due_date);
+                                  if (Number.isNaN(due.getTime())) return null;
+                                  const diffMs = due.getTime() - now.getTime();
+                                  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                                  let cls = 'text-slate-400';
+                                  let label = `Due in ${diffDays}d`;
+                                  if (diffDays < 0) { cls = 'text-red-500 font-semibold'; label = 'Overdue'; }
+                                  else if (diffDays === 0) { cls = 'text-amber-500 font-semibold'; label = 'Due today'; }
+                                  else if (diffDays <= 3) { cls = 'text-orange-500 font-semibold'; }
+                                  return (
+                                    <>
+                                      <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
+                                      <span className={cls}>{label}</span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
                             </div>
-                            <div className="flex shrink-0 flex-row items-center gap-2 lg:flex-col lg:items-end">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold ${statusClass}`}>
-                                {statusLabel}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setSelectedAssessmentId(String(assessment.exercise_id));
-                                }}
-                                className="inline-flex items-center rounded-lg border border-blue-200 bg-white px-3 py-1 text-[9px] font-semibold text-blue-700 transition hover:bg-blue-50 hover:border-blue-300"
-                              >
-                                {assessment.already_submitted ? 'View' : 'Submit / View'}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedAssessmentId(String(assessment.exercise_id));
+                              }}
+                              className={`shrink-0 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition ${
+                                isOverdue && !assessment.already_submitted
+                                  ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                                  : assessment.already_submitted
+                                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                              }`}
+                            >
+                              {assessment.already_submitted ? 'View' : isOverdue ? 'Closed' : 'Submit'}
+                            </button>
                           </div>
-
-                          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-400">
-                            <span>Topic: {assessment.topic || '-'}</span>
-                            <span>Difficulty: {assessment.difficulty || 'Medium'}</span>
-                            <span>Items: {assessment.item_count ?? 0}</span>
-                            {assessment.latest_submission_at && <span>Latest: {formatDateTime(assessment.latest_submission_at)}</span>}
-                            {assessment.due_date && (() => {
-                              const now = new Date();
-                              const due = new Date(assessment.due_date);
-                              if (Number.isNaN(due.getTime())) return null;
-                              const diffMs = due.getTime() - now.getTime();
-                              const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                              let cls = 'text-blue-600';
-                              let label = `Due in ${diffDays}d`;
-                              if (diffDays < 0) { cls = 'text-red-600 font-semibold'; label = 'Overdue'; }
-                              else if (diffDays === 0) { cls = 'text-amber-600 font-semibold'; label = 'Due today'; }
-                              else if (diffDays <= 3) { cls = 'text-orange-600 font-semibold'; }
-                              const formatted = due.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                              return <span className={cls}>{label} ({formatted})</span>;
-                            })()}
-                          </div>
-
                         </div>
                       );
                     })}
@@ -1412,11 +1434,24 @@ export const StudentSubjects = () => {
                     onClick={() => setSelectedAssessmentId('')}
                   >
                     <div
-                      className="flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]"
+                      className="relative flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <div className={`absolute left-0 right-0 top-0 h-1 bg-gradient-to-r ${subjectTheme.accentClass}`} />
-                      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-[linear-gradient(135deg,rgba(255,255,255,1),rgba(239,246,255,0.92))] px-6 py-4">
+                      <div className="absolute right-4 top-5 z-10 flex items-center gap-2">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${selectedAssessment.already_submitted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {selectedAssessment.already_submitted ? 'Submitted' : 'Pending'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAssessmentId('')}
+                          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xl leading-none text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+                          aria-label="Close assessment"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      <div className="border-b border-slate-100 bg-[linear-gradient(135deg,rgba(255,255,255,1),rgba(239,246,255,0.92))] px-6 py-4 pr-24">
                         <div>
                           <p className={sectionHeaderEyebrowClass}>Assessment</p>
                           <h3 className={sectionHeaderTitleClass}>{selectedAssessment.title}</h3>
@@ -1429,24 +1464,12 @@ export const StudentSubjects = () => {
                             <span>Items: {selectedAssessment.item_count ?? 0}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${selectedAssessment.already_submitted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {selectedAssessment.already_submitted ? 'Submitted' : 'Pending'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedAssessmentId('')}
-                            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl leading-none text-slate-500 transition hover:bg-slate-50"
-                            aria-label="Close assessment"
-                          >
-                            &times;
-                          </button>
-                        </div>
                       </div>
 
-                      <div className="flex-1 min-h-0 overflow-y-auto teacher-scrollbar bg-slate-50 px-6 py-4">
-                        {selectedAssessmentItems.length > 0 ? (
-                          <div className="space-y-3">
+                      <div className="flex-1 min-h-0 overflow-y-auto teacher-scrollbar">
+                        <div className="bg-gradient-to-b from-slate-50 to-white px-4 py-3 space-y-2">
+                          {selectedAssessmentItems.length > 0 ? (
+                            <div className="space-y-2">
                             {selectedAssessmentItems.map((item, index) => {
                               const itemNumber = item.item_no ?? index + 1;
                               const itemId = `assessment-${selectedAssessment.exercise_id}-item-${itemNumber}`;
@@ -1454,24 +1477,24 @@ export const StudentSubjects = () => {
                                 <div
                                   key={`${selectedAssessment.exercise_id}-${itemNumber}`}
                                   id={itemId}
-                                  className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+                                  className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"
                                 >
-                                  <div className="mb-2 flex items-center justify-between gap-3">
+                                  <div className="mb-1.5 flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2">
-                                      <p className="text-lg font-semibold text-slate-900">#{itemNumber}</p>
-                                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-600">
+                                      <p className="text-sm font-semibold text-slate-900">#{itemNumber}</p>
+                                      <span className="rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-600">
                                         Item
                                       </span>
                                     </div>
-                                    <span className="text-sm text-slate-500">{item.max_score ?? 0} pts</span>
+                                    <span className="text-xs text-slate-500">{item.max_score ?? 0} pts</span>
                                   </div>
-                                  <p className="text-sm leading-7 text-slate-700 overflow-hidden break-words"><MathText text={item.question_content} /></p>
+                                  <p className="text-xs leading-6 text-slate-700 overflow-hidden break-words"><MathText text={item.question_content} /></p>
                                   {Array.isArray(item.options) && item.options.length > 0 && (
-                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                                      {item.options.map((option, optionIndex) => (
-                                        <div
-                                          key={`${selectedAssessment.exercise_id}-${itemNumber}-${optionIndex}`}
-                                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                                      <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                                        {item.options.map((option, optionIndex) => (
+                                          <div
+                                            key={`${selectedAssessment.exercise_id}-${itemNumber}-${optionIndex}`}
+                                            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600"
                                         >
                                           {option}
                                         </div>
@@ -1485,21 +1508,20 @@ export const StudentSubjects = () => {
                         ) : (
                           <p className="text-sm text-slate-500">No item breakdown was found for this assessment.</p>
                         )}
-                      </div>
+                        </div>
 
-                      <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
-                        <div className="space-y-3">
+                        <div className="border-t border-slate-200 bg-white px-4 py-3 space-y-2">
                           {selectedAssessment.already_submitted ? (
                             <>
                               <div>
-                                <p className="text-base font-semibold text-slate-900">Submitted Solution</p>
-                                <p className="mt-1 text-sm text-slate-500">
+                                <p className="text-sm font-semibold text-slate-900">Submitted Solution</p>
+                                <p className="mt-0.5 text-xs text-slate-500">
                                   Your uploaded files are shown below. Uploads are locked after submission.
                                 </p>
                               </div>
 
                               {Array.isArray(selectedAssessment.submission_files) && selectedAssessment.submission_files.length > 0 ? (
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                                   {selectedAssessment.submission_files.map((file, idx) => {
                                     const fileUrl = toAbsoluteFileUrl(file.path);
                                     const isImage = file.type === 'image';
@@ -1508,22 +1530,22 @@ export const StudentSubjects = () => {
                                         key={`${file.path}-${idx}`}
                                         type="button"
                                         onClick={() => setPreviewFile(file)}
-                                        className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 transition hover:border-blue-300 hover:shadow-md"
+                                        className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50 transition hover:border-blue-300 hover:shadow-md"
                                       >
                                         {isImage ? (
                                           <img
                                             src={fileUrl}
                                             alt={file.name || `Submission ${idx + 1}`}
-                                            className="h-32 w-full object-cover"
+                                            className="h-20 w-full object-cover"
                                           />
                                         ) : (
-                                          <div className="flex h-32 w-full items-center justify-center bg-slate-100">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-8 w-8 text-slate-400">
+                                          <div className="flex h-20 w-full items-center justify-center bg-slate-100">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-6 w-6 text-slate-400">
                                               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                                             </svg>
                                           </div>
                                         )}
-                                        <p className="truncate px-2 py-1.5 text-[11px] text-slate-600">{file.name}</p>
+                                        <p className="truncate px-1.5 py-1 text-[10px] text-slate-600">{file.name}</p>
                                         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/10">
                                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6 text-white opacity-0 drop-shadow transition group-hover:opacity-100">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6" />
@@ -1534,25 +1556,25 @@ export const StudentSubjects = () => {
                                   })}
                                 </div>
                               ) : (
-                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center">
-                                  <p className="text-sm text-slate-500">No files were uploaded for this submission.</p>
+                                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                                  <p className="text-xs text-slate-500">No files were uploaded for this submission.</p>
                                 </div>
                               )}
                             </>
                           ) : (
                             <>
                               <div>
-                                <p className="text-base font-semibold text-slate-900">Upload Scanned Answer Photos</p>
-                                <p className="mt-1 text-sm text-slate-500">
+                                <p className="text-sm font-semibold text-slate-900">Upload Scanned Answer Photos</p>
+                                <p className="mt-0.5 text-xs text-slate-500">
                                   Upload clear JPG or PNG photos for the best OCR and AI grading results. Once submitted, uploads are locked.
                                 </p>
-                                <p className="mt-2 text-xs text-amber-600">
+                                <p className="mt-1 text-[10px] text-amber-600">
                                   PDF files are allowed, but automatic text extraction may be less reliable than image uploads.
                                 </p>
                               </div>
 
-                              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center">
-                                <div className="flex-1 space-y-2">
+                              <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 md:flex-row md:items-center">
+                                <div className="flex-1 space-y-1.5">
                                   <input
                                     ref={fileInputRef}
                                     id={`student-upload-${selectedAssessment.exercise_id}`}
@@ -1560,31 +1582,31 @@ export const StudentSubjects = () => {
                                     multiple
                                     accept="image/*,.pdf"
                                     onChange={handleFiles}
-                                    className="w-full rounded-xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700"
+                                    className="w-full rounded-lg border border-slate-200 bg-white text-xs text-slate-700 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700"
                                   />
-                                  <p className="text-xs italic text-slate-500">{fileLabel}</p>
-                                  <p className="text-[11px] text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
+                                  <p className="text-[11px] italic text-slate-500">{fileLabel}</p>
+                                  <p className="text-[10px] text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={openFilePicker}
-                                  className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
+                                  className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
                                 >
                                   Select Files
                                 </button>
                               </div>
 
                               {selectedFiles.length > 0 && (
-                                <div className="space-y-2">
-                                  <p className="text-xs font-semibold text-slate-500">Selected files ({selectedFiles.length})</p>
-                                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                                <div className="space-y-1.5">
+                                  <p className="text-[11px] font-semibold text-slate-500">Selected files ({selectedFiles.length})</p>
+                                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                                     {selectedFiles.map((file, index) => {
                                       const isImage = file.type?.startsWith('image/');
                                       const previewUrl = isImage ? URL.createObjectURL(file) : null;
                                       return (
                                         <div
                                           key={`${selectedAssessment.exercise_id}-${file.name}-${file.lastModified}-${index}`}
-                                          className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                                          className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
                                         >
                                           {isImage && previewUrl ? (
                                             <button
@@ -1595,7 +1617,7 @@ export const StudentSubjects = () => {
                                               <img
                                                 src={previewUrl}
                                                 alt={file.name}
-                                                className="h-32 w-full object-cover transition group-hover:brightness-90"
+                                                className="h-20 w-full object-cover transition group-hover:brightness-90"
                                               />
                                               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/10">
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 text-white opacity-0 drop-shadow transition group-hover:opacity-100">
@@ -1667,35 +1689,43 @@ export const StudentSubjects = () => {
                             </>
                           )}
 
-                          <div className="flex flex-wrap items-center gap-3">
-                            {!selectedAssessment.already_submitted && (
-                              <button
-                                type="button"
-                                onClick={handleSubmit}
-                                disabled={submitLoading || hasFailingImages}
-                                className="ml-auto rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                              >
-                                {submitLoading ? 'Submitting...' : 'Submit Files'}
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setSelectedAssessmentId('')}
-                              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                            >
-                              Close
-                            </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {!selectedAssessment.already_submitted && (() => {
+                              const isOverdue = (() => {
+                                if (!selectedAssessment.due_date) return false;
+                                const due = new Date(selectedAssessment.due_date);
+                                if (Number.isNaN(due.getTime())) return false;
+                                return new Date() > due;
+                              })();
+                              return (
+                                <>
+                                  {isOverdue && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-medium text-red-700">
+                                      <span className="font-semibold">Past due date</span> — Submission closed
+                                    </div>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={handleSubmit}
+                                    disabled={submitLoading || hasFailingImages || isOverdue}
+                                    className={`ml-auto rounded-xl px-4 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 ${isOverdue ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                  >
+                                    {isOverdue ? 'Submission Closed' : submitLoading ? 'Submitting...' : 'Submit Files'}
+                                  </button>
+                                </>
+                              );
+                            })()}
                             {selectedAssessment.score !== null && selectedAssessment.score !== undefined && (
-                              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
                                 <p className="font-semibold">Score: {selectedAssessment.score}%</p>
                               </div>
                             )}
                           </div>
 
                           {selectedAssessment.ai_feedback && (
-                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
                               <p className="font-semibold">Feedback</p>
-                              <p className="mt-1 text-xs text-emerald-700">{selectedAssessment.ai_feedback}</p>
+                              <p className="mt-0.5 text-[11px] text-emerald-700">{selectedAssessment.ai_feedback}</p>
                             </div>
                           )}
 

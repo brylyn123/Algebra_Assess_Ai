@@ -39,7 +39,10 @@ try {
             subj.join_code AS subject_code,
             CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name) AS student_name,
             st.institutional_id AS student_id,
-            DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date
+            DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date,
+            cs.ocr_text,
+            cs.file_path AS cs_file_path,
+            cs.ai_raw_json AS cs_ai_raw_json
         FROM Scores sc
         INNER JOIN Captured_Solution cs ON cs.solution_id = sc.solution_id
         INNER JOIN Exercises_Problem ep ON ep.exercise_id = cs.exercise_id
@@ -78,6 +81,56 @@ try {
 
     $records = [];
     while ($row = $result->fetch_assoc()) {
+        $files = [];
+        $criteriaScores = [];
+        $rawJson = $row['cs_ai_raw_json'] ?? null;
+        if ($rawJson) {
+            $decoded = json_decode($rawJson, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                // Parse files
+                if (isset($decoded['files']) && is_array($decoded['files'])) {
+                    foreach ($decoded['files'] as $file) {
+                        $path = trim((string)($file['file_path'] ?? ''));
+                        if ($path === '') continue;
+                        $originalName = trim((string)($file['original_name'] ?? basename($path)));
+                        $extension = strtolower(pathinfo($originalName !== '' ? $originalName : $path, PATHINFO_EXTENSION));
+                        $files[] = [
+                            'name' => $originalName !== '' ? $originalName : basename($path),
+                            'path' => $path,
+                            'type' => $extension === 'pdf' ? 'pdf' : 'image',
+                        ];
+                    }
+                }
+                // Parse criteria_scores from grading_draft
+                $draft = $decoded['grading_draft'] ?? null;
+                if (is_array($draft) && isset($draft['criteria_scores']) && is_array($draft['criteria_scores'])) {
+                    foreach ($draft['criteria_scores'] as $c) {
+                        $weight = isset($c['weight']) ? (float)$c['weight'] : 0;
+                        $earned = isset($c['earned']) ? (float)$c['earned'] : (isset($c['score']) ? (float)$c['score'] : 0);
+                        $earned = max(0, min($weight, $earned));
+                        $criteriaScores[] = [
+                            'name' => trim((string)($c['name'] ?? '')),
+                            'weight' => $weight,
+                            'earned' => round($earned, 2),
+                            'explanation' => trim((string)($c['explanation'] ?? '')),
+                        ];
+                    }
+                }
+            }
+        }
+        if (count($files) === 0) {
+            $fallbackPath = trim((string)($row['cs_file_path'] ?? ''));
+            if ($fallbackPath !== '') {
+                $fallbackName = basename($fallbackPath);
+                $extension = strtolower(pathinfo($fallbackName, PATHINFO_EXTENSION));
+                $files[] = [
+                    'name' => $fallbackName,
+                    'path' => $fallbackPath,
+                    'type' => $extension === 'pdf' ? 'pdf' : 'image',
+                ];
+            }
+        }
+
         $records[] = [
             'score_id' => (int)$row['score_id'],
             'solution_id' => (int)$row['solution_id'],
@@ -95,6 +148,9 @@ try {
             'ai_feedback' => $row['ai_feedback'] ?? '',
             'date_scored' => $row['date_scored'],
             'returned_at' => $row['returned_at'],
+            'ocr_text' => $row['ocr_text'] ?? null,
+            'files' => $files,
+            'criteria_scores' => $criteriaScores,
             'item_scores' => [],
         ];
     }

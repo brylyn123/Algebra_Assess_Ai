@@ -1,15 +1,46 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from './axiosClient';
-import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
+import { findLocalUser, getCurrentLocalUserEmail, storeLocalUser } from './localAuthStore';
 
 const TeacherProfile = () => {
   const currentEmail = getCurrentLocalUserEmail();
-  const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
+  const [storedTeacher, setStoredTeacher] = useState(() => currentEmail ? findLocalUser(currentEmail) : null);
   const teacherId = storedTeacher?.user_id ?? storedTeacher?.teacher_id ?? storedTeacher?.id ?? null;
 
   const [subjects, setSubjects] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [formValues, setFormValues] = useState({
+    firstName: '',
+    lastName: '',
+    collegeName: '',
+    institutional_id: '',
+  });
+
+  useEffect(() => {
+    const syncUser = () => {
+      const email = getCurrentLocalUserEmail();
+      setStoredTeacher(email ? findLocalUser(email) : null);
+    };
+    const eventName = 'aa-local-user-updated';
+    window.addEventListener(eventName, syncUser);
+    window.addEventListener('storage', syncUser);
+    return () => {
+      window.removeEventListener(eventName, syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
+  }, []);
+
+  useEffect(() => {
+    setFormValues({
+      firstName: storedTeacher?.firstName ?? '',
+      lastName: storedTeacher?.lastName ?? '',
+      collegeName: storedTeacher?.collegeName ?? '',
+      institutional_id: storedTeacher?.institutional_id ?? storedTeacher?.idNumber ?? '',
+    });
+  }, [storedTeacher]);
 
   useEffect(() => {
     if (!teacherId) {
@@ -92,10 +123,29 @@ const TeacherProfile = () => {
     role: storedTeacher?.role ?? 'Teacher',
   };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = () => {
+    if (!storedTeacher?.email) return;
+    storeLocalUser({
+      ...storedTeacher,
+      firstName: formValues.firstName.trim(),
+      lastName: formValues.lastName.trim(),
+      collegeName: formValues.collegeName.trim(),
+      institutional_id: formValues.institutional_id.trim(),
+    });
+    setSaveMessage('Profile updated.');
+    setIsEditing(false);
+    setTimeout(() => setSaveMessage(''), 2500);
+  };
+
   return (
     <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-1 pt-3 sm:px-2">
-      <div className="mx-auto flex max-w-[1100px] flex-col gap-2">
-        <section className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-0">
+      <div className="mx-auto flex w-full flex-col gap-2">
+        <section className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2.5">
@@ -108,8 +158,15 @@ const TeacherProfile = () => {
               </div>
               <p className="text-xs text-blue-100 ml-[42px]">Lead your algebra classes with confidence and AI-powered insights.</p>
             </div>
-            <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white">
-              {heroDetails.role}
+            <div className="flex gap-2 ml-[42px] sm:ml-0">
+              <button
+                type="button"
+                onClick={() => { setSaveMessage(''); setIsEditing((c) => !c); }}
+                className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-white/20"
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                {isEditing ? 'Close' : 'Edit'}
+              </button>
             </div>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -131,6 +188,53 @@ const TeacherProfile = () => {
           </div>
         </section>
 
+        {saveMessage && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700">
+            {saveMessage}
+          </div>
+        )}
+
+        {isEditing && (
+          <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-blue-500 mb-3">Edit Profile</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                { name: 'firstName', label: 'First Name', value: formValues.firstName },
+                { name: 'lastName', label: 'Last Name', value: formValues.lastName },
+                { name: 'collegeName', label: 'School', value: formValues.collegeName },
+                { name: 'institutional_id', label: 'Teacher ID', value: formValues.institutional_id },
+              ].map((field) => (
+                <div key={field.name}>
+                  <label className="mb-1 block text-[10px] font-semibold text-slate-500">{field.label}</label>
+                  <input
+                    name={field.name}
+                    value={field.value}
+                    onChange={handleChange}
+                    placeholder={field.label}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+              >
+                Save Changes
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         <section className="grid gap-4 lg:grid-cols-2">
           <article className="rounded-[1.3rem] border border-slate-200 bg-white/90 p-4 shadow-[0_12px_28px_rgba(148,163,184,0.1)]">
             <div>
@@ -151,9 +255,6 @@ const TeacherProfile = () => {
                 <span className="text-sm font-semibold text-slate-900">{heroDetails.employer}</span>
               </div>
             </div>
-            <button className="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700">
-              Edit Profile
-            </button>
           </article>
           <article className="rounded-[1.3rem] border border-slate-200 bg-white/90 p-4 shadow-[0_12px_28px_rgba(148,163,184,0.1)]">
             <div>

@@ -72,11 +72,12 @@ try {
     $scoreDeleted = $delScore->affected_rows;
     $delScore->close();
 
-    // Reset Captured_Solution
+    // Reset Captured_Solution - also clear ocr_text so OCR can be re-run with better provider
     $resetStmt = $conn->prepare(
         "UPDATE Captured_Solution
          SET ai_status = 'pending',
-             ai_raw_json = NULL
+             ai_raw_json = NULL,
+             ocr_text = NULL
          WHERE solution_id IN ($placeholders)"
     );
     $resetStmt->bind_param($types, ...$solutionIds);

@@ -197,8 +197,8 @@ const AdminCatalog = () => {
   }, [catalog.colleges]);
 
   return (
-     <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-4 py-3 md:px-6 md:py-4">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-4">
+      <div className="h-full min-h-0 overflow-y-auto teacher-scrollbar px-4 py-3 md:px-6 md:py-4">
+      <div className="mx-auto flex w-full flex-col gap-4">
         <section className="page-hero-card p-5">
           <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">Admin Catalog</p>
           <h1 className="text-xl font-bold text-slate-900">Colleges and Courses</h1>

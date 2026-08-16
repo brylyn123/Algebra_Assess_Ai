@@ -45,6 +45,8 @@ const StudentProfile = () => {
     school: '',
     section: '',
     year: '',
+    studentId: '',
+    course: '',
   });
 
   useEffect(() => {
@@ -74,6 +76,8 @@ const StudentProfile = () => {
       school: stored?.collegeName ?? '',
       section: stored?.sectionName ?? '',
       year: stored?.yearLevel ?? '',
+      studentId: stored?.institutional_id ?? stored?.idNumber ?? stored?.student_id ?? '',
+      course: stored?.courseName ?? '',
     });
   }, [stored]);
 
@@ -97,6 +101,10 @@ const StudentProfile = () => {
       collegeName: formValues.school.trim(),
       sectionName: formValues.section.trim(),
       yearLevel: formValues.year.trim(),
+      institutional_id: formValues.studentId.trim(),
+      idNumber: formValues.studentId.trim(),
+      student_id: formValues.studentId.trim(),
+      courseName: formValues.course.trim(),
     });
 
     setSaveMessage('Profile updated.');
@@ -105,8 +113,8 @@ const StudentProfile = () => {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-[1100px] flex-col px-1 pt-3 sm:px-2" style={{ height: 'calc(100vh - 6rem)' }}>
-      <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-2">
+    <div className="mx-auto flex h-full w-full flex-col px-1 pt-3 sm:px-2">
+      <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">
@@ -168,6 +176,8 @@ const StudentProfile = () => {
                   { name: 'firstName', label: 'First Name', value: formValues.firstName },
                   { name: 'middleName', label: 'Middle Name', value: formValues.middleName },
                   { name: 'lastName', label: 'Last Name', value: formValues.lastName },
+                  { name: 'studentId', label: 'Student ID', value: formValues.studentId },
+                  { name: 'course', label: 'Course', value: formValues.course },
                   { name: 'school', label: 'School', value: formValues.school },
                   { name: 'section', label: 'Section', value: formValues.section },
                   { name: 'year', label: 'Year Level', value: formValues.year },
