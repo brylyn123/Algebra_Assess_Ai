@@ -25,6 +25,10 @@ function loadEnvFile(string $path): void
             continue;
         }
 
+        if (getenv($key) !== false) {
+            continue;
+        }
+
         if ((str_starts_with($value, '"') && str_ends_with($value, '"')) || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
             $value = substr($value, 1, -1);
         }
