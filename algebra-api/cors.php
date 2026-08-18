@@ -1,22 +1,27 @@
 <?php
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$isLocalOrigin = false;
+$allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+];
 
-if ($origin !== '') {
+$vercelAppUrl = getenv('VERCEL_APP_URL') ?: '';
+if ($vercelAppUrl !== '') {
+    $allowedOrigins[] = $vercelAppUrl;
+}
+
+if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
+    header("Access-Control-Allow-Origin: {$origin}");
+    header("Vary: Origin");
+} elseif ($origin !== '') {
     $parsedOrigin = parse_url($origin);
     $host = $parsedOrigin['host'] ?? '';
     $scheme = $parsedOrigin['scheme'] ?? '';
-
     if (in_array($scheme, ['http', 'https'], true) && in_array($host, ['localhost', '127.0.0.1'], true)) {
-        $isLocalOrigin = true;
+        header("Access-Control-Allow-Origin: {$origin}");
+        header("Vary: Origin");
     }
-}
-
-if ($isLocalOrigin) {
-    header("Access-Control-Allow-Origin: {$origin}");
-    header("Vary: Origin");
-} else {
-    header("Access-Control-Allow-Origin: http://localhost:5173");
 }
 
 header("Access-Control-Allow-Credentials: true");
