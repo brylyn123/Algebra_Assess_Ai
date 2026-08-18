@@ -1,0 +1,7 @@
+{
+  "name": "algebra-assess-ai/api",
+  "type": "project",
+  "require": {
+    "php": ">=8.0"
+  }
+}
