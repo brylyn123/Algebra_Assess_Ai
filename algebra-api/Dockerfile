@@ -7,5 +7,3 @@ RUN apt-get update && apt-get install -y libpng-dev libjpeg-dev libfreetype6-dev
 
 WORKDIR /app
 COPY . .
-
-CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-8080} -t /app"]
