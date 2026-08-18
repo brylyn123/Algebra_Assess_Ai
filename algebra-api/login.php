@@ -9,8 +9,8 @@ ensureRolesSchema($conn);
 ensureUserAccountStatusSchema($conn);
 
 $clientIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-$loginIpHash = crc32($clientIp);
-rateLimitOrDie($conn, abs($loginIpHash), 'login', 10, 900);
+$loginIpHash = abs(crc32($clientIp)) % 2147483647;
+rateLimitOrDie($conn, $loginIpHash, 'login', 10, 900);
 
 $userTable = resolveExistingTableName($conn, ['Users', 'users']);
 $roleExpression = getUserRoleNameExpression($conn, 'u');
