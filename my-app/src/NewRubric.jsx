@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from './axiosClient';
@@ -29,8 +29,7 @@ const normalizeLevelDefinitions = (input) => {
 };
 
 const RUBRIC_STEPS = [
-    { id: 'name', label: 'Name', description: 'Template & title' },
-    { id: 'style', label: 'Grading Style', description: 'AI instructions' },
+    { id: 'name', label: 'Name & Style', description: 'Template, title & AI instructions' },
     { id: 'levels', label: 'Point Levels', description: 'Mastery tiers' },
     { id: 'criteria', label: 'Criteria', description: 'Criterion list + scoring' },
 ];
@@ -61,6 +60,7 @@ const NewRubric = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [editingRubricId, setEditingRubricId] = useState(null);
     const [currentStep, setCurrentStep] = useState(0);
+    const stepIndicatorRef = useRef(null);
 
     const currentEmail = getCurrentLocalUserEmail();
     const storedTeacher = currentEmail ? findLocalUser(currentEmail) : null;
@@ -143,6 +143,15 @@ const NewRubric = () => {
             resetToDefaults();
         }
     }, [location.state]);
+
+    useEffect(() => {
+        if (stepIndicatorRef.current) {
+            const activeButton = stepIndicatorRef.current.children[currentStep];
+            if (activeButton) {
+                activeButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        }
+    }, [currentStep]);
 
     const handleRubricChange = (e) => {
         const { name, value } = e.target;
@@ -384,7 +393,7 @@ const NewRubric = () => {
 
                     {/* Step indicator */}
                     <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-3 md:px-8">
-                        <div className="flex gap-2">
+                        <div ref={stepIndicatorRef} className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
                             {RUBRIC_STEPS.map((step, index) => {
                                 const active = index === currentStep;
                                 const completed = index < currentStep;
@@ -393,7 +402,7 @@ const NewRubric = () => {
                                         key={step.id}
                                         type="button"
                                         onClick={() => setCurrentStep(index)}
-                                        className={`flex-1 rounded-xl border px-3 py-2 text-left transition ${active ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                                        className={`flex-1 min-w-[120px] shrink-0 rounded-xl border px-3 py-2 text-left transition ${active ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                                     >
                                         <div className="flex items-center gap-2">
                                             <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${active ? 'bg-emerald-600 text-white' : completed ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
@@ -451,24 +460,22 @@ const NewRubric = () => {
                                             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
                                         />
                                     </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Grading Instructions</p>
+                                        <textarea
+                                            value={aiInstructions}
+                                            onChange={(e) => setAiInstructions(e.target.value)}
+                                            placeholder="Hints for the AI grader (e.g., be understanding on neatness but strict on sequence of operations)."
+                                            rows={3}
+                                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                        />
+                                        <p className="mt-1 text-[10px] text-slate-400">Your notes guide the AI on how to interpret student work.</p>
+                                    </div>
                                 </div>
                             )}
 
                             {currentStep === 1 && (
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Grading Instructions</p>
-                                    <textarea
-                                        value={aiInstructions}
-                                        onChange={(e) => setAiInstructions(e.target.value)}
-                                        placeholder="Hints for the AI grader (e.g., be understanding on neatness but strict on sequence of operations)."
-                                        rows={4}
-                                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-                                    />
-                                    <p className="mt-1 text-[10px] text-slate-400">Your notes guide the AI on how to interpret student work.</p>
-                                </div>
-                            )}
-
-                            {currentStep === 2 && (
                                 <div className="space-y-4">
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                         <div className="flex items-center justify-between mb-3">
@@ -535,7 +542,7 @@ const NewRubric = () => {
                                 </div>
                             )}
 
-                            {currentStep === 3 && (
+                            {currentStep === 2 && (
                                 <div className="space-y-4">
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                         <div className="flex items-center justify-between mb-3">

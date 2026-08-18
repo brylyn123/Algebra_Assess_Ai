@@ -93,6 +93,16 @@ try {
             }
         }
 
+        $rawJson = $row['ai_raw_json'] ?? null;
+        $ocrText = trim((string)($row['ocr_text'] ?? ''));
+        // Fallback: read ocr_text from ai_raw_json if database column is empty
+        if ($ocrText === '' && $rawJson) {
+            $decoded = json_decode($rawJson, true);
+            if (json_last_error() === JSON_ERROR_NONE && isset($decoded['ocr']) && is_array($decoded['ocr']) && !empty($decoded['ocr']['text'])) {
+                $ocrText = trim((string)$decoded['ocr']['text']);
+            }
+        }
+
         $records[] = [
             'score_id' => (int)$row['score_id'],
             'solution_id' => (int)$row['solution_id'],
@@ -106,7 +116,7 @@ try {
             'raw_score_earned' => $row['raw_score_earned'] !== null ? round((float)$row['raw_score_earned'], 2) : null,
             'max_score_possible' => $row['max_score_possible'] !== null ? round((float)$row['max_score_possible'], 2) : null,
             'ai_feedback' => $row['ai_feedback'] ?? '',
-            'ocr_text' => $row['ocr_text'] ?? '',
+            'ocr_text' => $ocrText,
             'date_scored' => $row['date_scored'],
             'returned_at' => $row['returned_at'],
             'files' => $files,

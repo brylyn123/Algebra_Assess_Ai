@@ -237,9 +237,19 @@ function generateDeepSeekGrade(array $submission): array
         }
     }
 
+    // Derive overall_score from criteria_scores for accuracy (weights sum to 100)
+    $totalEarned = 0;
+    $totalWeight = 0;
+    foreach ($criteriaScores as $cs) {
+        $totalEarned += (float)$cs['earned'];
+        $totalWeight += (float)$cs['weight'];
+    }
+    $computedScore = $totalWeight > 0 ? round(($totalEarned / $totalWeight) * 100, 2) : 0;
+    $aiScore = isset($parsedGeneration['overall_score']) ? (float)$parsedGeneration['overall_score'] : $computedScore;
+
     return [
         'model' => $config['model'] ?? 'deepseek-chat',
-        'overall_score' => isset($parsedGeneration['overall_score']) ? max(0.0, min(100.0, (float)$parsedGeneration['overall_score'])) : 0.0,
+        'overall_score' => max(0.0, min(100.0, $computedScore)),
         'overall_feedback' => trim((string)($parsedGeneration['overall_feedback'] ?? '')),
         'criteria_scores' => $criteriaScores,
         'item_scores' => $normalizedItemScores,

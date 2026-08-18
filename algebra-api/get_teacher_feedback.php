@@ -84,6 +84,14 @@ try {
         $files = [];
         $criteriaScores = [];
         $rawJson = $row['cs_ai_raw_json'] ?? null;
+        $ocrText = trim((string)($row['ocr_text'] ?? ''));
+        // Fallback: read ocr_text from ai_raw_json if database column is empty
+        if ($ocrText === '' && $rawJson) {
+            $decodedCheck = json_decode($rawJson, true);
+            if (json_last_error() === JSON_ERROR_NONE && isset($decodedCheck['ocr']) && is_array($decodedCheck['ocr']) && !empty($decodedCheck['ocr']['text'])) {
+                $ocrText = trim((string)$decodedCheck['ocr']['text']);
+            }
+        }
         if ($rawJson) {
             $decoded = json_decode($rawJson, true);
             if (json_last_error() === JSON_ERROR_NONE) {
@@ -148,7 +156,7 @@ try {
             'ai_feedback' => $row['ai_feedback'] ?? '',
             'date_scored' => $row['date_scored'],
             'returned_at' => $row['returned_at'],
-            'ocr_text' => $row['ocr_text'] ?? null,
+            'ocr_text' => $ocrText ?: null,
             'files' => $files,
             'criteria_scores' => $criteriaScores,
             'item_scores' => [],

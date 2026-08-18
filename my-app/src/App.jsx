@@ -72,10 +72,13 @@ function AnimatedRoutes() {
             }
           >
             <Route index element={withTransition(<TeacherOverview />)} />
+            <Route path="subjects" element={withTransition(<ManageSubjects />)} />
+            <Route path="subjects/:id" element={<SubjectDetails />} />
             <Route path="assessments">
               <Route index element={withTransition(<ManageAssessments />)} />
               <Route path="view" element={withTransition(<ViewAssessmentsPage />)} />
               <Route path="new" element={withTransition(<NewAssessment />)} />
+              <Route path="edit/:id" element={withTransition(<NewAssessment />)} />
               <Route path="edit-questions" element={withTransition(<QuestionEditor />)} />
               <Route path="new-rubric" element={withTransition(<NewRubric />)} />
             </Route>

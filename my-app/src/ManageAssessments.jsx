@@ -146,20 +146,7 @@ const ManageAssessments = () => {
             ),
             onClick: () => navigate('/teacher/assessments/new'),
         },
-        {
-            title: 'New Rubric',
-            description: 'Build a grading rubric with point levels and AI instructions.',
-            tone: 'bg-[linear-gradient(135deg,rgba(52,211,153,0.95),rgba(5,150,105,0.96))] text-white shadow-[0_24px_60px_rgba(16,185,129,0.16)]',
-            buttonLabel: 'Create Rubric',
-            buttonClass: 'text-emerald-700',
-            copyClass: 'text-white/85',
-            icon: (
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
-                    <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
-                </svg>
-            ),
-            onClick: () => navigate('/teacher/assessments/new-rubric'),
-        },
+
     ];
 
     return (
@@ -982,6 +969,21 @@ const ManageAssessments = () => {
 
                             <div className="shrink-0 border-t border-slate-100 bg-slate-50/50 px-8 py-3">
                                 <div className="flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowAssessmentDetail(false);
+                                            navigate(`/teacher/assessments/edit/${selectedAssessmentDetail.exercise_id}`, {
+                                                state: { assessment: selectedAssessmentDetail },
+                                            });
+                                        }}
+                                        className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition-all duration-300 hover:-translate-y-0.5 hover:bg-emerald-100 active:scale-[0.97]"
+                                    >
+                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                            <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                                        </svg>
+                                        Edit
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => {

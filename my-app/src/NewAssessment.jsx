@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
 import axios from './axiosClient';
 
@@ -141,11 +141,17 @@ const DEFAULT_GRADING_CRITERIA = [
 const NewAssessment = () => {
 
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const location = useLocation();
   const { toast } = useToast();
+  const isEditMode = Boolean(editId);
+  const editAssessment = location.state?.assessment || null;
 
   const [mathExpression, setMathExpression] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [showDefaultRubricModal, setShowDefaultRubricModal] = useState(false);
+  const [showRubricDetailModal, setShowRubricDetailModal] = useState(false);
+  const [selectedRubricDetail, setSelectedRubricDetail] = useState(null);
   const [questionLabel, setQuestionLabel] = useState('');
   const [questionScore, setQuestionScore] = useState('1.0');
   const [editingIndex, setEditingIndex] = useState(null);
@@ -266,11 +272,38 @@ const NewAssessment = () => {
   // Subject multi-select helpers
   const toggleSubject = (subjectId) => {
     const current = newAssessment.subjectIds || [];
-    const updated = current.includes(subjectId)
-      ? current.filter((id) => id !== subjectId)
-      : [...current, subjectId];
-    dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectIds', value: updated });
-    dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectId', value: updated[0] || '' });
+    const clickedSubject = subjects.find((s) => s.id === subjectId);
+    if (!clickedSubject) return;
+
+    const isCurrentlyChecked = current.includes(subjectId);
+
+    if (isCurrentlyChecked) {
+      // Unchecking: remove all subjects with the same name
+      const updated = current.filter((id) => {
+        const s = subjects.find((sub) => sub.id === id);
+        return s && s.name !== clickedSubject.name;
+      });
+      dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectIds', value: updated });
+      dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectId', value: updated[0] || '' });
+    } else {
+      // Checking: select ALL subjects with the same name
+      const sameNameIds = subjects
+        .filter((s) => s.name === clickedSubject.name)
+        .map((s) => s.id);
+      const merged = [...new Set([...current, ...sameNameIds])];
+      dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectIds', value: merged });
+      dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectId', value: merged[0] || '' });
+    }
+  };
+
+  // Check if a subject should be disabled (different name from selected subjects)
+  const isSubjectDisabled = (subject) => {
+    const selectedIds = newAssessment.subjectIds || [];
+    if (selectedIds.length === 0) return false;
+    // Find the name of the first selected subject
+    const firstSelected = subjects.find((s) => selectedIds.includes(s.id));
+    if (!firstSelected) return false;
+    return subject.name !== firstSelected.name;
   };
 
   const selectAllSameLevel = () => {
@@ -408,6 +441,17 @@ const NewAssessment = () => {
     });
   };
 
+  const handleViewRubricDetails = () => {
+    if (!questionRubricId) return;
+    const rubric = rubrics.find(
+      (r) => String(r.rubric_set_id) === String(questionRubricId)
+    );
+    if (rubric) {
+      setSelectedRubricDetail(rubric);
+      setShowRubricDetailModal(true);
+    }
+  };
+
   const syncMathExpression = () => {
     const value = mathfieldRef.current?.getValue?.() ?? '';
     setMathExpression(value);
@@ -501,6 +545,65 @@ const NewAssessment = () => {
       // ignore
     }
   }, []);
+
+  // Load assessment data in edit mode
+  useEffect(() => {
+    if (!isEditMode || !editId) return;
+
+    const loadAssessment = async () => {
+      try {
+        const response = await axios.get(`/get_assessments.php`);
+        const assessments = response.data?.assessments || [];
+        const assessment = assessments.find(
+          (a) => String(a.exercise_id) === String(editId)
+        );
+
+        if (!assessment) {
+          toast.error('Assessment not found.');
+          navigate('/teacher/assessments');
+          return;
+        }
+
+        // Populate form fields
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'title', value: assessment.title || '' });
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'description', value: assessment.description || '' });
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'topic', value: assessment.topic || '' });
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'difficulty', value: assessment.difficulty || 'Medium' });
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'dueDate', value: assessment.due_date || '' });
+
+        // Set subject IDs
+        const subjectIds = (assessment.subjects || []).map((s) => s.subject_id);
+        if (subjectIds.length > 0) {
+          dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectIds', value: subjectIds });
+          dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'subjectId', value: subjectIds[0] });
+        }
+
+        // Set rubric
+        if (assessment.rubric_set_id) {
+          dispatch({ type: 'SET_SELECTED_RUBRIC', payload: String(assessment.rubric_set_id) });
+        }
+
+        // Set items
+        const items = (assessment.items || []).map((item, index) => ({
+          item_no: index + 1,
+          question_type: item.question_type || 'handwritten_algebra',
+          question_content: item.question_content || '',
+          question_label: item.question_label || '',
+          max_score: item.max_score || 1.0,
+          rubric_id: item.rubric_id || null,
+          model_solution: item.model_solution || '',
+        }));
+        dispatch({ type: 'SET_TEST_ITEMS', payload: items });
+
+      } catch (error) {
+        console.error('Failed to load assessment for editing', error);
+        toast.error('Failed to load assessment data.');
+        navigate('/teacher/assessments');
+      }
+    };
+
+    loadAssessment();
+  }, [isEditMode, editId]);
 
 
 
@@ -858,9 +961,14 @@ const NewAssessment = () => {
 
       };
 
-      await axios.post('/create_assessment.php', payload);
-
-      toast.success('Assessment created successfully!');
+      if (isEditMode) {
+        payload.exercise_id = Number(editId);
+        await axios.post('/update_assessment.php', payload);
+        toast.success('Assessment updated successfully!');
+      } else {
+        await axios.post('/create_assessment.php', payload);
+        toast.success('Assessment created successfully!');
+      }
 
       dispatch({ type: 'RESET_ASSESSMENT_FORM' });
       if (typeof window !== 'undefined') {
@@ -879,7 +987,7 @@ const NewAssessment = () => {
 
     } catch (error) {
 
-      console.error('Failed to create assessment', error);
+      console.error('Failed to save assessment', error);
 
       toast.error('We could not save the assessment. Please try again.');
 
@@ -928,8 +1036,8 @@ const NewAssessment = () => {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white">Create Assessment</h2>
-                    <p className="text-sm text-blue-100/80">Build quizzes, homework, or exams with a guided flow.</p>
+                    <h2 className="text-xl font-bold text-white">{isEditMode ? 'Edit Assessment' : 'Create Assessment'}</h2>
+                    <p className="text-sm text-blue-100/80">{isEditMode ? 'Update your assessment details and questions.' : 'Build quizzes, homework, or exams with a guided flow.'}</p>
                   </div>
                 </div>
               </div>
@@ -1000,39 +1108,39 @@ const NewAssessment = () => {
                       <div>
                         <label className="mb-1.5 block text-xs font-semibold text-slate-600">Subjects</label>
                         <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
-                          <div className="flex items-center justify-between mb-2">
+                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[10px] text-slate-400">
                               {(newAssessment.subjectIds?.length || 0)} selected
                             </span>
-                            <button
-                              type="button"
-                              onClick={selectAllSameLevel}
-                              className="text-[10px] font-semibold text-blue-600 hover:underline"
-                            >
-                              Select All Same Level
-                            </button>
+                            <span className="text-[10px] text-slate-300">
+                              Same name auto-selected
+                            </span>
                           </div>
                           <div className="max-h-40 overflow-y-auto space-y-1.5" style={{ scrollbarWidth: 'thin' }}>
                             {subjects.map((subject) => {
                               const isChecked = newAssessment.subjectIds?.includes(subject.id);
+                              const disabled = isSubjectDisabled(subject);
                               const meta = [subject.course, subject.year].filter(Boolean).join(' · ');
                               return (
                                 <label
                                   key={subject.id}
-                                  className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 transition cursor-pointer ${
-                                    isChecked
-                                      ? 'border-blue-200 bg-blue-50'
-                                      : 'border-slate-100 bg-white hover:border-slate-200'
+                                  className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 transition ${
+                                    disabled
+                                      ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
+                                      : isChecked
+                                        ? 'border-blue-200 bg-blue-50 cursor-pointer'
+                                        : 'border-slate-100 bg-white hover:border-slate-200 cursor-pointer'
                                   }`}
                                 >
                                   <input
                                     type="checkbox"
                                     checked={isChecked}
+                                    disabled={disabled}
                                     onChange={() => toggleSubject(subject.id)}
-                                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
                                   />
                                   <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium text-slate-700 truncate">{subject.name}</p>
+                                    <p className={`text-xs font-medium truncate ${disabled ? 'text-slate-400' : 'text-slate-700'}`}>{subject.name}</p>
                                     {meta && (
                                       <p className="text-[10px] text-slate-400">{meta}</p>
                                     )}
@@ -1180,7 +1288,6 @@ const NewAssessment = () => {
                         onChange={(e) => setQuestionRubricId(e.target.value)}
                         className="flex-1 text-[11px]"
                       >
-                        <option value="">No rubric (AI default)</option>
                         {rubrics.map((rubric) => (
                           <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
                             {rubric.rubric_name}
@@ -1194,6 +1301,15 @@ const NewAssessment = () => {
                       >
                         + New
                       </button>
+                      {questionRubricId && (
+                        <button
+                          type="button"
+                          onClick={handleViewRubricDetails}
+                          className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                        >
+                          View Details
+                        </button>
+                      )}
                     </div>
                     {!questionRubricId && !customizeDefault && (
                       <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
@@ -1442,7 +1558,7 @@ const NewAssessment = () => {
                     type="submit"
                     className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97]"
                   >
-                    Create Assessment
+                    {isEditMode ? 'Update Assessment' : 'Create Assessment'}
                   </button>
                 )}
               </div>
@@ -1453,10 +1569,17 @@ const NewAssessment = () => {
     </div>,
     modalRoot
   )}
-      <DefaultRubricModal 
-        isOpen={showDefaultRubricModal} 
-        onClose={() => setShowDefaultRubricModal(false)} 
+      <DefaultRubricModal
+        isOpen={showDefaultRubricModal}
+        onClose={() => setShowDefaultRubricModal(false)}
         totalScore={testItems.reduce((s, it) => s + (it.max_score || 0), 0)}
+      />
+      <RubricDetailModal
+        isOpen={showRubricDetailModal}
+        onClose={() => { setShowRubricDetailModal(false); setSelectedRubricDetail(null); }}
+        rubric={selectedRubricDetail}
+        teacherId={teacherId}
+        onSaved={() => loadRubrics()}
       />
         </>
       );
@@ -1831,6 +1954,324 @@ const DefaultRubricModal = ({ isOpen, onClose, totalScore = 0 }) => {
             >
               Got it
             </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    modalRoot
+  );
+};
+
+const RubricDetailModal = ({ isOpen, onClose, rubric, teacherId, onSaved }) => {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editItems, setEditItems] = React.useState([]);
+  const [newItemDesc, setNewItemDesc] = React.useState('');
+  const [newItemPts, setNewItemPts] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (rubric && isOpen) {
+      const items = Array.isArray(rubric.items) ? rubric.items : [];
+      setEditItems(items.map((it) => ({ ...it, enabled: true })));
+      setIsEditing(false);
+      setNewItemDesc('');
+      setNewItemPts('');
+    }
+  }, [rubric, isOpen]);
+
+  if (!isOpen || !rubric) return null;
+
+  const modalRoot = typeof document !== 'undefined' ? document.body : null;
+  if (!modalRoot) return null;
+
+  const levelDefinitions = Array.isArray(rubric.level_definitions)
+    ? rubric.level_definitions
+    : [];
+  const items = isEditing ? editItems : (Array.isArray(rubric.items) ? rubric.items : []);
+  const activeItems = isEditing ? editItems.filter((it) => it.enabled) : items;
+
+  const toggleItem = (index) => {
+    setEditItems((prev) => prev.map((it, i) => i === index ? { ...it, enabled: !it.enabled } : it));
+  };
+
+  const updateItemPoints = (index, points) => {
+    setEditItems((prev) => prev.map((it, i) => i === index ? { ...it, points } : it));
+  };
+
+  const removeItem = (index) => {
+    setEditItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addItem = () => {
+    const desc = newItemDesc.trim();
+    const pts = Number(newItemPts);
+    if (!desc) return;
+    if (!pts || pts <= 0) return;
+    setEditItems((prev) => [...prev, { description: desc, points: pts, enabled: true }]);
+    setNewItemDesc('');
+    setNewItemPts('');
+  };
+
+  const handleSave = async () => {
+    const active = editItems.filter((it) => it.enabled);
+    if (active.length === 0) {
+      toast.warning('At least one criterion must be enabled.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        rubric_set_id: rubric.rubric_set_id,
+        teacher_id: teacherId,
+        name: rubric.rubric_name,
+        criteria: rubric.criteria || '',
+        ai_instructions: rubric.ai_instructions || '',
+        level_definitions: levelDefinitions,
+        items: active.map((it) => ({ description: it.description, points: it.points })),
+      };
+      const response = await axios.post('/update_rubric_set.php', payload, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.data?.status !== 'success') {
+        throw new Error(response.data?.message || 'Failed to update rubric.');
+      }
+      toast.success('Rubric updated!');
+      setIsEditing(false);
+      onClose();
+      if (onSaved) onSaved();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || 'Failed to update rubric.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-slate-950/60 px-4 py-6 backdrop-blur-md">
+      <div className="relative w-full max-w-2xl max-h-[90vh]">
+        <div className="mx-auto flex max-h-[90vh] flex-col rounded-2xl border border-white/60 bg-white shadow-2xl">
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-sm">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
+                  <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">{rubric.rubric_name || 'Untitled Rubric'}</h3>
+                <p className="text-[11px] text-slate-400">
+                  {isEditing ? 'Edit criteria and scoring' : 'Rubric details and scoring criteria'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+            {/* Criteria Description */}
+            {rubric.criteria && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Grading Criteria</p>
+                <p className="text-sm text-slate-700 leading-relaxed">{rubric.criteria}</p>
+              </div>
+            )}
+
+            {/* AI Instructions */}
+            {rubric.ai_instructions && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1.5">AI Instructions</p>
+                <p className="text-sm text-slate-700 leading-relaxed">{rubric.ai_instructions}</p>
+              </div>
+            )}
+
+            {/* Level Definitions */}
+            {levelDefinitions.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Point Levels</p>
+                <div className="flex flex-wrap gap-2">
+                  {levelDefinitions.map((level, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5"
+                    >
+                      <span className="text-xs font-semibold text-emerald-700">{level.label}</span>
+                      <span className="text-[10px] text-emerald-600">{level.points} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Criteria Breakdown */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Criteria Breakdown</p>
+                {isEditing && (
+                  <span className="text-[10px] text-slate-400">
+                    {editItems.filter((it) => it.enabled).length} of {editItems.length} active
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center gap-3 rounded-lg border p-3 transition ${
+                      isEditing
+                        ? item.enabled
+                          ? 'border-blue-200 bg-white'
+                          : 'border-slate-200 bg-slate-50 opacity-50'
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    {isEditing ? (
+                      <>
+                        <input
+                          type="checkbox"
+                          checked={item.enabled}
+                          onChange={() => toggleItem(idx)}
+                          className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEditItems((prev) => prev.map((it, i) => i === idx ? { ...it, description: val } : it));
+                            }}
+                            className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                          />
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={item.points}
+                          onChange={(e) => updateItemPoints(idx, Number(e.target.value) || 0)}
+                          className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-[10px] font-bold text-blue-600 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                        />
+                        <span className="text-[10px] text-slate-400">pts</span>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="text-red-400 hover:text-red-600"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                          </svg>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-slate-700">{item.description}</p>
+                        </div>
+                        <span className="shrink-0 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                          {item.points} pts
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add new criterion (edit mode) */}
+              {isEditing && (
+                <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-2.5 space-y-2">
+                  <input
+                    type="text"
+                    value={newItemDesc}
+                    onChange={(e) => setNewItemDesc(e.target.value)}
+                    placeholder="New criterion description"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={newItemPts}
+                      onChange={(e) => setNewItemPts(e.target.value)}
+                      placeholder="Points"
+                      className="w-20 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={addItem}
+                      disabled={!newItemDesc.trim() || !newItemPts || Number(newItemPts) <= 0}
+                      className="flex items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                      </svg>
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Empty state */}
+            {!isEditing && activeItems.length === 0 && !rubric.criteria && !rubric.ai_instructions && levelDefinitions.length === 0 && (
+              <div className="py-8 text-center">
+                <p className="text-sm text-slate-400">No details available for this rubric.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex shrink-0 items-center justify-between border-t border-slate-100 px-6 py-3">
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="rounded-full bg-emerald-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 active:scale-[0.97]"
+                >
+                  Edit Rubric
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-full bg-slate-800 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
+                >
+                  Close
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

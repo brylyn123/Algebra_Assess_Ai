@@ -1370,9 +1370,9 @@ const GradeSubmissions = () => {
       </div>
 
       {(selectedSubmission || batchCompleted) && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm transition-opacity duration-200" onClick={closeGradingPanel}>
+        <div className="fixed inset-0 top-14 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/30 p-4 backdrop-blur-sm transition-opacity duration-200" onClick={closeGradingPanel}>
           <div
-            className="mx-auto flex max-h-[88vh] w-[min(860px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl bg-white shadow-[0_40px_100px_rgba(15,23,42,0.25)] ring-1 ring-black/5"
+            className="mx-auto my-auto flex max-h-[calc(100vh-8rem)] w-[min(860px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl bg-white shadow-[0_40px_100px_rgba(15,23,42,0.25)] ring-1 ring-black/5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 px-4 sm:px-8 py-4 sm:py-6 text-white">
@@ -1673,14 +1673,15 @@ const GradeSubmissions = () => {
                           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400 mb-3">Criteria Breakdown</p>
                           <div className="space-y-3">
                             {draftAiGeneration.criteria_scores.map((criterion, idx) => {
-                              const pct = criterion.weight > 0 ? Math.round((criterion.earned / criterion.weight) * 100) : 0;
+                              const criterionPct = criterion.weight > 0 ? Math.round((criterion.earned / criterion.weight) * 100) : 0;
                               const equivMax = (criterion.weight / 100) * draftMaxScore;
                               const equivEarned = (criterion.earned / 100) * draftMaxScore;
+                              const contributionPct = criterion.weight > 0 ? Math.round((criterion.earned / criterion.weight) * 100) : 0;
                               return (
                                 <div key={idx} className="space-y-1.5">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs font-semibold text-slate-700">{criterion.name}</span>
-                                    <span className="text-xs font-bold text-emerald-600">{equivEarned.toFixed(1)} / {equivMax.toFixed(1)} pts ({pct}%)</span>
+                                    <span className="text-xs font-bold text-emerald-600">{equivEarned.toFixed(1)} / {equivMax.toFixed(1)} pts ({contributionPct}%)</span>
                                   </div>
                                   <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                                     <div
