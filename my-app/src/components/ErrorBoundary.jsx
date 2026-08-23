@@ -28,6 +28,11 @@ export default class ErrorBoundary extends React.Component {
             <p className="mt-2 text-sm text-slate-500">
               An unexpected error occurred. Please try refreshing the page.
             </p>
+            {this.state.error && (
+              <pre className="mt-3 max-h-40 overflow-auto rounded-lg bg-slate-100 p-3 text-left text-[11px] text-rose-600 whitespace-pre-wrap break-words">
+                {this.state.error.message}
+              </pre>
+            )}
             <button
               type="button"
               onClick={() => window.location.reload()}

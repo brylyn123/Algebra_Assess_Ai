@@ -314,7 +314,7 @@ const ManageSubjects = () => {
             return;
         }
         try {
-                const response = await axios.get('/get_subject_filters.php', {
+            const response = await axios.get('/get_subject_filters.php', {
                 params: { teacher_id: teacherId }
             });
             const data = response.data || {};
@@ -335,7 +335,7 @@ const ManageSubjects = () => {
             return;
         }
         try {
-                const response = await axios.get('/get_archived_subjects.php', {
+            const response = await axios.get('/get_archived_subjects.php', {
                 params: { teacher_id: teacherId }
             });
             const archivedData = Array.isArray(response.data.data)
@@ -472,7 +472,8 @@ const ManageSubjects = () => {
             const assessmentSubject = String(
                 assessment.subject || assessment.subject_name || assessment.subject_display || ''
             ).trim().toLowerCase();
-            return subjectLabel && assessmentSubject === subjectLabel;
+            const status = String(assessment.assessment_status || assessment.status || 'Draft').toLowerCase();
+            return subjectLabel && assessmentSubject === subjectLabel && status !== 'draft';
         });
 
         return matchingAssessments.reduce(
@@ -539,93 +540,93 @@ const ManageSubjects = () => {
             {archiveConfirmSubject && (() => {
                 const enrollCount = subjectEnrollments[archiveConfirmSubject.id]?.length ?? 0;
                 return createPortal((
-                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-                    <div
-                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
-                        onClick={() => setArchiveConfirmSubject(null)}
-                    />
-                    <div
-                        className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-[0_40px_100px_rgba(15,23,42,0.25)] ring-1 ring-black/5 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="relative overflow-hidden bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 px-7 py-6 text-white">
-                            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
-                            <div className="absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-white/10" />
-                            <div className="relative flex items-start justify-between">
-                                <div className="flex items-center gap-3.5">
-                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 shadow-inner backdrop-blur-sm">
-                                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
+                            onClick={() => setArchiveConfirmSubject(null)}
+                        />
+                        <div
+                            className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-[0_40px_100px_rgba(15,23,42,0.25)] ring-1 ring-black/5 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="relative overflow-hidden bg-gradient-to-br from-amber-400 via-orange-400 to-rose-400 px-7 py-6 text-white">
+                                <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
+                                <div className="absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-white/10" />
+                                <div className="relative flex items-start justify-between">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 shadow-inner backdrop-blur-sm">
+                                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">Archive Subject</p>
+                                            <h3 className="mt-0.5 text-xl font-extrabold tracking-tight">{archiveConfirmSubject.name}</h3>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveConfirmSubject(null)}
+                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="px-7 py-6">
+                                <div className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-100 p-4">
+                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+                                        <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                                         </svg>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">Archive Subject</p>
-                                        <h3 className="mt-0.5 text-xl font-extrabold tracking-tight">{archiveConfirmSubject.name}</h3>
+                                        <p className="text-sm font-semibold text-amber-800">This action will hide the subject</p>
+                                        <p className="mt-1 text-xs leading-relaxed text-amber-600/80">
+                                            Students will no longer see <span className="font-semibold">"{archiveConfirmSubject.name}"</span> in their active subjects. You can restore it later from the Archived tab.
+                                        </p>
                                     </div>
                                 </div>
+
+                                <div className="mt-5 grid grid-cols-2 gap-3">
+                                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Course</p>
+                                        <p className="mt-1 text-sm font-semibold text-slate-800">{archiveConfirmSubject.course || '—'}</p>
+                                        <p className="text-xs text-slate-500">{archiveConfirmSubject.section || '—'}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Students</p>
+                                        <p className="mt-1 text-sm font-semibold text-slate-800">{enrollCount} enrolled</p>
+                                        <p className="text-xs text-slate-500">Will be hidden</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+                                    <span className="text-xs text-slate-500">Join Code</span>
+                                    <span className="font-mono text-sm font-bold tracking-wider text-slate-700">{archiveConfirmSubject.joinCode || '—'}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/50 px-7 py-4">
                                 <button
                                     type="button"
                                     onClick={() => setArchiveConfirmSubject(null)}
-                                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                                    className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition-all duration-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm active:scale-[0.97]"
                                 >
-                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleArchive(archiveConfirmSubject)}
+                                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-xs font-semibold text-white shadow-md shadow-amber-200/60 transition-all duration-200 hover:shadow-lg hover:shadow-amber-300/60 hover:brightness-110 active:scale-[0.97]"
+                                >
+                                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5"><path d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
+                                    Confirm Archive
                                 </button>
                             </div>
                         </div>
-
-                        <div className="px-7 py-6">
-                            <div className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-100 p-4">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
-                                    <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-amber-800">This action will hide the subject</p>
-                                    <p className="mt-1 text-xs leading-relaxed text-amber-600/80">
-                                        Students will no longer see <span className="font-semibold">"{archiveConfirmSubject.name}"</span> in their active subjects. You can restore it later from the Archived tab.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-5 grid grid-cols-2 gap-3">
-                                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
-                                    <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Course</p>
-                                    <p className="mt-1 text-sm font-semibold text-slate-800">{archiveConfirmSubject.course || '—'}</p>
-                                    <p className="text-xs text-slate-500">{archiveConfirmSubject.section || '—'}</p>
-                                </div>
-                                <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
-                                    <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Students</p>
-                                    <p className="mt-1 text-sm font-semibold text-slate-800">{enrollCount} enrolled</p>
-                                    <p className="text-xs text-slate-500">Will be hidden</p>
-                                </div>
-                            </div>
-
-                            <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
-                                <span className="text-xs text-slate-500">Join Code</span>
-                                <span className="font-mono text-sm font-bold tracking-wider text-slate-700">{archiveConfirmSubject.joinCode || '—'}</span>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/50 px-7 py-4">
-                            <button
-                                type="button"
-                                onClick={() => setArchiveConfirmSubject(null)}
-                                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition-all duration-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm active:scale-[0.97]"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleArchive(archiveConfirmSubject)}
-                                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-xs font-semibold text-white shadow-md shadow-amber-200/60 transition-all duration-200 hover:shadow-lg hover:shadow-amber-300/60 hover:brightness-110 active:scale-[0.97]"
-                            >
-                                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5"><path d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
-                                Confirm Archive
-                            </button>
-                        </div>
                     </div>
-                </div>
                 ), document.body);
             })()}
 
@@ -767,98 +768,98 @@ const ManageSubjects = () => {
                                 .subject-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
                             `}</style>
                             <div className="subject-scroll grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {visibleSubjectList.length > 0 ? (
-                                visibleSubjectList.map((subject, index) => {
-                                    const theme = getSubjectCardTheme(subject);
+                                {visibleSubjectList.length > 0 ? (
+                                    visibleSubjectList.map((subject, index) => {
+                                        const theme = getSubjectCardTheme(subject);
 
-                                    return (
-                                        <div
-                                            key={subject.id}
-                                            className={`group relative overflow-hidden rounded-[1.05rem] border border-l-[3px] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${theme.cardClass}`}
-                                            style={{ animationDelay: `${index * 50}ms` }}
-                                        >
-                                            <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${theme.accentClass}`} />
-                                            <div className="flex flex-col gap-3 p-4 pl-5">
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <h3 className={`text-sm font-bold truncate ${theme.cardTextClass}`}>{subject.name}</h3>
-                                                            <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.cardBadgeClass}`}>
-                                                                {subject.archived ? 'Archived' : 'Active'}
-                                                            </span>
+                                        return (
+                                            <div
+                                                key={subject.id}
+                                                className={`group relative overflow-hidden rounded-[1.05rem] border border-l-[3px] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${theme.cardClass}`}
+                                                style={{ animationDelay: `${index * 50}ms` }}
+                                            >
+                                                <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${theme.accentClass}`} />
+                                                <div className="flex flex-col gap-3 p-4 pl-5">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <h3 className={`text-sm font-bold truncate ${theme.cardTextClass}`}>{subject.name}</h3>
+                                                                <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.cardBadgeClass}`}>
+                                                                    {subject.archived ? 'Archived' : 'Active'}
+                                                                </span>
+                                                            </div>
+                                                            <p className={`mt-0.5 text-xs truncate ${theme.cardSubtextClass}`}>
+                                                                {subject.course} · {subject.year} · {subject.section}
+                                                            </p>
                                                         </div>
-                                                        <p className={`mt-0.5 text-xs truncate ${theme.cardSubtextClass}`}>
-                                                            {subject.course} · {subject.year} · {subject.section}
-                                                        </p>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${theme.chipClass}`}>
+                                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 opacity-60">
+                                                                <path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" />
+                                                            </svg>
+                                                            SY {subject.schoolYear}
+                                                        </span>
+                                                        <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium ${theme.chipClass}`}>
+                                                            {subject.semester}
+                                                        </span>
+                                                        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${theme.cardBadgeClass}`}>
+                                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                                                                <path d="M8 8a3 3 0 100-6 3 3 0 000 6zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                                            </svg>
+                                                            {subject.studentCount ?? 0}
+                                                        </span>
+                                                    </div>
+                                                    <div className={`flex items-center gap-2 pt-1 border-t ${theme.chipClass}`}>
+                                                        <span className={`rounded-lg border px-2 py-1 text-[10px] font-mono font-semibold ${theme.chipClass}`}>
+                                                            {subject.joinCode}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                fetchEnrollments();
+                                                                setSelectedSubject(subject);
+                                                            }}
+                                                            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:scale-[0.97] ${theme.chipClass}`}
+                                                        >
+                                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                                                                <path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" />
+                                                            </svg>
+                                                            View
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${theme.chipClass}`}>
-                                                        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 opacity-60">
-                                                            <path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" />
-                                                        </svg>
-                                                        SY {subject.schoolYear}
-                                                    </span>
-                                                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium ${theme.chipClass}`}>
-                                                        {subject.semester}
-                                                    </span>
-                                                    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${theme.cardBadgeClass}`}>
-                                                        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                                                            <path d="M8 8a3 3 0 100-6 3 3 0 000 6zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                                                        </svg>
-                                                        {subject.studentCount ?? 0}
-                                                    </span>
-                                                </div>
-                                                <div className={`flex items-center gap-2 pt-1 border-t ${theme.chipClass}`}>
-                                                    <span className={`rounded-lg border px-2 py-1 text-[10px] font-mono font-semibold ${theme.chipClass}`}>
-                                                        {subject.joinCode}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            fetchEnrollments();
-                                                            setSelectedSubject(subject);
-                                                        }}
-                                                        className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:scale-[0.97] ${theme.chipClass}`}
-                                                    >
-                                                        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                                                            <path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" />
-                                                        </svg>
-                                                        View
-                                                    </button>
-                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-16 text-center">
-                                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
-                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-7 w-7 text-blue-400">
-                                            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                                        </svg>
-                                    </div>
-                                    <h4 className="text-sm font-bold text-slate-700">No subjects yet</h4>
-                                    <p className="mt-1 max-w-xs text-xs text-slate-400">
-                                        {showArchivedSubjects
-                                            ? 'No archived subjects match your search.'
-                                            : 'Get started by adding your first class using the button above.'}
-                                    </p>
-                                    {!showArchivedSubjects && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowAddSubjectForm(true)}
-                                            className="mt-4 flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
-                                        >
-                                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                        );
+                                    })
+                                ) : (
+                                    <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-16 text-center">
+                                        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
+                                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-7 w-7 text-blue-400">
                                                 <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                                             </svg>
-                                            Add your first subject
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                                        </div>
+                                        <h4 className="text-sm font-bold text-slate-700">No subjects yet</h4>
+                                        <p className="mt-1 max-w-xs text-xs text-slate-400">
+                                            {showArchivedSubjects
+                                                ? 'No archived subjects match your search.'
+                                                : 'Get started by adding your first class using the button above.'}
+                                        </p>
+                                        {!showArchivedSubjects && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowAddSubjectForm(true)}
+                                                className="mt-4 flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+                                            >
+                                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                                </svg>
+                                                Add your first subject
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="shrink-0 border-t border-slate-100 bg-slate-50/50 px-6 py-3 flex items-center justify-end">
                             <button

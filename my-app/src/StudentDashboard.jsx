@@ -95,7 +95,7 @@ const analyzeImageQuality = (file) => {
           reasons.push('Image has low contrast');
         }
 
-        resolve({ pass: reasons.length === 0, reasons });
+        resolve({ pass: true, reasons });
       } catch {
         resolve({ pass: true, reasons: [] });
       }
@@ -119,10 +119,15 @@ const checkImageContent = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const response = await apiFetch('/check_image_legibility.php', {
       method: 'POST',
       body: formData,
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     const result = await response.json();
 
     if (result.status === 'success') {
@@ -804,6 +809,7 @@ export const StudentOverview = () => {
 };
 
 export const StudentSubjects = () => {
+  const { toast } = useToast();
   const navigate = useNavigate();
   const { id: subjectIdParam = '' } = useParams();
   const {
@@ -902,32 +908,35 @@ export const StudentSubjects = () => {
     setSelectedFiles((current) => [...current, ...fileList]);
     event.target.value = '';
 
+    // Step 1: Run client-side quality checks (instant) and mark as checking content
     for (let i = 0; i < fileList.length; i++) {
-      const fileIndex = startIndex + i;
-      // Step 1: Check image quality (instant, client-side)
       const qualityResult = await analyzeImageQuality(fileList[i]);
       setFileQualityResults((prev) => {
         const next = new Map(prev);
-        next.set(fileIndex, { ...qualityResult, checking: true });
+        next.set(startIndex + i, { ...qualityResult, pass: true, checking: true });
         return next;
       });
       if (!qualityResult.pass) {
         const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
         toast.warning(`${fileList[i].name}: ${reasons}. Please retake with better lighting.`);
       }
-
-      // Step 2: Check image content (AI, server-side)
-      const contentResult = await checkImageContent(fileList[i]);
-      setFileQualityResults((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(fileIndex) || {};
-        next.set(fileIndex, { ...existing, ...contentResult, checking: false });
-        return next;
-      });
-      if (!contentResult.pass) {
-        toast.error(`${fileList[i].name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
-      }
     }
+
+    // Step 2: Run content checks in background and update status when done
+    fileList.forEach((file, i) => {
+      const fileIndex = startIndex + i;
+      checkImageContent(file).then((contentResult) => {
+        setFileQualityResults((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(fileIndex) || {};
+          next.set(fileIndex, { ...existing, ...contentResult, checking: false });
+          return next;
+        });
+        if (!contentResult.pass) {
+          toast.error(`${file.name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
+        }
+      });
+    });
   };
 
   const openFilePicker = () => {
@@ -986,8 +995,12 @@ export const StudentSubjects = () => {
     }
 
     if (selectedAssessment.already_submitted) {
-      setSubmitMessage('This assessment already has a submission.');
-      toast.warning('This assessment already has a submission.');
+      setSubmitMessage('This assessment was already submitted. Your teacher can grade it now.');
+      try { toast?.info('Already submitted — waiting for teacher to grade.'); } catch (_) {}
+      setTimeout(() => {
+        setSelectedAssessmentId('');
+        setSubmitMessage('');
+      }, 2000);
       return;
     }
 
@@ -998,9 +1011,7 @@ export const StudentSubjects = () => {
     }
 
     if (hasFailingImages) {
-      setSubmitMessage('Some files failed quality checks. Please remove or replace them before submitting.');
-      toast.error('Some images are blurry or too dark. Please replace them before submitting.');
-      return;
+      toast.warning('Some images may be blurry or not handwritten math. Submitting anyway.');
     }
 
     setSubmitLoading(true);
@@ -1047,10 +1058,18 @@ export const StudentSubjects = () => {
             : assessment
         )
       );
+      try { toast?.success('Assessment submitted successfully!'); } catch (_) {}
+      setTimeout(() => {
+        setSelectedAssessmentId('');
+        setSubmitMessage('');
+      }, 1200);
     } catch (error) {
       const errMsg = error.message || 'Unable to submit assessment.';
       setSubmitMessage(errMsg);
-      toast.error(errMsg);
+      try { toast?.error(errMsg); } catch (_) {}
+      if (errMsg.toLowerCase().includes('already submitted')) {
+        setTimeout(() => setSelectedAssessmentId(''), 1500);
+      }
     } finally {
       setSubmitLoading(false);
     }
@@ -1343,7 +1362,7 @@ export const StudentSubjects = () => {
                   <div className="teacher-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-2">
                     {subjectAssessments.map((assessment) => {
                       const isSelected = String(assessment.exercise_id) === String(selectedAssessmentId);
-                      const isSubmitted = Boolean(assessment.already_submitted || assessment.submission_status);
+                      const isSubmitted = Boolean(assessment.already_submitted || (assessment.submission_status && assessment.submission_status !== 'Not Submitted'));
                       const isOverdue = (() => {
                         if (!assessment.due_date) return false;
                         const due = new Date(assessment.due_date);
@@ -1513,6 +1532,12 @@ export const StudentSubjects = () => {
                         <div className="border-t border-slate-200 bg-white px-4 py-3 space-y-2">
                           {selectedAssessment.already_submitted ? (
                             <>
+                              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                                <svg className="h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                </svg>
+                                <p className="text-xs font-semibold text-emerald-700">Already Submitted — your teacher can now grade this.</p>
+                              </div>
                               <div>
                                 <p className="text-sm font-semibold text-slate-900">Submitted Solution</p>
                                 <p className="mt-0.5 text-xs text-slate-500">
@@ -1573,31 +1598,32 @@ export const StudentSubjects = () => {
                                 </p>
                               </div>
 
-                              <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 md:flex-row md:items-center">
-                                <div className="flex-1 space-y-1.5">
-                                  <input
-                                    ref={fileInputRef}
-                                    id={`student-upload-${selectedAssessment.exercise_id}`}
-                                    type="file"
-                                    multiple
-                                    accept="image/*,.pdf"
-                                    onChange={handleFiles}
-                                    className="w-full rounded-lg border border-slate-200 bg-white text-xs text-slate-700 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700"
-                                  />
-                                  <p className="text-[11px] italic text-slate-500">{fileLabel}</p>
-                                  <p className="text-[10px] text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                                  <div className="flex-1 space-y-1.5">
+                                    <input
+                                      ref={fileInputRef}
+                                      id={`student-upload-${selectedAssessment.exercise_id}`}
+                                      type="file"
+                                      multiple
+                                      accept="image/*,.pdf"
+                                      onChange={handleFiles}
+                                      className="w-full rounded-lg border border-slate-200 bg-white text-xs text-slate-700 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700"
+                                    />
+                                    <p className="text-[11px] italic text-slate-500">{fileLabel}</p>
+                                    <p className="text-[10px] text-slate-500">Supported formats: JPG, JPEG, PNG, PDF</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={openFilePicker}
+                                    className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
+                                  >
+                                    Select Files
+                                  </button>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={openFilePicker}
-                                  className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 md:shrink-0"
-                                >
-                                  Select Files
-                                </button>
-                              </div>
 
-                              {selectedFiles.length > 0 && (
-                                <div className="space-y-1.5">
+                                {selectedFiles.length > 0 && (
+                                  <div className="mt-2.5 space-y-1.5 border-t border-slate-200 pt-2.5">
                                   <p className="text-[11px] font-semibold text-slate-500">Selected files ({selectedFiles.length})</p>
                                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                                     {selectedFiles.map((file, index) => {
@@ -1642,7 +1668,7 @@ export const StudentSubjects = () => {
                                               Remove
                                             </button>
                                           </div>
-                                          {(() => {
+                                           {(() => {
                                             const quality = fileQualityResults.get(index);
                                             if (!quality) return null;
                                             if (quality.checking) {
@@ -1668,7 +1694,7 @@ export const StudentSubjects = () => {
                                             return (
                                               <div className="px-2 pb-1.5">
                                                 <span className="text-[10px] font-medium text-rose-500">
-                                                  ⚠ {quality.reasons?.join(', ') || quality.reason || 'Poor quality'}
+                                                  ⚠ {quality.reason || 'Not a handwritten math solution'}
                                                 </span>
                                               </div>
                                             );
@@ -1686,6 +1712,7 @@ export const StudentSubjects = () => {
                                   </button>
                                 </div>
                               )}
+                              </div>
                             </>
                           )}
 
@@ -1707,7 +1734,7 @@ export const StudentSubjects = () => {
                                   <button
                                     type="button"
                                     onClick={handleSubmit}
-                                    disabled={submitLoading || hasFailingImages || isOverdue}
+                                    disabled={submitLoading || isOverdue}
                                     className={`ml-auto rounded-xl px-4 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 ${isOverdue ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}
                                   >
                                     {isOverdue ? 'Submission Closed' : submitLoading ? 'Submitting...' : 'Submit Files'}
@@ -1729,7 +1756,18 @@ export const StudentSubjects = () => {
                             </div>
                           )}
 
-                          {submitMessage && <p className="text-xs text-slate-600">{submitMessage}</p>}
+                          {submitMessage && (
+                            <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium ${submitMessage.includes('successfully') ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                              <svg viewBox="0 0 20 20" fill="currentColor" className={`h-5 w-5 shrink-0 ${submitMessage.includes('successfully') ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                {submitMessage.includes('successfully') ? (
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+                                ) : (
+                                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                )}
+                              </svg>
+                              {submitMessage}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

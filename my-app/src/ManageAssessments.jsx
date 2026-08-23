@@ -5,7 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 import { getSubjectThemeByName } from './subjectCardThemes';
 import { API_BASE_URL } from './apiBase';
+import { apiFetch } from './fetchClient';
 import MathText from './MathText';
+import Select from './components/Select';
 
 const formatDate = (value) => {
     if (!value) return 'Not dated yet';
@@ -19,9 +21,11 @@ const formatDate = (value) => {
 const ManageAssessments = () => {
     const navigate = useNavigate();
     const prefersReducedMotion = useReducedMotion();
-    const { assessments, rubrics, loading, statusMessage } = useTeacherRecords();
+    const { assessments, rubrics, loading, statusMessage, deleteAssessment } = useTeacherRecords();
     const [activePanel, setActivePanel] = useState('assessments');
     const [assessmentFilter, setAssessmentFilter] = useState('all');
+    const [subjectFilter, setSubjectFilter] = useState('all');
+    const [publishing, setPublishing] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyPanel, setHistoryPanel] = useState('assessments');
     const [showAssessmentDetail, setShowAssessmentDetail] = useState(false);
@@ -31,6 +35,8 @@ const ManageAssessments = () => {
     const [trackerLoading, setTrackerLoading] = useState(false);
     const [trackerError, setTrackerError] = useState('');
     const [trackerCache, setTrackerCache] = useState({});
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [assessmentToDelete, setAssessmentToDelete] = useState(null);
 
     const formatDateTime = (value) => {
         if (!value) return null;
@@ -81,6 +87,47 @@ const ManageAssessments = () => {
         }
     }, []);
 
+    const handlePublish = useCallback(async (exerciseId) => {
+        if (!exerciseId || publishing) return;
+        setPublishing(true);
+        try {
+            const response = await apiFetch('/publish_assessment.php', {
+                method: 'POST',
+                body: JSON.stringify({ exercise_id: exerciseId }),
+            });
+            const text = await response.text();
+            let payload;
+            try { payload = JSON.parse(text); } catch { throw new Error('Invalid server response.'); }
+            if (!response.ok || payload.status !== 'success') {
+                throw new Error(payload.message || 'Unable to publish assessment.');
+            }
+            window.location.reload();
+        } catch (err) {
+            alert(err.message || 'Failed to publish assessment.');
+        } finally {
+            setPublishing(false);
+        }
+    }, [publishing]);
+
+    const handleDelete = useCallback((exerciseId) => {
+        if (!exerciseId) return;
+        const assessment = assessments.find((a) => a.exercise_id === exerciseId);
+        setAssessmentToDelete(assessment || { exercise_id: exerciseId });
+        setShowDeleteConfirm(true);
+    }, [assessments]);
+
+    const confirmDelete = useCallback(async () => {
+        if (!assessmentToDelete) return;
+        try {
+            await deleteAssessment(assessmentToDelete.exercise_id);
+            setShowDeleteConfirm(false);
+            setAssessmentToDelete(null);
+            setShowAssessmentDetail(false);
+        } catch {
+            // toast already shown by hook
+        }
+    }, [assessmentToDelete, deleteAssessment]);
+
     useEffect(() => {
         setDetailTab('questions');
         setTrackerData(null);
@@ -111,36 +158,59 @@ const ManageAssessments = () => {
         }
     }, [detailTab, selectedAssessmentDetail?.exercise_id, showAssessmentDetail]);
 
+    const subjectOptions = useMemo(() => {
+        const map = new Map();
+        assessments.forEach((item) => {
+            (item.subjects || []).forEach((s) => {
+                if (s?.subject_id != null && !map.has(String(s.subject_id))) {
+                    map.set(String(s.subject_id), s.subject_name || 'Unnamed Subject');
+                }
+            });
+        });
+        return Array.from(map.entries())
+            .map(([id, name]) => ({ id, name }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [assessments]);
+
     const filteredAssessments = useMemo(() => {
         return assessments.filter((item) => {
+            if (subjectFilter !== 'all') {
+                const belongs = (item.subjects || []).some(
+                    (s) => String(s.subject_id) === String(subjectFilter)
+                );
+                if (!belongs) return false;
+            }
             const statusValue = String(item.assessment_status || item.status || 'Draft').toLowerCase();
+            if (assessmentFilter === 'draft') {
+                return statusValue === 'draft';
+            }
             if (assessmentFilter === 'pending') {
-                return statusValue !== 'graded';
+                return statusValue !== 'graded' && statusValue !== 'draft';
             }
             if (assessmentFilter === 'graded') {
                 return statusValue === 'graded';
             }
-            return true;
+            return statusValue !== 'draft';
         });
-    }, [assessments, assessmentFilter]);
+    }, [assessments, assessmentFilter, subjectFilter]);
 
     const getStatusClasses = (statusValue) => {
         const lower = String(statusValue).toLowerCase();
-        if (lower === 'graded') return { accent: 'from-emerald-400 to-emerald-600', badge: 'bg-emerald-50 text-emerald-700', avatar: 'from-emerald-400 to-emerald-500' };
-        if (lower === 'pending') return { accent: 'from-amber-400 to-amber-600', badge: 'bg-amber-50 text-amber-700', avatar: 'from-amber-400 to-amber-500' };
-        return { accent: 'from-blue-400 to-blue-600', badge: 'bg-blue-50 text-blue-700', avatar: 'from-blue-400 to-blue-500' };
+        if (lower === 'graded') return { accent: 'from-emerald-400 to-emerald-600', badge: 'bg-emerald-50 text-emerald-700', avatar: 'from-emerald-400 to-emerald-500', dot: 'bg-emerald-500' };
+        if (lower === 'pending') return { accent: 'from-amber-400 to-amber-600', badge: 'bg-amber-50 text-amber-700', avatar: 'from-amber-400 to-amber-500', dot: 'bg-amber-500' };
+        return { accent: 'from-blue-400 to-blue-600', badge: 'bg-blue-50 text-blue-700', avatar: 'from-blue-400 to-blue-500', dot: 'bg-blue-500' };
     };
 
     const actionCards = [
         {
             title: 'New Assessment',
             description: 'Create a quiz, homework task, or exam with a clean guided flow.',
-            tone: 'bg-[linear-gradient(135deg,rgba(96,165,250,0.95),rgba(37,99,235,0.96))] text-white shadow-[0_24px_60px_rgba(59,130,246,0.18)]',
+            tone: 'border border-slate-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg',
             buttonLabel: 'Create Assessment',
-            buttonClass: 'text-blue-700',
-            copyClass: 'text-white/85',
+            buttonClass: 'bg-blue-600 text-white shadow-md shadow-blue-500/25 hover:bg-blue-700',
+            copyClass: 'text-slate-400',
             icon: (
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-blue-600">
                     <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zM9 9a.75.75 0 000 1.5h.75a.75.75 0 000-1.5H9z" clipRule="evenodd" />
                 </svg>
             ),
@@ -165,6 +235,20 @@ const ManageAssessments = () => {
                                 <h2 className="text-lg font-bold text-white">Assessments</h2>
                             </div>
                             <p className="text-xs text-blue-100 ml-[42px]">Create and manage your quizzes, exams, and rubrics.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-medium text-white">
+                                <span className="h-1.5 w-1.5 rounded-full bg-white/60" />
+                                Total {assessments.length}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                Active {assessments.filter((a) => String(a.assessment_status || a.status || 'Draft').toLowerCase() !== 'draft').length}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[10px] font-medium text-amber-100">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                                Drafts {assessments.filter((a) => String(a.assessment_status || a.status || 'Draft').toLowerCase() === 'draft').length}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -202,7 +286,7 @@ const ManageAssessments = () => {
                         <div className="flex flex-wrap items-center gap-2">
                             {activePanel === 'assessments' && (
                                 <div className="inline-flex rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
-                                    {['all', 'pending', 'graded'].map((filter) => (
+                                    {['all', 'draft', 'pending', 'graded'].map((filter) => (
                                         <button
                                             key={filter}
                                             type="button"
@@ -256,11 +340,11 @@ const ManageAssessments = () => {
                                                 className={`relative overflow-hidden rounded-xl ${card.tone} p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 ring-1 ring-blue-100">
                                                         {card.icon}
                                                     </div>
                                                     <div className="min-w-0 flex-1">
-                                                        <h2 className="text-sm font-bold leading-tight tracking-tight text-inherit">
+                                                        <h2 className="text-sm font-bold leading-tight tracking-tight text-slate-900">
                                                             {card.title}
                                                         </h2>
                                                         <p className={`text-[10px] leading-4 ${card.copyClass}`}>
@@ -270,7 +354,7 @@ const ManageAssessments = () => {
                                                     <button
                                                         type="button"
                                                         onClick={card.onClick}
-                                                        className={`inline-flex shrink-0 items-center justify-center rounded-full bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] shadow-md transition hover:-translate-y-0.5 ${card.buttonClass}`}
+                                                        className={`inline-flex shrink-0 items-center justify-center rounded-full px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.14em] transition hover:-translate-y-0.5 ${card.buttonClass}`}
                                                     >
                                                         <span className="hidden sm:inline">{card.buttonLabel}</span>
                                                         <span className="sm:hidden">Create</span>
@@ -278,6 +362,41 @@ const ManageAssessments = () => {
                                                 </div>
                                             </motion.article>
                                         ))}
+                                        {subjectOptions.length > 0 && (
+                                            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-500">
+                                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                                                        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.695c.441 0 .831.292 1.183.643l1.48 1.48c.35.35.642.74.642 1.184v7.693A1.5 1.5 0 0114 14.5V8.354c0-.331-.132-.649-.369-.883L11.03 4.84A1.25 1.25 0 0010.14 4.5H8.091c-.175-.037-.34-.086-.5-.146L7 3.5z" />
+                                                        <path fillRule="evenodd" d="M4.5 6A1.5 1.5 0 003 7.5v8A1.5 1.5 0 004.5 17h7a1.5 1.5 0 001.5-1.5v-5.9a1.5 1.5 0 00-.44-1.06L9.46 5.44A1.5 1.5 0 008.4 5H4.5zM6 9.75A.75.75 0 016.75 9h2.5a.75.75 0 010 1.5h-2.5A.75.75 0 016 9.75zm0 3a.75.75 0 01.75-.75h2.5a.75.75 0 010 1.5h-2.5a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Filter by Subject</p>
+                                                    <Select
+                                                        value={subjectFilter}
+                                                        onChange={(e) => setSubjectFilter(e.target.value)}
+                                                        className="mt-1 w-full text-xs font-semibold"
+                                                    >
+                                                        <option value="all">All Subjects</option>
+                                                        {subjectOptions.map((s) => (
+                                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                                        ))}
+                                                    </Select>
+                                                </div>
+                                                {subjectFilter !== 'all' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSubjectFilter('all')}
+                                                        className="shrink-0 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                                                        title="Clear subject filter"
+                                                    >
+                                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                                            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Section header */}
@@ -296,7 +415,7 @@ const ManageAssessments = () => {
                                             </div>
                                             <h4 className="text-sm font-bold text-slate-700">No assessments yet</h4>
                                             <p className="mt-1 max-w-xs text-xs text-slate-400">
-                                                {assessmentFilter !== 'all'
+                                                {assessmentFilter !== 'all' || subjectFilter !== 'all'
                                                     ? 'No assessments match this filter. Try a different filter or create a new assessment.'
                                                     : 'Create your first assessment to get started.'}
                                             </p>
@@ -314,30 +433,31 @@ const ManageAssessments = () => {
                                                             setSelectedAssessmentDetail(item);
                                                             setShowAssessmentDetail(true);
                                                         }}
-                                                        className={`group relative overflow-hidden rounded-xl sm:rounded-[1.1rem] border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer flex flex-col min-h-[110px] sm:min-h-[180px] ${subjectTheme.cardClass}`}
+                                                        className={`group relative overflow-hidden rounded-xl border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer flex flex-col min-h-[96px] sm:min-h-[136px] ${subjectTheme.cardClass}`}
                                                     >
                                                         <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${subjectTheme.accentClass}`} />
-                                                        <div className="flex flex-1 flex-col gap-1.5 sm:gap-2.5 p-3 pl-4 sm:p-4 sm:pl-5">
-                                                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                                                <div className={`flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl ${subjectTheme.cardBadgeClass} text-[10px] sm:text-xs font-bold`}>
+                                                        <div className="flex flex-1 flex-col gap-1.5 p-3 pl-4">
+                                                            <div className="flex items-start gap-2.5">
+                                                                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${subjectTheme.cardBadgeClass} text-[10px] font-bold`}>
                                                                     {item.title?.charAt(0)?.toUpperCase() || 'A'}
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        <h3 className={`text-xs sm:text-sm font-bold truncate ${subjectTheme.cardTextClass}`}>{item.title}</h3>
-                                                                        <span className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wider ${statusBadge.badge}`}>
+                                                                    <h3 className={`truncate text-xs sm:text-sm font-semibold ${subjectTheme.cardTextClass}`}>{item.title}</h3>
+                                                                    <div className="mt-0.5 flex items-center gap-1.5">
+                                                                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${statusBadge.badge}`}>
+                                                                            <span className={`h-1 w-1 rounded-full ${statusBadge.dot}`} />
                                                                             {statusValue}
                                                                         </span>
+                                                                        <p className={`truncate text-[10px] sm:text-[11px] font-medium ${subjectTheme.cardSubtextClass}`}>
+                                                                            {item.subjects?.length > 0
+                                                                                ? item.subjects.map((s) => s.subject_name).join(', ')
+                                                                                : item.subject || 'No subject yet'}
+                                                                        </p>
                                                                     </div>
-                                                                    <p className={`mt-0.5 text-[10px] sm:text-[11px] truncate ${subjectTheme.cardSubtextClass}`}>
-                                                                        {item.subjects?.length > 0
-                                                                            ? item.subjects.map((s) => s.subject_name).join(', ')
-                                                                            : item.subject || 'No subject yet'}
-                                                                    </p>
                                                                 </div>
                                                             </div>
                                                             {item.description && (
-                                                                <p className={`hidden sm:block text-[10px] leading-4 line-clamp-2 ${subjectTheme.cardSubtextClass}`}>{item.description}</p>
+                                                                <p className={`hidden sm:block text-[11px] leading-4 line-clamp-2 ${subjectTheme.cardSubtextClass}`}>{item.description}</p>
                                                             )}
                                                             <div className="mt-auto flex flex-wrap gap-1">
                                                                 <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] sm:text-[9px] font-medium ${subjectTheme.chipClass}`}>
@@ -380,25 +500,26 @@ const ManageAssessments = () => {
                                             {rubrics.map((rubric) => (
                                                 <div
                                                     key={rubric.rubric_set_id}
-                                                    className="group relative overflow-hidden rounded-xl sm:rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg flex flex-col min-h-[110px] sm:min-h-[180px]"
+                                                    className="group relative overflow-hidden rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg flex flex-col min-h-[96px] sm:min-h-[136px]"
                                                 >
                                                     <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-emerald-400 to-teal-600" />
-                                                    <div className="flex flex-1 flex-col gap-1.5 sm:gap-2.5 p-3 pl-4 sm:p-4 sm:pl-5">
-                                                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                                            <div className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs font-bold">
+                                                    <div className="flex flex-1 flex-col gap-1.5 p-3 pl-4">
+                                                        <div className="flex items-start gap-2.5">
+                                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-bold">
                                                                 {rubric.rubric_name?.charAt(0)?.toUpperCase() || 'R'}
                                                             </div>
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="flex items-center gap-1.5">
-                                                                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{rubric.rubric_name}</h3>
-                                                                    <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wider text-emerald-700">
+                                                                    <h3 className="truncate text-xs sm:text-sm font-semibold text-slate-900">{rubric.rubric_name}</h3>
+                                                                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/90 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-emerald-700">
+                                                                        <span className="h-1 w-1 rounded-full bg-emerald-500" />
                                                                         Criteria
                                                                     </span>
                                                                 </div>
-                                                                <p className="mt-0.5 text-[10px] sm:text-[11px] text-emerald-600/80">{formatDate(rubric.created_at)}</p>
+                                                                <p className="mt-0.5 truncate text-[10px] sm:text-[11px] font-medium text-emerald-600/80">{formatDate(rubric.created_at)}</p>
                                                             </div>
                                                         </div>
-                                                        <p className="hidden sm:block text-[10px] leading-4 text-slate-600 line-clamp-2">
+                                                        <p className="hidden sm:block text-[11px] leading-4 text-slate-600 line-clamp-2">
                                                             {rubric.criteria || 'No criteria added yet.'}
                                                         </p>
                                                         {rubric.ai_instructions && (
@@ -412,7 +533,7 @@ const ManageAssessments = () => {
                                                                 {rubric.level_definitions.map((level, index) => (
                                                                     <span
                                                                         key={`${rubric.rubric_set_id}-level-${index}`}
-                                                                        className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold text-emerald-700"
+                                                                        className="inline-flex items-center rounded-md border border-emerald-200/70 bg-white/90 px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold text-emerald-700"
                                                                     >
                                                                         {formatLevelLabel(level)}
                                                                     </span>
@@ -971,6 +1092,29 @@ const ManageAssessments = () => {
                                 <div className="flex items-center justify-end gap-2">
                                     <button
                                         type="button"
+                                        onClick={() => handleDelete(selectedAssessmentDetail.exercise_id)}
+                                        className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-100 active:scale-[0.97]"
+                                    >
+                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                            <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                                        </svg>
+                                        Delete
+                                    </button>
+                                    {String(selectedAssessmentDetail.assessment_status || selectedAssessmentDetail.status || '').toLowerCase() === 'draft' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePublish(selectedAssessmentDetail.exercise_id)}
+                                            disabled={publishing}
+                                            className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] disabled:opacity-50"
+                                        >
+                                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                                            </svg>
+                                            {publishing ? 'Publishing...' : 'Publish'}
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
                                         onClick={() => {
                                             setShowAssessmentDetail(false);
                                             navigate(`/teacher/assessments/edit/${selectedAssessmentDetail.exercise_id}`, {
@@ -998,6 +1142,89 @@ const ManageAssessments = () => {
                                         View Submissions
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+
+            {showDeleteConfirm && assessmentToDelete &&
+                createPortal(
+                    <div
+                        className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 px-4 backdrop-blur-sm"
+                        onClick={() => { setShowDeleteConfirm(false); setAssessmentToDelete(null); }}
+                    >
+                        <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.35)]">
+                            <div className="bg-gradient-to-br from-red-500 via-red-600 to-rose-600 px-6 py-5">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
+                                            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white">Delete Assessment</h3>
+                                        <p className="text-sm text-red-100">This action cannot be undone</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="px-6 py-5">
+                                <p className="text-sm text-slate-700">
+                                    Are you sure you want to delete <span className="font-semibold text-slate-900">"{assessmentToDelete.title}"</span>?
+                                </p>
+
+                                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-red-700">Warning: This will permanently remove:</p>
+                                    <ul className="mt-2 space-y-1.5">
+                                        <li className="flex items-start gap-2 text-xs text-red-600">
+                                            <svg viewBox="0 0 20 20" fill="currentColor" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                                            </svg>
+                                            All questions and items in this assessment
+                                        </li>
+                                        <li className="flex items-start gap-2 text-xs text-red-600">
+                                            <svg viewBox="0 0 20 20" fill="currentColor" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                                            </svg>
+                                            All student submissions and captured solutions
+                                        </li>
+                                        <li className="flex items-start gap-2 text-xs text-red-600">
+                                            <svg viewBox="0 0 20 20" fill="currentColor" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                                            </svg>
+                                            All scores and grading results
+                                        </li>
+                                        <li className="flex items-start gap-2 text-xs text-red-600">
+                                            <svg viewBox="0 0 20 20" fill="currentColor" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                                            </svg>
+                                            Subject associations for this assessment
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <p className="mt-4 text-xs text-slate-400">Type the assessment name or proceed carefully.</p>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowDeleteConfirm(false); setAssessmentToDelete(null); }}
+                                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-all duration-200 hover:bg-slate-50 active:scale-[0.97]"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={confirmDelete}
+                                    className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-red-500 to-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+                                >
+                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                                    </svg>
+                                    Yes, Delete
+                                </button>
                             </div>
                         </div>
                     </div>,

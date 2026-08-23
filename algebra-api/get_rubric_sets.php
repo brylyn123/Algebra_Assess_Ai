@@ -2,7 +2,10 @@
 require_once 'cors.php';
 require_once 'auth.php';
 require_once 'db_connect.php';
+require_once 'schema_utils.php';
 require_once 'cache_headers.php';
+
+ensureRubricItemMinPoints($conn);
 
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
@@ -18,6 +21,7 @@ try {
             rs.created_at,
             rsi.description,
             rsi.points,
+            rsi.min_points,
             rsi.rubric_item_id
          FROM rubric_sets rs
          LEFT JOIN rubric_set_items rsi ON rs.rubric_set_id = rsi.rubric_set_id
@@ -55,6 +59,7 @@ try {
             $grouped[$setId]["items"][] = [
                 "description" => $row["description"],
                 "points" => (float)$row["points"],
+                "min_points" => (float)($row["min_points"] ?? 0),
             ];
         }
     }

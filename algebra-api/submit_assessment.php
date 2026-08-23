@@ -5,6 +5,7 @@ require_once 'db_connect.php';
 require_once 'schema_utils.php';
 require_once 'rate_limiter.php';
 require_once 'ai_config.php';
+require_once 'ai_client.php';
 
 function checkImageQualityWithImagick(string $filePath): array
 {
@@ -348,13 +349,6 @@ try {
                 $fileErrors[$index] = ['file' => $originalName, 'reason' => $qualityResult['reason'], 'type' => 'quality'];
                 continue;
             }
-
-            $legibilityResult = checkHandwritingLegibility($targetPath);
-            if (!$legibilityResult['readable']) {
-                @unlink($targetPath);
-                $fileErrors[$index] = ['file' => $originalName, 'reason' => $legibilityResult['reason'], 'type' => 'legibility'];
-                continue;
-            }
         }
 
         $savedFiles[] = [
@@ -408,6 +402,7 @@ try {
     $solutionId = $conn->insert_id;
     $insertStmt->close();
 
+    // Send response immediately so student doesn't wait for OCR
     if (count($fileErrors) > 0) {
         echo json_encode([
             'status' => 'success',
@@ -424,10 +419,51 @@ try {
             'exercise_id' => $exercise_id,
         ]);
     }
+
+    // Flush response to client before running slow OCR extraction
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        @ob_end_flush();
+        if (ob_get_level()) flush();
+    }
+
+    // Background OCR extraction - runs AFTER response is sent to student
+    // Wrap in output buffering to prevent any leaked output from corrupting the JSON response
+    @ob_start();
+    $ocrText = null;
+    $ocrStatus = 'not_started';
+    try {
+        $ocrResult = extractOcrTextFromSavedFiles($savedFiles);
+        $ocrText = trim((string)($ocrResult['ocr_text'] ?? ''));
+        if (!empty($ocrText)) {
+            $ocrStatus = 'completed';
+        } else {
+            $ocrStatus = 'empty';
+        }
+    } catch (Exception $e) {
+        error_log('OCR extraction failed during submission: ' . $e->getMessage());
+        $ocrStatus = 'failed';
+    }
+    @ob_end_clean();
+
+    // Update the submission with OCR text
+    @ob_start();
+    if ($ocrText !== null && $ocrStatus === 'completed') {
+        $updateStmt = $conn->prepare(
+            "UPDATE Captured_Solution SET ocr_text = ?, ai_status = 'pending' WHERE solution_id = ?"
+        );
+        $updateStmt->bind_param('si', $ocrText, $solutionId);
+        $updateStmt->execute();
+        $updateStmt->close();
+    }
+    @ob_end_clean();
+
+    $conn->close();
+    exit();
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => 'Unable to submit assessment.']);
+    $conn->close();
 }
-
-$conn->close();
 ?>

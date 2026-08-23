@@ -159,9 +159,6 @@ try {
         $deleteItemScoresStmt->execute();
         $deleteItemScoresStmt->close();
 
-        // Scale factor from criteria-based overall score (0-100) to apply to each item
-        $scaleFactor = ($score !== null && $score >= 0 && $score <= 100) ? $score / 100.0 : 1.0;
-
         $insertItemScoreStmt = $conn->prepare(
             "INSERT INTO Item_Scores (solution_id, item_id, score_earned, ai_feedback, is_manual_override)
              VALUES (?, ?, ?, ?, ?)"
@@ -174,13 +171,8 @@ try {
             }
 
             $itemFeedback = trim((string)($itemScore['ai_feedback'] ?? ''));
-            $rawItemScore = isset($itemScore['score_earned']) ? (float)$itemScore['score_earned'] : 0.0;
+            $scoreEarned = isset($itemScore['score_earned']) ? (float)$itemScore['score_earned'] : 0.0;
             $isManualOverride = !empty($itemScore['is_manual_override']) ? 1 : 0;
-
-            // Apply criteria-based scaling to item score unless manually overridden
-            $scoreEarned = $isManualOverride
-                ? $rawItemScore
-                : round($rawItemScore * $scaleFactor, 2);
 
             $insertItemScoreStmt->bind_param(
                 "iidsi",
@@ -196,16 +188,16 @@ try {
         $insertItemScoreStmt->close();
     }
 
-    // Scale factor from criteria-based overall score
-    $payloadScale = ($score !== null && $score >= 0 && $score <= 100) ? $score / 100.0 : 1.0;
-
     $gradingPayload = [
         'model' => $ai_model !== '' ? $ai_model : null,
         'saved_at' => gmdate('c'),
         'overall_score' => $score !== null ? round($score, 2) : null,
         'overall_feedback' => $ai_feedback,
+        'criteria_scores' => isset($ai_generation['criteria_scores']) && is_array($ai_generation['criteria_scores'])
+            ? $ai_generation['criteria_scores']
+            : ($existingRawPayload['grading_draft']['criteria_scores'] ?? []),
         'item_scores' => array_values(array_map(
-            static function (array $itemScore) use ($payloadScale): array {
+            static function (array $itemScore): array {
                 $raw = isset($itemScore['score_earned']) && $itemScore['score_earned'] !== ''
                     ? (float)$itemScore['score_earned']
                     : null;
@@ -213,9 +205,7 @@ try {
                 return [
                     'item_id' => isset($itemScore['item_id']) ? (int)$itemScore['item_id'] : null,
                     'item_no' => isset($itemScore['item_no']) ? (int)$itemScore['item_no'] : null,
-                    'score_earned' => $raw !== null
-                        ? ($isManual ? $raw : round($raw * $payloadScale, 2))
-                        : null,
+                    'score_earned' => $raw,
                     'ai_feedback' => trim((string)($itemScore['ai_feedback'] ?? '')),
                     'is_manual_override' => $isManual,
                 ];

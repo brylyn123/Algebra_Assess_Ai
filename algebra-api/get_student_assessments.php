@@ -56,7 +56,7 @@ try {
         LEFT JOIN exercise_items ei ON ei.exercise_id = ep.exercise_id
         LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_user_id = ?
         LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
-        WHERE s.archived = 0
+        WHERE s.archived = 0 AND ep.is_published = 1
     ";
 
     $types = 'ii';

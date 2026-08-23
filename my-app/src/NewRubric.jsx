@@ -34,12 +34,11 @@ const RUBRIC_STEPS = [
     { id: 'criteria', label: 'Criteria', description: 'Criterion list + scoring' },
 ];
 
-const MATH_TEMPLATE_CRITERIA = 'Correct Setup, Accurate Computation, Final Answer Format';
-const MATH_TEMPLATE_AI = 'Prioritize algebraic setup, accurate computation, and a tidy final answer format.';
+const MATH_TEMPLATE_CRITERIA = 'Final Answer (2 pts), Solution Steps (3 pts)';
+const MATH_TEMPLATE_AI = 'Grade the final answer as binary — correct = full points, wrong = 0. For solution steps, award partial credit for each correct step shown, giving credit for method and process even if the final answer is wrong.';
 const MATH_TEMPLATE_ITEMS = [
-    { id: 'math-setup', description: 'Correct Setup', points: 4 },
-    { id: 'math-computation', description: 'Accurate Computation', points: 4 },
-    { id: 'math-final', description: 'Final Answer Format', points: 2 },
+    { id: 'math-final', description: 'Final Answer', points: 2, min_points: 0 },
+    { id: 'math-steps', description: 'Solution Steps', points: 3, min_points: 1 },
 ];
 
 const NewRubric = () => {
@@ -50,6 +49,7 @@ const NewRubric = () => {
     const [rubricItems, setRubricItems] = useState([]);
     const [itemDescription, setItemDescription] = useState('');
     const [itemPoints, setItemPoints] = useState('');
+    const [itemMinPoints, setItemMinPoints] = useState('');
     const [aiInstructions, setAiInstructions] = useState('');
     const [levelDefinitions, setLevelDefinitions] = useState(() => buildDefaultLevelDefinitions());
     const [levelLabelEntry, setLevelLabelEntry] = useState('');
@@ -109,6 +109,7 @@ const NewRubric = () => {
                 ? source.items.map((item, index) => ({
                     description: item.description ?? '',
                     points: Number(item.points ?? 0),
+                    min_points: Number(item.min_points ?? 0),
                     id: `${item.description ?? 'item'}-${index}`,
                 }))
                 : []
@@ -122,6 +123,7 @@ const NewRubric = () => {
         setRubricItems([]);
         setItemDescription('');
         setItemPoints('');
+        setItemMinPoints('');
         setAiInstructions('');
         setLevelDefinitions(buildDefaultLevelDefinitions());
         setSelectedTemplateId('');
@@ -164,6 +166,7 @@ const NewRubric = () => {
     const handleAddRubricItem = () => {
         const trimmedDescription = itemDescription.trim();
         const numericPoints = Number(itemPoints);
+        const numericMinPoints = itemMinPoints !== '' ? Number(itemMinPoints) : 0;
         if (!trimmedDescription) {
             toast.warning('Please add a description for the rubric item.');
             return;
@@ -172,16 +175,26 @@ const NewRubric = () => {
             toast.warning('Please enter a valid number of max points.');
             return;
         }
+        if (numericMinPoints < 0) {
+            toast.warning('Effort minimum cannot be negative.');
+            return;
+        }
+        if (numericMinPoints > numericPoints) {
+            toast.warning('Effort minimum cannot exceed max points.');
+            return;
+        }
         setRubricItems((prevItems) => [
             ...prevItems,
             {
                 description: trimmedDescription,
                 points: numericPoints,
+                min_points: numericMinPoints,
                 id: `${trimmedDescription}-${prevItems.length}`,
             },
         ]);
         setItemDescription('');
         setItemPoints('');
+        setItemMinPoints('');
     };
 
     const handleRemoveRubricItem = (index) => {
@@ -593,6 +606,19 @@ const NewRubric = () => {
                                                 </button>
                                             </div>
                                         </div>
+                                        <div className="mt-2">
+                                            <label className="mb-1 block text-[10px] font-semibold text-slate-500">Effort Minimum (pts)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.5"
+                                                value={itemMinPoints}
+                                                onChange={(e) => setItemMinPoints(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                                            />
+                                            <p className="mt-1 text-[10px] text-slate-400">Minimum points awarded for attempting this criterion, even if incorrect. Set to 0 to disable.</p>
+                                        </div>
                                     </div>
 
                                     <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2">
@@ -613,7 +639,7 @@ const NewRubric = () => {
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <p className="truncate text-sm font-medium text-slate-700">{item.description}</p>
-                                                        <p className="text-[10px] text-slate-400">{item.points} pts</p>
+                                                        <p className="text-[10px] text-slate-400">{item.points} pts{Number(item.min_points ?? 0) > 0 ? ` · Effort min: ${item.min_points} pts` : ''}</p>
                                                     </div>
                                                     <button
                                                         type="button"

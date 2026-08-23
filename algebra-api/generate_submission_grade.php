@@ -5,6 +5,8 @@ require_once 'db_connect.php';
 require_once 'ai_client.php';
 require_once 'schema_utils.php';
 
+ensureRubricItemMinPoints($conn);
+
 function decodeSubmissionRawPayload($rawJson) {
     if (!$rawJson) {
         return [];
@@ -73,6 +75,7 @@ try {
             cs.ocr_text,
             cs.ai_raw_json,
             ep.exercise_id,
+            ep.rubric_set_id,
             ep.title AS assessment_title,
             rs.rubric_name,
             rs.criteria AS rubric_criteria,
@@ -122,6 +125,27 @@ try {
     $existingRawPayload = decodeSubmissionRawPayload($submission['ai_raw_json'] ?? null);
     $savedFiles = extractSubmissionFilesForOcr($existingRawPayload, $submission['file_path'] ?? null);
     $ocrText = isset($submission['ocr_text']) ? trim((string)$submission['ocr_text']) : '';
+
+    // Fetch rubric items with min_points if a rubric is attached
+    $rubricItems = [];
+    $rubricSetId = isset($submission['rubric_set_id']) ? (int)$submission['rubric_set_id'] : 0;
+    if ($rubricSetId > 0) {
+        $rubricItemStmt = $conn->prepare(
+            "SELECT description, points, min_points FROM rubric_set_items WHERE rubric_set_id = ? ORDER BY rubric_item_id ASC"
+        );
+        $rubricItemStmt->bind_param('i', $rubricSetId);
+        $rubricItemStmt->execute();
+        $rubricItemResult = $rubricItemStmt->get_result();
+        while ($riRow = $rubricItemResult->fetch_assoc()) {
+            $rubricItems[] = [
+                'description' => $riRow['description'],
+                'points' => (float)$riRow['points'],
+                'min_points' => (float)($riRow['min_points'] ?? 0),
+            ];
+        }
+        $rubricItemStmt->close();
+    }
+    $submission['rubric_items'] = $rubricItems;
 
     $statusValue = 'processing';
     $processingPayload = $existingRawPayload;
@@ -203,14 +227,9 @@ try {
 
     // If existing ocr_text looks like Tesseract garbage (short or contains diagnostics), re-run OCR
     if ($ocrText !== '' && $ocrTextOverride === '') {
-        $looksLikeGarbage = (
-            strlen($ocrText) < 20 ||
-            preg_match('/Estimating resolution/i', $ocrText) ||
-            preg_match('/Warning:/i', $ocrText) ||
-            preg_match('/^\d{2,4}$/m', $ocrText) // lines with only numbers
-        );
+        $looksLikeGarbage = looksLikeOcrGarbage($ocrText);
         if ($looksLikeGarbage && !empty($savedFiles)) {
-            error_log('Existing ocr_text looks like Tesseract garbage, re-running OCR for solution ' . $solution_id);
+            error_log('Existing ocr_text looks like garbage, re-running OCR for solution ' . $solution_id);
             try {
                 $visionResult = extractOcrTextFromSavedFiles($savedFiles);
                 $extractedText = trim((string)($visionResult['ocr_text'] ?? ''));
@@ -239,6 +258,35 @@ try {
                 }
             } catch (Exception $retryError) {
                 error_log('OCR retry failed for solution ' . $solution_id . ': ' . $retryError->getMessage());
+            }
+        } elseif ($looksLikeGarbage && empty($savedFiles)) {
+            // No files to re-extract, try AI cleanup on existing text
+            error_log('OCR text looks like garbage but no files available, attempting AI cleanup for solution ' . $solution_id);
+            try {
+                $cleanedText = cleanupOcrTextWithAi($ocrText);
+                if (strlen($cleanedText) > 0 && !looksLikeOcrGarbage($cleanedText)) {
+                    $ocrText = $cleanedText;
+                    $existingRawPayload['ocr'] = [
+                        'status' => 'completed',
+                        'source' => 'ai_cleanup',
+                        'model' => 'gemini_cleanup',
+                        'generated_at' => gmdate('c'),
+                    ];
+
+                    $ocrTextOrNull = $ocrText !== '' ? $ocrText : null;
+                    $ocrUpdateJson = json_encode($existingRawPayload);
+                    $ocrUpdateStmt = $conn->prepare(
+                        "UPDATE Captured_Solution
+                         SET ocr_text = ?, ai_raw_json = ?
+                         WHERE solution_id = ?"
+                    );
+                    $ocrUpdateStmt->bind_param('ssi', $ocrTextOrNull, $ocrUpdateJson, $solution_id);
+                    $ocrUpdateStmt->execute();
+                    $ocrUpdateStmt->close();
+                    error_log('AI-cleaned OCR text: ' . strlen($ocrText) . ' chars');
+                }
+            } catch (Exception $cleanupError) {
+                error_log('AI cleanup failed for solution ' . $solution_id . ': ' . $cleanupError->getMessage());
             }
         }
     }

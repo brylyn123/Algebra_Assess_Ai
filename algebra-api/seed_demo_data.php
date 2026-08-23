@@ -206,15 +206,14 @@ try {
         [
             $teacherUserId,
             'Demo Algebra Rubric',
-            'Score setup accuracy, algebraic process, and clarity of the final answer.',
-            'Use short constructive feedback and keep grading aligned with the item score totals.',
+            'Final Answer (2 pts): Binary scoring — correct = 2, wrong = 0. Solution Steps (3 pts): Partial credit for each correct step shown.',
+            'Grade the final answer as binary (full points if correct, zero if wrong). For solution steps, award partial credit for each correct step — give credit for method and process even if the final answer is wrong. Max score per item is 5.',
         ]
     );
 
     $rubricItems = [
-        ['Correct setup', 4.0],
-        ['Valid algebraic steps', 3.0],
-        ['Clear final answer', 3.0],
+        ['Final Answer', 2.0],
+        ['Solution Steps', 3.0],
     ];
     foreach ($rubricItems as [$description, $points]) {
         executeSeed(

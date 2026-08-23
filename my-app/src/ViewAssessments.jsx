@@ -19,9 +19,10 @@ const ViewAssessments = ({ compact = false }) => {
     const [selectedAssessment, setSelectedAssessment] = useState(null);
     const [showDetail, setShowDetail] = useState(false);
 
-    const activeAssessments = assessments.filter(
-        (a) => (a.assessment_status || a.status || 'Draft') !== 'Graded'
-    );
+    const activeAssessments = assessments.filter((a) => {
+        const status = String(a.assessment_status || a.status || 'Draft').toLowerCase();
+        return status !== 'graded' && status !== 'draft';
+    });
 
     const formatLevelLabel = (level) => {
         const label = String(level?.label ?? '').trim();
@@ -123,9 +124,9 @@ const ViewAssessments = ({ compact = false }) => {
                         <>
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Your Assessments</p>
-                                <p className="text-[10px] text-slate-400">{assessments.length} total</p>
+                                <p className="text-[10px] text-slate-400">{activeAssessments.length} total</p>
                             </div>
-                            {assessments.length === 0 && !loading ? (
+                            {activeAssessments.length === 0 && !loading ? (
                                 <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-16 text-center">
                                     <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
                                         <svg viewBox="0 0 20 20" fill="currentColor" className="h-7 w-7 text-blue-400">
@@ -133,11 +134,11 @@ const ViewAssessments = ({ compact = false }) => {
                                         </svg>
                                     </div>
                                     <h4 className="text-sm font-bold text-slate-700">No assessments yet</h4>
-                                    <p className="mt-1 max-w-xs text-xs text-slate-400">No assessments have been created yet.</p>
+                                    <p className="mt-1 max-w-xs text-xs text-slate-400">No published assessments yet.</p>
                                 </div>
                             ) : (
                                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                    {assessments.map((item) => {
+                                    {activeAssessments.map((item) => {
                                         const statusValue = String(item.assessment_status || item.status || 'Draft');
                                         const statusBadge = getStatusClasses(statusValue);
                                         const subjectTheme = getSubjectThemeByName(item.subject || item.subject_name);

@@ -14,6 +14,7 @@ $subject_filter_value = null;
 $subject_filter_is_null = false;
 
 ensureAssessmentRubricColumn($conn);
+ensureRubricItemMinPoints($conn);
 ensureSubjectLookupColumns($conn);
 ensureScoreReturnColumn($conn);
 $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
@@ -172,23 +173,42 @@ while ($row = $result->fetch_assoc()) {
     ], fn($value) => $value !== null && trim((string)$value) !== '');
 
     $files = [];
+    $criteriaScores = [];
     $rawJson = $row['ai_raw_json'] ?? null;
     if ($rawJson) {
         $decoded = json_decode($rawJson, true);
-        if (json_last_error() === JSON_ERROR_NONE && isset($decoded['files']) && is_array($decoded['files'])) {
-            foreach ($decoded['files'] as $file) {
-                $path = trim((string)($file['file_path'] ?? ''));
-                if ($path === '') {
-                    continue;
-                }
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            if (isset($decoded['files']) && is_array($decoded['files'])) {
+                foreach ($decoded['files'] as $file) {
+                    $path = trim((string)($file['file_path'] ?? ''));
+                    if ($path === '') {
+                        continue;
+                    }
 
-                $originalName = trim((string)($file['original_name'] ?? basename($path)));
-                $extension = strtolower(pathinfo($originalName !== '' ? $originalName : $path, PATHINFO_EXTENSION));
-                $files[] = [
-                    'name' => $originalName !== '' ? $originalName : basename($path),
-                    'path' => $path,
-                    'type' => $extension === 'pdf' ? 'pdf' : 'image',
-                ];
+                    $originalName = trim((string)($file['original_name'] ?? basename($path)));
+                    $extension = strtolower(pathinfo($originalName !== '' ? $originalName : $path, PATHINFO_EXTENSION));
+                    $files[] = [
+                        'name' => $originalName !== '' ? $originalName : basename($path),
+                        'path' => $path,
+                        'type' => $extension === 'pdf' ? 'pdf' : 'image',
+                    ];
+                }
+            }
+
+            $draftSource = $decoded['grading']['criteria_scores']
+                ?? $decoded['grading_draft']['criteria_scores']
+                ?? [];
+            if (is_array($draftSource)) {
+                foreach ($draftSource as $c) {
+                    $weight = isset($c['weight']) ? (float)$c['weight'] : 0;
+                    $earned = isset($c['earned']) ? (float)$c['earned'] : 0;
+                    $criteriaScores[] = [
+                        'name' => trim((string)($c['name'] ?? '')),
+                        'weight' => $weight,
+                        'earned' => round($earned, 2),
+                        'explanation' => trim((string)($c['explanation'] ?? '')),
+                    ];
+                }
             }
         }
     }
@@ -228,6 +248,7 @@ while ($row = $result->fetch_assoc()) {
         'ai_feedback' => $row['ai_feedback'] ?? '',
         'ocr_text' => $row['ocr_text'] ?? null,
         'returned_at' => $row['returned_at'] ?? null,
+        'criteria_scores' => $criteriaScores,
         'items' => [],
     ];
 }
@@ -287,6 +308,49 @@ if (count($submissions) > 0) {
     }
 
     $itemStmt->close();
+
+    // Fetch rubric items with min_points for each submission's rubric_set_id
+    $rubricSetIds = [];
+    foreach ($submissions as $submission) {
+        if (!empty($submission['rubric_set_id'])) {
+            $rubricSetIds[] = (int)$submission['rubric_set_id'];
+        }
+    }
+    $rubricSetIds = array_unique($rubricSetIds);
+
+    if (count($rubricSetIds) > 0) {
+        $rPlaceholders = implode(',', array_fill(0, count($rubricSetIds), '?'));
+        $rTypes = str_repeat('i', count($rubricSetIds));
+        $rubricItemStmt = $conn->prepare(
+            "SELECT rubric_set_id, description, points, min_points
+             FROM rubric_set_items
+             WHERE rubric_set_id IN ($rPlaceholders)
+             ORDER BY rubric_set_id ASC, rubric_item_id ASC"
+        );
+        $rubricItemStmt->bind_param($rTypes, ...$rubricSetIds);
+        $rubricItemStmt->execute();
+        $rubricItemResult = $rubricItemStmt->get_result();
+
+        $rubricItemsBySet = [];
+        while ($riRow = $rubricItemResult->fetch_assoc()) {
+            $setId = (int)$riRow['rubric_set_id'];
+            if (!isset($rubricItemsBySet[$setId])) {
+                $rubricItemsBySet[$setId] = [];
+            }
+            $rubricItemsBySet[$setId][] = [
+                'description' => $riRow['description'],
+                'points' => (float)$riRow['points'],
+                'min_points' => (float)($riRow['min_points'] ?? 0),
+            ];
+        }
+        $rubricItemStmt->close();
+
+        foreach ($submissions as &$submission) {
+            $setId = (int)($submission['rubric_set_id'] ?? 0);
+            $submission['rubric_items'] = $rubricItemsBySet[$setId] ?? [];
+        }
+        unset($submission);
+    }
 }
 
 header('Content-Type: application/json');

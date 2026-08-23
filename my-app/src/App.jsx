@@ -31,7 +31,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NotFound from './components/NotFound';
 import ResetPassword from './ResetPassword';
 import { ToastProvider } from './components/Toast';
-import 'mathlive';
 
 const TeacherDashboard = Dashboard;
 const TeacherOverview = DashboardHome;

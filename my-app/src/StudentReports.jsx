@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import Select from './components/Select';
+import MathText from './MathText';
 
 const toAbsoluteFileUrl = (path) => {
   if (!path) return '';
@@ -22,7 +23,7 @@ const formatOcrText = (text) => {
       return (
         <div key={i} className="mt-2 first:mt-0">
           <span className="font-bold text-slate-900">{labelMatch[1]} {labelMatch[2]}</span>
-          {labelMatch[3] && <span className="text-slate-700"> {labelMatch[3]}</span>}
+          {labelMatch[3] && <span className="text-slate-700"> <MathText text={labelMatch[3]} /></span>}
         </div>
       );
     }
@@ -31,7 +32,7 @@ const formatOcrText = (text) => {
       return (
         <div key={i} className="mt-1.5 first:mt-0">
           <span className="font-semibold text-slate-800">{numberedMatch[1]}</span>
-          <span className="text-slate-700"> {numberedMatch[2]}</span>
+          <span className="text-slate-700"> <MathText text={numberedMatch[2]} /></span>
         </div>
       );
     }
@@ -39,7 +40,7 @@ const formatOcrText = (text) => {
       return <div key={i} className="h-2" />;
     }
     return (
-      <p key={i} className="text-slate-700">{trimmed}</p>
+      <p key={i} className="text-slate-700"><MathText text={trimmed} /></p>
     );
   });
 };

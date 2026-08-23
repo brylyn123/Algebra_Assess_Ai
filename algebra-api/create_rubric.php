@@ -3,6 +3,8 @@ require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
+ensureRubricItemMinPoints($conn);
+
 $data = json_decode(file_get_contents("php://input"), true);
 
 $authUser = requireAuthenticatedUser('teacher');
@@ -71,8 +73,8 @@ try {
     $setStmt->close();
 
     $itemStmt = $conn->prepare(
-        "INSERT INTO rubric_set_items (rubric_set_id, description, points)
-         VALUES (?, ?, ?)"
+        "INSERT INTO rubric_set_items (rubric_set_id, description, points, min_points)
+         VALUES (?, ?, ?, ?)"
     );
     foreach ($items as $item) {
         $description = trim($item['description'] ?? '');
@@ -80,7 +82,8 @@ try {
             continue;
         }
         $points = floatval($item['points'] ?? 0);
-        $itemStmt->bind_param("isd", $rubricSetId, $description, $points);
+        $minPoints = floatval($item['min_points'] ?? 0);
+        $itemStmt->bind_param("isdd", $rubricSetId, $description, $points, $minPoints);
         $itemStmt->execute();
     }
     $itemStmt->close();

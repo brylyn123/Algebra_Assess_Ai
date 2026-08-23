@@ -30,14 +30,18 @@ function renderContent(text) {
   if (!trimmed) return <span />;
 
   if (!hasLatexPatterns(trimmed)) {
-    return <span>{trimmed}</span>;
+    return <span style={{ whiteSpace: 'pre-line' }}>{trimmed}</span>;
   }
 
   const { latex, displayMode: dmFromDelimiters } = stripDelimiters(trimmed);
   const displayMode = dmFromDelimiters || /\\begin\{/.test(latex);
 
   try {
-    const html = katex.renderToString(latex, {
+    let finalLatex = latex;
+    if (finalLatex.includes('\\\\') && !/\\begin\{/.test(finalLatex)) {
+      finalLatex = `\\begin{aligned}${finalLatex}\\end{aligned}`;
+    }
+    const html = katex.renderToString(finalLatex, {
       displayMode,
       throwOnError: false,
       trust: true,
@@ -55,7 +59,7 @@ function renderContent(text) {
     // fall through
   }
 
-  return <span>{text}</span>;
+  return <span style={{ whiteSpace: 'pre-line' }}>{text}</span>;
 }
 
 export default function MathText({ text }) {

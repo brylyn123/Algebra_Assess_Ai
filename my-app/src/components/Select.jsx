@@ -1,7 +1,7 @@
 import React from 'react';
 
 const baseClasses =
-  'w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm text-slate-700 font-medium shadow-sm outline-none transition duration-200';
+  'w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-10 text-xs text-slate-700 font-medium shadow-sm outline-none transition duration-200';
 
 const focusClasses =
   'focus:border-blue-400 focus:ring-4 focus:ring-blue-100';

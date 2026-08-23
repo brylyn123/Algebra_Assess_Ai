@@ -1476,6 +1476,33 @@ function ensureAssessmentDueDate(mysqli $conn): void {
 
     $hasStatus = schemaColumnExists($conn, 'Exercises_Problem', 'is_published');
     if (!$hasStatus) {
-        $conn->query("ALTER TABLE Exercises_Problem ADD COLUMN is_published TINYINT(1) NOT NULL DEFAULT 1 AFTER due_date");
+        $conn->query("ALTER TABLE Exercises_Problem ADD COLUMN is_published TINYINT(1) NOT NULL DEFAULT 0 AFTER due_date");
+    }
+
+    $hasDraftSave = schemaColumnExists($conn, 'Exercises_Problem', 'last_draft_save');
+    if (!$hasDraftSave) {
+        $conn->query("ALTER TABLE Exercises_Problem ADD COLUMN last_draft_save DATETIME NULL AFTER is_published");
+    }
+
+    // Auto-publish assessments that have existing submissions
+    $conn->query("
+        UPDATE exercises_problem ep
+        SET ep.is_published = 1
+        WHERE ep.is_published = 0
+        AND (
+            EXISTS (SELECT 1 FROM Captured_Solution cs WHERE cs.exercise_id = ep.exercise_id)
+            OR EXISTS (SELECT 1 FROM Scores sc JOIN Captured_Solution cs2 ON sc.solution_id = cs2.solution_id WHERE cs2.exercise_id = ep.exercise_id)
+        )
+    ");
+}
+
+function ensureRubricItemMinPoints(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    $hasCol = schemaColumnExists($conn, 'rubric_set_items', 'min_points');
+    if (!$hasCol) {
+        $conn->query("ALTER TABLE rubric_set_items ADD COLUMN min_points DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER points");
     }
 }

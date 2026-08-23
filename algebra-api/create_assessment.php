@@ -115,8 +115,8 @@ try {
     $startedTransaction = true;
 
     $exerciseStmt = $conn->prepare(
-        "INSERT INTO exercises_problem (subject_id, rubric_set_id, title, description, topic, difficulty, due_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO exercises_problem (subject_id, rubric_set_id, title, description, topic, difficulty, due_date, is_published)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)"
     );
     $dueDateParam = $due_date !== null ? $due_date : null;
     $exerciseStmt->bind_param("iisssss", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty, $dueDateParam);
@@ -191,7 +191,7 @@ try {
 
     echo json_encode([
         "status" => "success",
-        "message" => "Assessment saved.",
+        "message" => "Assessment created and published.",
         "exercise_id" => $exerciseId,
         "rubric_set_id" => $rubric_set_id,
     ]);

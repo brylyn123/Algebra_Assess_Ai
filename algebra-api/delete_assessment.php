@@ -63,6 +63,11 @@ try {
     $itemStmt->execute();
     $itemStmt->close();
 
+    $asStmt = $conn->prepare("DELETE FROM assessment_subjects WHERE assessment_id = ?");
+    $asStmt->bind_param("i", $exercise_id);
+    $asStmt->execute();
+    $asStmt->close();
+
     $exerciseStmt = $conn->prepare("DELETE FROM exercises_problem WHERE exercise_id = ?");
     $exerciseStmt->bind_param("i", $exercise_id);
     $exerciseStmt->execute();

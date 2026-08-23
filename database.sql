@@ -187,6 +187,7 @@ CREATE TABLE rubric_set_items (
     rubric_set_id INT NOT NULL,
     description TEXT NOT NULL,
     points DECIMAL(5,2) NOT NULL,
+    min_points DECIMAL(5,2) NOT NULL DEFAULT 0,
     CONSTRAINT fk_rubric_set_item_set FOREIGN KEY (rubric_set_id) REFERENCES rubric_sets(rubric_set_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 

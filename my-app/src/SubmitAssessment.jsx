@@ -91,30 +91,6 @@ const analyzeImageQuality = (file) => {
   });
 };
 
-const checkImageContent = async (file) => {
-  if (!file.type.startsWith('image/')) {
-    return { pass: true, reason: 'PDF content verified after upload' };
-  }
-
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await apiFetch('/check_image_legibility.php', {
-      method: 'POST',
-      body: formData,
-    });
-    const result = await response.json();
-
-    if (result.status === 'success') {
-      return { pass: result.readable, reason: result.reason || '' };
-    }
-    return { pass: true, reason: '' };
-  } catch {
-    return { pass: true, reason: '' };
-  }
-};
-
 const formatDateTime = (value) => {
   if (!value) return 'Not submitted yet';
   const parsed = new Date(value);
@@ -265,13 +241,6 @@ const SubmitAssessment = () => {
     return false;
   }, [fileQualityResults]);
 
-  const isCheckingContent = useMemo(() => {
-    for (const [, result] of fileQualityResults) {
-      if (result && result.checking === true) return true;
-    }
-    return false;
-  }, [fileQualityResults]);
-
   const handleFiles = async (event) => {
     const fileList = Array.from(event.target.files || []);
     if (fileList.length === 0) return;
@@ -281,33 +250,15 @@ const SubmitAssessment = () => {
 
     const checks = fileList.map(async (file, i) => {
       const fileIndex = startIndex + i;
-      // Step 1: Check image quality (instant, client-side)
       const qualityResult = await analyzeImageQuality(file);
       setFileQualityResults((prev) => {
         const next = new Map(prev);
-        next.set(fileIndex, { ...qualityResult, checking: true });
+        next.set(fileIndex, qualityResult);
         return next;
       });
       if (!qualityResult.pass) {
         const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
         toast.warning(`${file.name}: ${reasons}. Please retake with better lighting.`);
-      }
-
-      // Step 2: Check image content (AI, server-side)
-      const contentResult = await checkImageContent(file);
-      setFileQualityResults((prev) => {
-        const next = new Map(prev);
-        next.set(fileIndex, { ...qualityResult, ...contentResult, checking: false });
-        return next;
-      });
-
-      // Show warnings/errors
-      if (!qualityResult.pass) {
-        const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
-        toast.warning(`${file.name}: ${reasons}. Please retake with better lighting.`);
-      }
-      if (!contentResult.pass) {
-        toast.error(`${file.name}: ${contentResult.reason || 'This is not a handwritten math solution.'}`);
       }
     });
 
@@ -322,36 +273,17 @@ const SubmitAssessment = () => {
     const startIndex = selectedFiles.length;
     setSelectedFiles((current) => [...current, ...fileList]);
 
-    // Mark all files as checking immediately
-    setFileQualityResults((prev) => {
-      const next = new Map(prev);
-      fileList.forEach((_, i) => {
-        next.set(startIndex + i, { checking: true, pass: true });
-      });
-      return next;
-    });
-
-    // Check all files in parallel for faster processing
     const checks = fileList.map(async (file, i) => {
       const fileIndex = startIndex + i;
-      
-      const [quality, content] = await Promise.all([
-        analyzeImageQuality(file),
-        checkImageContent(file),
-      ]);
-      
+      const qualityResult = await analyzeImageQuality(file);
       setFileQualityResults((prev) => {
         const next = new Map(prev);
-        next.set(fileIndex, { ...quality, ...content, checking: false });
+        next.set(fileIndex, qualityResult);
         return next;
       });
-
-      if (!quality.pass) {
-        const reasons = quality.reasons?.join(', ') || 'Image quality is poor';
+      if (!qualityResult.pass) {
+        const reasons = qualityResult.reasons?.join(', ') || 'Image quality is poor';
         toast.warning(`${file.name}: ${reasons}. Please retake with better lighting.`);
-      }
-      if (!content.pass) {
-        toast.error(`${file.name}: ${content.reason || 'This is not a handwritten math solution.'}`);
       }
     });
 
@@ -443,7 +375,7 @@ const SubmitAssessment = () => {
     } catch (error) {
       const errMsg = error.message || 'Unable to submit assessment.';
       setSubmitMessage(errMsg);
-      toast.error(errMsg);
+      try { toast?.error(errMsg); } catch (_) {}
     } finally {
       setSubmitLoading(false);
     }
@@ -644,16 +576,7 @@ const SubmitAssessment = () => {
                           ⚠️ {quality.reasons?.join(', ') || quality.reason || 'Quality issue detected'}
                         </span>
                       )}
-                      {quality?.checking === true && (
-                        <span className="text-blue-500 text-[10px] mt-0.5 flex items-center gap-1">
-                          <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          Checking content...
-                        </span>
-                      )}
-                      {quality?.pass === true && !quality.checking && !quality.note && (
+                      {quality?.pass === true && !quality.note && (
                         <span className="text-emerald-500 text-[10px] mt-0.5">✅ Clear</span>
                       )}
                       {quality?.note && (

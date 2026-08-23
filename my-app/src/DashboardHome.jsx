@@ -81,7 +81,10 @@ const DashboardHome = () => {
             })
             .then((response) => {
                 if (response.data?.status === 'success') {
-                    setRecentAssessments((response.data.assessments || []).slice(0, 4));
+                    const published = (response.data.assessments || []).filter(
+                        (a) => (a.assessment_status || a.status || 'Draft').toLowerCase() !== 'draft'
+                    );
+                    setRecentAssessments(published.slice(0, 4));
                 }
             })
             .catch((error) => {

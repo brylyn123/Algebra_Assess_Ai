@@ -25,6 +25,8 @@ try {
             ep.topic,
             ep.difficulty,
             ep.due_date,
+            ep.is_published,
+            ep.last_draft_save,
             ep.created_at AS date_created,
             rs.rubric_name,
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
@@ -33,6 +35,7 @@ try {
             COALESCE(sem.semester_name, s.semester) AS semester,
             COALESCE(sy.label, '') AS school_year,
             CASE
+                WHEN ep.is_published = 0 THEN 'Draft'
                 WHEN EXISTS (
                     SELECT 1
                     FROM Scores sc
@@ -44,7 +47,7 @@ try {
                     FROM Captured_Solution cs
                     WHERE cs.exercise_id = ep.exercise_id
                 ) THEN 'Pending'
-                ELSE 'Draft'
+                ELSE 'Published'
             END AS assessment_status
          FROM exercises_problem ep
          LEFT JOIN subject s ON ep.subject_id = s.subject_id
@@ -80,6 +83,8 @@ try {
             "topic" => $row["topic"],
             "difficulty" => $row["difficulty"] ?? 'Medium',
             "due_date" => $row["due_date"] ?? null,
+            "is_published" => (int)($row["is_published"] ?? 0),
+            "last_draft_save" => $row["last_draft_save"] ?? null,
             "subject" => $row["subject_name"],
             "subject_meta" => implode(" - ", $subjectMeta),
             "subjects" => [], // Will be populated below

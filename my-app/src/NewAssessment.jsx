@@ -10,9 +10,32 @@ import { API_BASE_URL } from './apiBase';
 import { useToast } from './components/Toast';
 import Select from './components/Select';
 import MathText from './MathText';
+import MathEditor from './MathEditor';
 
+function hasLatexPatterns(text) {
+  return /\\[a-zA-Z]|[_^{}]|[$]/.test(text);
+}
 
-
+const MATH_SYMBOLS = [
+  { label: ' Fraction', insert: '\\frac{a}{b}' },
+  { label: ' √', insert: '\\sqrt{x}' },
+  { label: ' x²', insert: 'x^{n}' },
+  { label: ' xₙ', insert: 'x_{n}' },
+  { label: ' α', insert: '\\alpha' },
+  { label: ' β', insert: '\\beta' },
+  { label: ' γ', insert: '\\gamma' },
+  { label: ' π', insert: '\\pi' },
+  { label: ' θ', insert: '\\theta' },
+  { label: ' Σ', insert: '\\sum_{i=1}^{n}' },
+  { label: ' ∫', insert: '\\int_{a}^{b}' },
+  { label: ' ±', insert: '\\pm' },
+  { label: ' ×', insert: '\\times' },
+  { label: ' ÷', insert: '\\div' },
+  { label: ' ≠', insert: '\\neq' },
+  { label: ' ≤', insert: '\\leq' },
+  { label: ' ≥', insert: '\\geq' },
+  { label: ' ∞', insert: '\\infty' },
+];
 
 
 
@@ -43,7 +66,6 @@ const initialState = {
     dueDate: '',
   },
   testItems: [],
-  mathLiveReady: typeof window !== 'undefined' && !!window.MathfieldElement,
   previewValue: '',
 };
 
@@ -75,8 +97,6 @@ function reducer(state, action) {
         selectedRubric: '',
         rubricError: '',
       };
-    case 'SET_MATHLIVE_READY':
-      return { ...state, mathLiveReady: action.payload };
     case 'SET_PREVIEW_VALUE':
       return { ...state, previewValue: action.payload };
     case 'ADD_TEST_ITEM':
@@ -152,17 +172,19 @@ const NewAssessment = () => {
   const [showDefaultRubricModal, setShowDefaultRubricModal] = useState(false);
   const [showRubricDetailModal, setShowRubricDetailModal] = useState(false);
   const [selectedRubricDetail, setSelectedRubricDetail] = useState(null);
-  const [questionLabel, setQuestionLabel] = useState('');
   const [questionScore, setQuestionScore] = useState('1.0');
   const [editingIndex, setEditingIndex] = useState(null);
   const [questionRubricId, setQuestionRubricId] = useState('');
-  const [customizeDefault, setCustomizeDefault] = useState(false);
+  const mathEditorRef = useRef(null);
+  const [showMathKeyboard, setShowMathKeyboard] = useState(false);
+  const [showModifyCriteriaModal, setShowModifyCriteriaModal] = useState(false);
   const [enabledCriteria, setEnabledCriteria] = useState(
     DEFAULT_GRADING_CRITERIA.map((c) => ({ ...c, enabled: true }))
   );
   const [customCriteria, setCustomCriteria] = useState([]);
   const [newCriterionName, setNewCriterionName] = useState('');
   const [newCriterionDesc, setNewCriterionDesc] = useState('');
+  const [effortMinimumGuarantee, setEffortMinimumGuarantee] = useState(1);
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const {
@@ -170,60 +192,19 @@ const NewAssessment = () => {
     subjects,
     newAssessment,
     testItems,
-    mathLiveReady,
     previewValue,
     rubrics,
     rubricLoading,
     rubricError,
     selectedRubric,
   } = state;
-  const mathfieldRef = useRef(null);
 
-  const showMathKeyboard = () => {
-    const mathfield = mathfieldRef.current;
-
-    mathfield?.focus?.();
-
-    if (typeof mathfield?.executeCommand === 'function') {
-      mathfield.executeCommand('showVirtualKeyboard');
+  const insertSymbol = (symbol) => {
+    if (mathEditorRef.current?.insertMath) {
+      mathEditorRef.current.insertMath(symbol);
+    } else {
+      setMathExpression((prev) => prev + symbol);
     }
-
-    if (typeof window !== 'undefined' && window.mathVirtualKeyboard) {
-      if (typeof window.mathVirtualKeyboard.show === 'function') {
-        window.mathVirtualKeyboard.show();
-      }
-      window.mathVirtualKeyboard.visible = true;
-    }
-  };
-
-  const toggleMathKeyboard = () => {
-    if (typeof window === 'undefined' || !window.mathVirtualKeyboard) {
-      showMathKeyboard();
-      return;
-    }
-
-    const isVisible = !!window.mathVirtualKeyboard.visible;
-
-    if (isVisible) {
-      if (typeof window.mathVirtualKeyboard.hide === 'function') {
-        window.mathVirtualKeyboard.hide();
-      }
-      window.mathVirtualKeyboard.visible = false;
-      return;
-    }
-
-    showMathKeyboard();
-  };
-
-  const hideMathKeyboard = () => {
-    if (typeof window === 'undefined' || !window.mathVirtualKeyboard) {
-      return;
-    }
-
-    if (typeof window.mathVirtualKeyboard.hide === 'function') {
-      window.mathVirtualKeyboard.hide();
-    }
-    window.mathVirtualKeyboard.visible = false;
   };
 
   // Inline question editor functions
@@ -242,31 +223,28 @@ const NewAssessment = () => {
       item_no: testItems.length + 1,
       question_type: 'handwritten_algebra',
       question_content: value,
-      question_label: questionLabel.trim(),
       max_score: score,
       rubric_id: questionRubricId ? Number(questionRubricId) : null,
     };
     if (editingIndex !== null) {
       dispatch({ type: 'SET_TEST_ITEMS', payload: testItems.map((it, i) => i === editingIndex ? newItem : it) });
       setEditingIndex(null);
+      toast.success(`Question #${editingIndex + 1} updated successfully.`);
     } else {
       dispatch({ type: 'ADD_TEST_ITEM', payload: newItem });
+      toast.success(`Item #${newItem.item_no} added successfully.`);
     }
     setMathExpression('');
-    setQuestionLabel('');
     setQuestionScore('1.0');
     setQuestionRubricId('');
-    if (mathfieldRef.current?.setValue) mathfieldRef.current.setValue('');
   };
 
   const handleEditQuestion = (index) => {
     const item = testItems[index];
     setEditingIndex(index);
-    setQuestionLabel(item.question_label || '');
     setQuestionScore(String(item.max_score || 1.0));
     setQuestionRubricId(item.rubric_id ? String(item.rubric_id) : '');
     setMathExpression(item.question_content || '');
-    if (mathfieldRef.current?.setValue) mathfieldRef.current.setValue(item.question_content || '');
   };
 
   // Subject multi-select helpers
@@ -334,13 +312,32 @@ const NewAssessment = () => {
       c.key === key ? { ...c, enabled: !c.enabled } : c
     );
     const activeDefaults = updated.filter((c) => c.enabled);
-    const allActive = [...activeDefaults, ...customCriteria];
+    const allActive = [...activeDefaults, ...customCriteria.filter((c) => c.enabled !== false)];
     const redistributed = redistributeWeights(allActive);
     setEnabledCriteria(updated.map((c) => {
       const found = redistributed.find((r) => r.key === c.key);
       return found ? { ...c, weight: found.weight } : c;
     }));
     setCustomCriteria(customCriteria.map((c) => {
+      const found = redistributed.find((r) => r.key === c.key);
+      return found ? { ...c, weight: found.weight } : c;
+    }));
+  };
+
+  const toggleCustomCriterion = (key) => {
+    const updated = customCriteria.map((c) =>
+      c.key === key ? { ...c, enabled: c.enabled === false } : c
+    );
+    const allActive = [
+      ...enabledCriteria.filter((c) => c.enabled),
+      ...updated.filter((c) => c.enabled !== false),
+    ];
+    const redistributed = redistributeWeights(allActive);
+    setEnabledCriteria(enabledCriteria.map((c) => {
+      const found = redistributed.find((r) => r.key === c.key);
+      return found ? { ...c, weight: found.weight } : c;
+    }));
+    setCustomCriteria(updated.map((c) => {
       const found = redistributed.find((r) => r.key === c.key);
       return found ? { ...c, weight: found.weight } : c;
     }));
@@ -357,6 +354,7 @@ const NewAssessment = () => {
       title: name,
       description: newCriterionDesc.trim() || name,
       weight: 0,
+      enabled: true,
     };
     const allActive = [...enabledCriteria.filter((c) => c.enabled), ...customCriteria, newC];
     const redistributed = redistributeWeights(allActive);
@@ -384,10 +382,8 @@ const NewAssessment = () => {
     if (editingIndex === index) {
       setEditingIndex(null);
       setMathExpression('');
-      setQuestionLabel('');
       setQuestionScore('1.0');
       setQuestionRubricId('');
-      if (mathfieldRef.current?.setValue) mathfieldRef.current.setValue('');
     }
   };
 
@@ -421,6 +417,34 @@ const NewAssessment = () => {
 
   };
 
+  const validateDetailsStep = () => {
+    if (!newAssessment.title || !newAssessment.title.trim()) {
+      toast.warning('Please enter an assessment title.');
+      return false;
+    }
+    if (newAssessment.title.length > 255) {
+      toast.warning('Title must be under 255 characters.');
+      return false;
+    }
+    if (!(newAssessment.subjectIds?.length > 0)) {
+      toast.warning('Please select at least one subject.');
+      return false;
+    }
+    if (!newAssessment.topic || !newAssessment.topic.trim()) {
+      toast.warning('Please enter a topic.');
+      return false;
+    }
+    if (!newAssessment.description || !newAssessment.description.trim()) {
+      toast.warning('Please provide a short description.');
+      return false;
+    }
+    if (newAssessment.description.length > 2000) {
+      toast.warning('Description must be under 2000 characters.');
+      return false;
+    }
+    return true;
+  };
+
   const handleOpenRubricBuilder = () => {
     if (typeof window !== 'undefined') {
       window.sessionStorage.setItem(
@@ -450,15 +474,6 @@ const NewAssessment = () => {
       setSelectedRubricDetail(rubric);
       setShowRubricDetailModal(true);
     }
-  };
-
-  const syncMathExpression = () => {
-    const value = mathfieldRef.current?.getValue?.() ?? '';
-    setMathExpression(value);
-  };
-
-  const handleMathfieldFocus = () => {
-    showMathKeyboard();
   };
 
   const handlePreview = () => {
@@ -606,94 +621,6 @@ const NewAssessment = () => {
   }, [isEditMode, editId]);
 
 
-
-  useEffect(() => {
-
-    if (mathLiveReady || typeof window === 'undefined') return;
-
-    if (window.MathfieldElement) {
-
-      dispatch({ type: 'SET_MATHLIVE_READY', payload: true });
-
-      return;
-
-    }
-
-    if (!document.getElementById('mathlive-script')) {
-
-      const script = document.createElement('script');
-
-      script.id = 'mathlive-script';
-
-      script.src = 'https://unpkg.com/mathlive/dist/mathlive.min.js';
-
-      script.defer = true;
-
-      script.onload = () => dispatch({ type: 'SET_MATHLIVE_READY', payload: true });
-
-      document.head.appendChild(script);
-
-      const style = document.createElement('link');
-
-      style.id = 'mathlive-css';
-
-      style.rel = 'stylesheet';
-
-      style.href = 'https://unpkg.com/mathlive/dist/mathlive.css';
-
-      document.head.appendChild(style);
-
-    } else {
-
-      const existing = document.getElementById('mathlive-script');
-
-      if (existing && typeof window.MathfieldElement !== 'undefined') {
-
-        dispatch({ type: 'SET_MATHLIVE_READY', payload: true });
-
-      } else {
-
-        existing?.addEventListener('load', () => dispatch({ type: 'SET_MATHLIVE_READY', payload: true }), { once: true });
-
-      }
-
-    }
-
-  }, [mathLiveReady]);
-
-  useEffect(() => {
-    if (!mathLiveReady || typeof window === 'undefined' || !window.mathVirtualKeyboard) {
-      return;
-    }
-
-    window.mathVirtualKeyboard.visible = false;
-  }, [mathLiveReady]);
-
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      return undefined;
-    }
-
-    const body = document.body;
-    const previousKeyboardZIndex = body.style.getPropertyValue('--keyboard-zindex');
-
-    body.style.setProperty('--keyboard-zindex', '3000');
-
-    return () => {
-      if (previousKeyboardZIndex) {
-        body.style.setProperty('--keyboard-zindex', previousKeyboardZIndex);
-      } else {
-        body.style.removeProperty('--keyboard-zindex');
-      }
-    };
-  }, []);
-
-  useEffect(() => () => {
-    hideMathKeyboard();
-  }, []);
-
-
-
   useEffect(() => {
 
     if (!teacherId) return;
@@ -838,8 +765,6 @@ const NewAssessment = () => {
   }, [loadRubrics, teacherId]);
 
   const handleAddItem = () => {
-    const mathfield = mathfieldRef.current;
-
     const mathValue = mathExpression.trim();
 
     if (!mathValue) {
@@ -862,11 +787,7 @@ const NewAssessment = () => {
       }
     });
 
-    if (mathfield?.setValue) {
-      mathfield.setValue('');
-    }
     setMathExpression('');
-
 
   };
 
@@ -959,6 +880,20 @@ const NewAssessment = () => {
 
         })),
 
+        effort_minimum_guarantee: effortMinimumGuarantee,
+
+        grading_criteria: enabledCriteria.filter((c) => c.enabled).map((c) => ({
+          key: c.key,
+          title: c.title,
+          weight: c.weight,
+        })),
+
+        custom_grading_criteria: customCriteria.filter((c) => c.enabled !== false).map((c) => ({
+          key: c.key,
+          title: c.title,
+          weight: c.weight,
+        })),
+
       };
 
       if (isEditMode) {
@@ -975,12 +910,6 @@ const NewAssessment = () => {
         window.sessionStorage.removeItem(ASSESSMENT_DRAFT_STORAGE_KEY);
       }
 
-      if (mathfieldRef.current?.setValue) {
-
-        mathfieldRef.current.setValue('');
-
-      }
-
       setMathExpression('');
 
       navigate('/teacher/assessments');
@@ -993,6 +922,63 @@ const NewAssessment = () => {
 
     }
 
+  };
+
+  const handleSaveDraft = async () => {
+    if (!newAssessment.title) {
+      toast.warning('Please enter a title before saving as draft.');
+      return;
+    }
+
+    if (!(newAssessment.subjectIds?.length > 0)) {
+      toast.warning('Please select at least one subject before saving as draft.');
+      return;
+    }
+
+    try {
+      const payload = {
+        exercise_id: isEditMode ? Number(editId) : undefined,
+        subject_ids: newAssessment.subjectIds.map(Number),
+        title: newAssessment.title,
+        topic: newAssessment.topic,
+        description: newAssessment.description,
+        difficulty: newAssessment.difficulty,
+        due_date: newAssessment.dueDate || null,
+        rubric_set_id: selectedRubric ? Number(selectedRubric) : null,
+        items: testItems.map((item, index) => ({
+          item_no: index + 1,
+          question_type: item.question_type || 'handwritten_algebra',
+          question_content: item.question_content,
+          model_solution: item.model_solution || '',
+          max_score: item.max_score || 1.0,
+          rubric_set_id: item.rubric_id || null,
+        })),
+        effort_minimum_guarantee: effortMinimumGuarantee,
+        grading_criteria: enabledCriteria.filter((c) => c.enabled).map((c) => ({
+          key: c.key,
+          title: c.title,
+          weight: c.weight,
+        })),
+        custom_grading_criteria: customCriteria.filter((c) => c.enabled !== false).map((c) => ({
+          key: c.key,
+          title: c.title,
+          weight: c.weight,
+        })),
+      };
+
+      await axios.post('/save_draft.php', payload);
+      toast.success('Draft saved! You can continue editing later.');
+
+      dispatch({ type: 'RESET_ASSESSMENT_FORM' });
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(ASSESSMENT_DRAFT_STORAGE_KEY);
+      }
+      setMathExpression('');
+      navigate('/teacher/assessments');
+    } catch (error) {
+      console.error('Failed to save draft', error);
+      toast.error('Could not save draft. Please try again.');
+    }
   };
 
 
@@ -1011,16 +997,8 @@ const NewAssessment = () => {
       <div className="pointer-events-none absolute inset-0 bg-white/10" />
       <div className="relative w-full max-w-[920px]">
         <style>{`
-        math-field {
-          border: none;
-          outline: none;
-          box-shadow: none;
-          background: transparent;
-        }
-
-        math-field::part(virtual-keyboard-toggle),
-        math-field::part(menu-toggle) {
-          display: none;
+        :root {
+          --keyboard-zindex: 9999;
         }
       `}        </style>
 
@@ -1068,7 +1046,11 @@ const NewAssessment = () => {
                   <button
                     key={step.id}
                     type="button"
-                    onClick={() => setCurrentStep(index)}
+                    onClick={() => {
+                      if (index <= currentStep || validateDetailsStep()) {
+                        setCurrentStep(index);
+                      }
+                    }}
                     className={`flex-1 rounded-lg sm:rounded-xl border px-2 py-1.5 sm:px-3 sm:py-2 text-left transition ${active ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                   >
                     <div className="flex items-center gap-1.5 sm:gap-2">
@@ -1229,9 +1211,7 @@ const NewAssessment = () => {
                           onClick={() => {
                             setEditingIndex(null);
                             setMathExpression('');
-                            setQuestionLabel('');
                             setQuestionScore('1.0');
-                            if (mathfieldRef.current?.setValue) mathfieldRef.current.setValue('');
                           }}
                           className="text-[10px] font-semibold text-slate-400 hover:text-slate-600"
                         >
@@ -1239,46 +1219,41 @@ const NewAssessment = () => {
                         </button>
                       )}
                     </div>
-                    <textarea
-                      value={mathExpression}
-                      onChange={(e) => setMathExpression(e.target.value)}
-                      placeholder="Type your question here... Use LaTeX for math (e.g. \frac{x}{2} or $x^2$)"
-                      className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
-                      rows={3}
-                      style={{ minHeight: '4.5rem' }}
-                    />
-                    {mathExpression.trim() && (
-                      <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                        <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-slate-400">Preview</p>
-                        <div className="text-sm text-slate-800">
-                          <MathText text={mathExpression} />
+                    <div className="flex gap-3">
+                      <div className="flex-1 rounded-xl border border-slate-200 bg-slate-50 transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100 overflow-hidden">
+                        <MathEditor
+                          ref={mathEditorRef}
+                          value={mathExpression}
+                          onChange={setMathExpression}
+                          placeholder="Type your question here... Use $...$ for inline math"
+                          style={{ minHeight: '6rem', maxHeight: '20rem', overflowY: 'auto' }}
+                        />
+                        {mathExpression.trim() && hasLatexPatterns(mathExpression) && (
+                          <div className="border-t border-slate-200 bg-white px-4 py-3">
+                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Preview</p>
+                            <div className="text-sm text-slate-800">
+                              <MathText text={mathExpression} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="w-[60px]">
+                          <input
+                            type="number"
+                            min="0.5"
+                            max="100"
+                            step="0.5"
+                            value={questionScore}
+                            onChange={(e) => setQuestionScore(e.target.value)}
+                            placeholder="Pts"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-center text-[11px] font-semibold text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                          />
                         </div>
-                      </div>
-                    )}
-                    <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[1fr,100px]">
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Label (optional)</label>
-                        <input
-                          type="text"
-                          value={questionLabel}
-                          onChange={(e) => setQuestionLabel(e.target.value)}
-                          placeholder="e.g. Solve for x"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Points</label>
-                        <input
-                          type="number"
-                          min="0.5"
-                          max="100"
-                          step="0.5"
-                          value={questionScore}
-                          onChange={(e) => setQuestionScore(e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                        />
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">pts</span>
                       </div>
                     </div>
+
                     <div className="mt-3 flex items-center gap-2">
                       <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-slate-400">
                         <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
@@ -1288,6 +1263,7 @@ const NewAssessment = () => {
                         onChange={(e) => setQuestionRubricId(e.target.value)}
                         className="flex-1 text-[11px]"
                       >
+                        <option value="">Default Rubric (AI Grading)</option>
                         {rubrics.map((rubric) => (
                           <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
                             {rubric.rubric_name}
@@ -1301,7 +1277,7 @@ const NewAssessment = () => {
                       >
                         + New
                       </button>
-                      {questionRubricId && (
+                      {questionRubricId ? (
                         <button
                           type="button"
                           onClick={handleViewRubricDetails}
@@ -1309,164 +1285,34 @@ const NewAssessment = () => {
                         >
                           View Details
                         </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowDefaultRubricModal(true)}
+                            className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-blue-600 transition hover:bg-blue-50"
+                          >
+                            View Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowModifyCriteriaModal(true)}
+                            className="shrink-0 rounded-full border border-amber-300 bg-white px-2 py-1.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
+                          >
+                            Modify Criteria
+                          </button>
+                        </>
                       )}
                     </div>
-                    {!questionRubricId && !customizeDefault && (
+                    {!questionRubricId && (
                       <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">AI Default Grading</p>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setShowDefaultRubricModal(true)}
-                              className="text-[10px] font-semibold text-blue-600 hover:underline"
-                            >
-                              View Details
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setCustomizeDefault(true)}
-                              className="rounded-full border border-amber-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
-                            >
-                              + Add Criteria
-                            </button>
-                          </div>
-                        </div>
+                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">AI Default Grading</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                           {DEFAULT_GRADING_CRITERIA.map((c) => (
                             <span key={c.key} className="text-[10px] text-amber-700/80">
                               {c.icon} {c.title} <span className="font-semibold">{c.weight}%</span>
                             </span>
                           ))}
-                        </div>
-                      </div>
-                    )}
-                    {!questionRubricId && customizeDefault && (
-                      <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Default Criteria + Custom</p>
-                          <button
-                            type="button"
-                            onClick={() => setCustomizeDefault(false)}
-                            className="text-[10px] font-semibold text-slate-400 hover:text-slate-600"
-                          >
-                            Done
-                          </button>
-                        </div>
-
-                        {/* Default criteria with checkboxes and editable weights */}
-                        <div className="space-y-1.5">
-                          {enabledCriteria.map((c) => (
-                            <div
-                              key={c.key}
-                              className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition ${
-                                c.enabled
-                                  ? 'border-blue-200 bg-white'
-                                  : 'border-slate-200 bg-slate-50 opacity-50'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={c.enabled}
-                                onChange={() => toggleDefaultCriterion(c.key)}
-                                className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="text-xs text-slate-700 flex-1">{c.icon} {c.title}</span>
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="5"
-                                value={c.weight}
-                                onChange={(e) => {
-                                  const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
-                                  setEnabledCriteria(enabledCriteria.map((x) =>
-                                    x.key === c.key ? { ...x, weight: val } : x
-                                  ));
-                                }}
-                                className="w-14 rounded-lg border border-slate-200 px-1.5 py-0.5 text-center text-[10px] font-bold text-blue-600 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-                              />
-                              <span className="text-[10px] text-slate-400">%</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Custom criteria list */}
-                        {customCriteria.length > 0 && (
-                          <div className="space-y-1.5">
-                            {customCriteria.map((c) => (
-                              <div key={c.key} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
-                                <span className="text-xs text-emerald-700 flex-1">+ {c.title}</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="5"
-                                  value={c.weight}
-                                  onChange={(e) => {
-                                    const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
-                                    setCustomCriteria(customCriteria.map((x) =>
-                                      x.key === c.key ? { ...x, weight: val } : x
-                                    ));
-                                  }}
-                                  className="w-14 rounded-lg border border-emerald-200 bg-white px-1.5 py-0.5 text-center text-[10px] font-bold text-emerald-600 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100"
-                                />
-                                <span className="text-[10px] text-emerald-400">%</span>
-                                <button
-                                  type="button"
-                                  onClick={() => removeCustomCriterion(c.key)}
-                                  className="text-red-400 hover:text-red-600"
-                                >
-                                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                                  </svg>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Add new criterion */}
-                        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-2.5 space-y-2">
-                          <input
-                            type="text"
-                            value={newCriterionName}
-                            onChange={(e) => setNewCriterionName(e.target.value)}
-                            placeholder="New criterion name"
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                          />
-                          <input
-                            type="text"
-                            value={newCriterionDesc}
-                            onChange={(e) => setNewCriterionDesc(e.target.value)}
-                            placeholder="What the AI looks for (optional)"
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                          />
-                          <button
-                            type="button"
-                            onClick={addCustomCriterion}
-                            disabled={!newCriterionName.trim()}
-                            className="flex items-center justify-center gap-1 w-full rounded-lg border border-emerald-200 bg-emerald-50 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                            </svg>
-                            Confirm
-                          </button>
-                        </div>
-
-                        {/* Total weight */}
-                        <div className="flex items-center justify-between rounded-lg bg-white border border-slate-200 px-2.5 py-1.5">
-                          <span className="text-[10px] text-slate-500">
-                            {enabledCriteria.filter(c => c.enabled).length + customCriteria.length} criteria active
-                          </span>
-                          <span className={`text-[10px] font-bold ${
-                            enabledCriteria.filter(c => c.enabled).reduce((s, c) => s + c.weight, 0) + customCriteria.reduce((s, c) => s + c.weight, 0) === 100
-                              ? 'text-emerald-600'
-                              : 'text-amber-600'
-                          }`}>
-                            Total: {enabledCriteria.filter(c => c.enabled).reduce((s, c) => s + c.weight, 0) + customCriteria.reduce((s, c) => s + c.weight, 0)}%
-                          </span>
                         </div>
                       </div>
                     )}
@@ -1501,9 +1347,6 @@ const NewAssessment = () => {
                                 {index + 1}
                               </div>
                               <div className="min-w-0 flex-1">
-                                {item.question_label && (
-                                  <p className="mb-0.5 text-[10px] font-medium text-slate-400">{item.question_label}</p>
-                                )}
                                 <div className="text-xs sm:text-sm text-slate-800 overflow-hidden break-words">
                                   <MathText text={item.question_content} />
                                 </div>
@@ -1548,18 +1391,31 @@ const NewAssessment = () => {
                 {currentStep < ASSESSMENT_STEPS.length - 1 ? (
                   <button
                     type="button"
-                    onClick={() => setCurrentStep((prev) => Math.min(ASSESSMENT_STEPS.length - 1, prev + 1))}
+                    onClick={() => {
+                      if (validateDetailsStep()) {
+                        setCurrentStep((prev) => Math.min(ASSESSMENT_STEPS.length - 1, prev + 1));
+                      }
+                    }}
                     className="rounded-full bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 hover:shadow-lg active:scale-[0.97]"
                   >
                     Continue →
                   </button>
                 ) : (
-                  <button
-                    type="submit"
-                    className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97]"
-                  >
-                    {isEditMode ? 'Update Assessment' : 'Create Assessment'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.97]"
+                    >
+                      Save as Draft
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97]"
+                    >
+                      {isEditMode ? 'Update Assessment' : 'Create Assessment'}
+                    </button>
+                  </div>
                 )}
               </div>
             </form>
@@ -1573,6 +1429,32 @@ const NewAssessment = () => {
         isOpen={showDefaultRubricModal}
         onClose={() => setShowDefaultRubricModal(false)}
         totalScore={testItems.reduce((s, it) => s + (it.max_score || 0), 0)}
+      />
+      <ModifyCriteriaModal
+        isOpen={showModifyCriteriaModal}
+        onClose={() => setShowModifyCriteriaModal(false)}
+        enabledCriteria={enabledCriteria}
+        customCriteria={customCriteria}
+        onToggleDefault={toggleDefaultCriterion}
+        onToggleCustom={toggleCustomCriterion}
+        onUpdateDefaultWeight={(key, val) =>
+          setEnabledCriteria(enabledCriteria.map((x) =>
+            x.key === key ? { ...x, weight: val } : x
+          ))
+        }
+        onUpdateCustomWeight={(key, val) =>
+          setCustomCriteria(customCriteria.map((x) =>
+            x.key === key ? { ...x, weight: val } : x
+          ))
+        }
+        onRemoveCustom={removeCustomCriterion}
+        onAddCustom={addCustomCriterion}
+        newCriterionName={newCriterionName}
+        setNewCriterionName={setNewCriterionName}
+        newCriterionDesc={newCriterionDesc}
+        setNewCriterionDesc={setNewCriterionDesc}
+        effortMinimumGuarantee={effortMinimumGuarantee}
+        setEffortMinimumGuarantee={setEffortMinimumGuarantee}
       />
       <RubricDetailModal
         isOpen={showRubricDetailModal}
@@ -1962,6 +1844,248 @@ const DefaultRubricModal = ({ isOpen, onClose, totalScore = 0 }) => {
   );
 };
 
+const ModifyCriteriaModal = ({
+  isOpen,
+  onClose,
+  enabledCriteria,
+  customCriteria,
+  onToggleDefault,
+  onToggleCustom,
+  onUpdateDefaultWeight,
+  onUpdateCustomWeight,
+  onRemoveCustom,
+  onAddCustom,
+  newCriterionName,
+  setNewCriterionName,
+  newCriterionDesc,
+  setNewCriterionDesc,
+  effortMinimumGuarantee,
+  setEffortMinimumGuarantee,
+}) => {
+  if (!isOpen) return null;
+
+  const modalRoot = typeof document !== 'undefined' ? document.body : null;
+  if (!modalRoot) return null;
+
+  const totalWeight =
+    enabledCriteria.filter((c) => c.enabled).reduce((s, c) => s + c.weight, 0) +
+    customCriteria.filter((c) => c.enabled !== false).reduce((s, c) => s + c.weight, 0);
+  const activeCount =
+    enabledCriteria.filter((c) => c.enabled).length +
+    customCriteria.filter((c) => c.enabled !== false).length;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-slate-950/60 px-4 py-6 backdrop-blur-md">
+      <div className="relative w-full max-w-xl">
+        <div className="mx-auto flex h-[620px] max-h-[88vh] flex-col rounded-2xl border border-white/60 bg-white shadow-2xl">
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 shadow-sm">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Modify AI Grading Criteria</h3>
+                <p className="text-[11px] text-slate-400">Toggle default criteria, adjust weights, and add your own</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Body - scrollable */}
+          <div className="teacher-scrollbar flex-1 overflow-y-auto px-6 py-4 space-y-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
+            {/* Default criteria with checkboxes and editable weights */}
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Default Criteria</p>
+              <div className="space-y-1.5">
+                {enabledCriteria.map((c) => (
+                  <div
+                    key={c.key}
+                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition ${
+                      c.enabled
+                        ? 'border-blue-200 bg-white'
+                        : 'border-slate-200 bg-slate-50 opacity-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={c.enabled}
+                      onChange={() => onToggleDefault(c.key)}
+                      className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-slate-700 flex-1">{c.icon} {c.title}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={c.weight}
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                        onUpdateDefaultWeight(c.key, val);
+                      }}
+                      className="w-14 rounded-lg border border-slate-200 px-1.5 py-0.5 text-center text-[10px] font-bold text-blue-600 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                    />
+                    <span className="text-[10px] text-slate-400">%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Effort Minimum Guarantee */}
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Effort Minimum Guarantee</p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2.5">
+                <p className="text-[11px] text-slate-600 mb-3">
+                  Guarantee a minimum score for students who show a meaningful attempt, even if other criteria score low.
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center">
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.5"
+                      value={effortMinimumGuarantee}
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.min(5, parseFloat(e.target.value) || 0));
+                        setEffortMinimumGuarantee(val);
+                      }}
+                      className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm font-bold text-slate-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-auto [&::-webkit-outer-spin-button]:appearance-auto"
+                    />
+                    <span className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">PTS</span>
+                  </div>
+                  <p className="text-[10px] text-amber-600/80 flex-1">
+                    {effortMinimumGuarantee > 0
+                      ? `Students with a relevant attempt will receive at least ${effortMinimumGuarantee} point${effortMinimumGuarantee !== 1 ? 's' : ''} regardless of other scores.`
+                      : 'No minimum guarantee — scores are based purely on criteria weights.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Custom criteria list */}
+            {customCriteria.length > 0 && (
+              <div>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Custom Criteria</p>
+                <div className="space-y-1.5">
+                  {customCriteria.map((c) => {
+                    const isEnabled = c.enabled !== false;
+                    return (
+                      <div
+                        key={c.key}
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition ${
+                          isEnabled
+                            ? 'border-blue-200 bg-white'
+                            : 'border-slate-200 bg-slate-50 opacity-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={() => onToggleCustom(c.key)}
+                          className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-xs text-slate-700 flex-1">+ {c.title}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="5"
+                          value={c.weight}
+                          onChange={(e) => {
+                            const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                            onUpdateCustomWeight(c.key, val);
+                          }}
+                          className="w-14 rounded-lg border border-slate-200 px-1.5 py-0.5 text-center text-[10px] font-bold text-blue-600 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                        />
+                        <span className="text-[10px] text-slate-400">%</span>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveCustom(c.key)}
+                          className="text-red-400 hover:text-red-600"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Add new criterion */}
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Add Custom Criterion</p>
+              <div className="rounded-lg border border-dashed border-slate-300 bg-white p-2.5 space-y-2">
+                <input
+                  type="text"
+                  value={newCriterionName}
+                  onChange={(e) => setNewCriterionName(e.target.value)}
+                  placeholder="New criterion name"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+                <input
+                  type="text"
+                  value={newCriterionDesc}
+                  onChange={(e) => setNewCriterionDesc(e.target.value)}
+                  placeholder="What the AI looks for (optional)"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-700 outline-none placeholder:text-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+                <button
+                  type="button"
+                  onClick={onAddCustom}
+                  disabled={!newCriterionName.trim()}
+                  className="flex items-center justify-center gap-1 w-full rounded-lg border border-emerald-200 bg-emerald-50 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                  </svg>
+                  Confirm
+                </button>
+              </div>
+            </div>
+
+            {/* Total weight */}
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+              <span className="text-[11px] text-slate-500">
+                {activeCount} criteria active
+              </span>
+              <span className={`text-[11px] font-bold ${totalWeight === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                Total: {totalWeight}%
+              </span>
+            </div>
+          </div>
+
+          {/* Footer - fixed */}
+          <div className="flex shrink-0 items-center justify-end border-t border-slate-100 px-6 py-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full bg-slate-800 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    modalRoot
+  );
+};
+
 const RubricDetailModal = ({ isOpen, onClose, rubric, teacherId, onSaved }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [editItems, setEditItems] = React.useState([]);
@@ -2027,7 +2151,7 @@ const RubricDetailModal = ({ isOpen, onClose, rubric, teacherId, onSaved }) => {
         criteria: rubric.criteria || '',
         ai_instructions: rubric.ai_instructions || '',
         level_definitions: levelDefinitions,
-        items: active.map((it) => ({ description: it.description, points: it.points })),
+        items: active.map((it) => ({ description: it.description, points: it.points, min_points: it.min_points ?? 0 })),
       };
       const response = await axios.post('/update_rubric_set.php', payload, {
         headers: { 'Content-Type': 'application/json' },

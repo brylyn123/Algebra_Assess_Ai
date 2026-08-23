@@ -5,6 +5,7 @@ import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import Select from './components/Select';
+import { useToast } from './components/Toast';
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 import MathText from './MathText';
 
@@ -182,6 +183,7 @@ const getStatusConfig = (status, returnedAt = null) => {
 };
 
 const GradeSubmissions = () => {
+  const { toast } = useToast();
   const currentEmail = getCurrentLocalUserEmail();
   const teacherUser = currentEmail ? findLocalUser(currentEmail) : null;
   const teacherId = teacherUser?.user_id ?? teacherUser?.teacher_id ?? teacherUser?.id ?? null;
@@ -215,6 +217,8 @@ const GradeSubmissions = () => {
   const [reextractingOcr, setReextractingOcr] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ total: 0, completed: 0, failed: 0, current: '', results: [] });
+  const [studentSearch, setStudentSearch] = useState('');
+  const [viewMode, setViewMode] = useState('grade');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -247,9 +251,8 @@ const GradeSubmissions = () => {
       setPageMessage('');
 
       try {
-        const exerciseParam = selectedAssessment && selectedAssessment !== 'all' ? `&exercise_id=${selectedAssessment}` : '';
         const response = await fetch(
-          `${API_BASE_URL}/grade_submissions.php?teacher_id=${teacherId}&page=${currentPage}&per_page=${perPage}${exerciseParam}`,
+          `${API_BASE_URL}/grade_submissions.php?teacher_id=${teacherId}&page=${currentPage}&per_page=${perPage}`,
           {
             credentials: 'include',
             signal: controller.signal,
@@ -308,7 +311,7 @@ const GradeSubmissions = () => {
       isMounted = false;
       controller.abort();
     };
-  }, [teacherId, currentPage, perPage, selectedAssessment]);
+  }, [teacherId, currentPage, perPage]);
 
   useEffect(() => {
     setSelectedAssessment('all');
@@ -364,6 +367,7 @@ const GradeSubmissions = () => {
       {
         overall_score: selectedSubmission?.score ?? null,
         overall_feedback: selectedSubmission?.ai_feedback ?? '',
+        criteria_scores: selectedSubmission?.criteria_scores ?? [],
         item_scores: selectedSubmission?.items ?? [],
       },
       selectedSubmission
@@ -447,6 +451,7 @@ const GradeSubmissions = () => {
       score: payload.score,
       ai_feedback: payload.ai_feedback,
       returned_at: null,
+      criteria_scores: aiGeneration?.criteria_scores ?? submission.criteria_scores ?? [],
       items: normalizeItemDrafts(itemScores).map((item) => ({
         ...item,
         score_earned:
@@ -861,6 +866,9 @@ const GradeSubmissions = () => {
       );
       clearStoredDraft(selectedSubmission.id);
       setAiScore(numericDraftScore);
+      setDraftScore(null);
+      setDraftFeedback('');
+      setDraftItemScores([]);
       setReviewSaved(true);
       setReviewMode(false);
 
@@ -881,7 +889,7 @@ const GradeSubmissions = () => {
           setPageMessage('All visible students in this assessment are saved and ready to return.');
         }
       } else {
-        setSaveMessage('Student result saved. You can return this student now or close the card.');
+        closeGradingPanel();
       }
     } catch (error) {
       console.error(error);
@@ -971,22 +979,30 @@ const GradeSubmissions = () => {
     }
 
     const submissionCountMap = new Map();
+    const latestDateMap = new Map();
     submissions.forEach((submission) => {
       const key = String(submission.exercise_id ?? '');
       if (!key) return;
       submissionCountMap.set(key, (submissionCountMap.get(key) ?? 0) + 1);
+      const dateStr = submission.submission_date ?? '';
+      if (dateStr && (!latestDateMap.has(key) || dateStr > latestDateMap.get(key))) {
+        latestDateMap.set(key, dateStr);
+      }
     });
 
-    return assessments.map((assessment) => {
-      const key = String(assessment.exercise_id);
-      const count = submissionCountMap.get(key) ?? 0;
-      return {
-        value: key,
-        label: count > 0
-          ? `${assessment.title} (${count})`
-          : assessment.title,
-      };
-    });
+    return assessments
+      .map((assessment) => {
+        const key = String(assessment.exercise_id);
+        const count = submissionCountMap.get(key) ?? 0;
+        return {
+          value: key,
+          label: `${assessment.title} (${count})`,
+          count,
+          latestDate: latestDateMap.get(key) ?? '',
+        };
+      })
+      .filter((option) => option.count > 0)
+      .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
   }, [assessments, submissions]);
 
   useEffect(() => {
@@ -1002,14 +1018,18 @@ const GradeSubmissions = () => {
   }, [assessmentOptions]);
 
   const visibleSubmissions = useMemo(() => {
+    const q = studentSearch.trim().toLowerCase();
     return submissions.filter((submission) => {
       if (String(submission.exercise_id ?? '') !== selectedAssessment) return false;
-      // Hide returned submissions - they are done
       const isReturned = Boolean(submission.returned_at);
       if (isReturned) return false;
+      const isReadyToReturn = submission.status === 'Ready to Return';
+      if (viewMode === 'return') return isReadyToReturn;
+      if (isReadyToReturn) return false;
+      if (q && !String(submission.student_name || '').toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [selectedAssessment, submissions]);
+  }, [selectedAssessment, submissions, studentSearch, viewMode]);
   
   const pendingSubmissions = useMemo(
     () => visibleSubmissions.filter((submission) => {
@@ -1047,6 +1067,15 @@ const GradeSubmissions = () => {
     );
   }, [submissions]);
 
+  const readyToReturnCount = useMemo(
+    () => submissions.filter(
+      (s) => String(s.exercise_id ?? '') === selectedAssessment
+        && !s.returned_at
+        && s.status === 'Ready to Return'
+    ).length,
+    [submissions, selectedAssessment]
+  );
+
   useEffect(() => {
     if (visibleSubmissions.length === 0) {
       setSelectedSubmission(null);
@@ -1070,6 +1099,7 @@ const GradeSubmissions = () => {
   );
   const activeFile = submissionFiles[selectedFileIndex] ?? submissionFiles[0] ?? null;
   const hasDraftResult = draftScore !== null && draftScore !== undefined && draftScore !== '';
+  const isResultSaved = selectedSubmission?.status === 'Ready to Return';
   const selectedSubmissionDraft = selectedSubmission ? readStoredDraft(selectedSubmission.id) : null;
   const shouldShowGeneratePanel = gradingMode === 'batch'
     ? !(selectedSubmissionDraft || selectedSubmission?.score_id || hasDraftResult)
@@ -1093,9 +1123,9 @@ const GradeSubmissions = () => {
                     <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
                   </svg>
                 </div>
-                <h2 className="text-lg font-bold text-white">Grade Submissions</h2>
+                <h2 className="text-lg font-bold text-white">{viewMode === 'return' ? 'Return Results' : 'Grade Submissions'}</h2>
               </div>
-              <p className="text-xs text-blue-100 ml-[42px]">Review submissions, run AI grading, and save results.</p>
+              <p className="text-xs text-blue-100 ml-[42px]">{viewMode === 'return' ? 'Review saved results and return them to students.' : 'Review submissions, run AI grading, and save results.'}</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-medium text-white">
@@ -1118,62 +1148,8 @@ const GradeSubmissions = () => {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-          <div className="flex min-w-0 flex-col gap-3">
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Select Assessment
-              </label>
-              <Select
-                value={selectedAssessment}
-                onChange={(e) => setSelectedAssessment(e.target.value)}
-                placeholder="Select an assessment"
-              >
-                {assessmentOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={returnAssessmentResults}
-                disabled={!canReturnAssessment || loading}
-                className="teacher-secondary-btn flex-1 text-xs"
-              >
-                Return Results
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  // Select all ungraded submissions
-                  const ungradedIds = pendingSubmissions.map((s) => s.id);
-                  setBatchSubmissionIds(ungradedIds);
-                  if (ungradedIds.length > 0) {
-                    openGradingModal(pendingSubmissions[0], 'batch');
-                  }
-                }}
-                disabled={pendingSubmissions.length === 0 || loading}
-                className="teacher-secondary-btn flex-1 text-xs"
-              >
-                Select All Ungraded ({pendingSubmissions.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (batchSubmissionIds.length > 0) {
-                    openGradingModal(submissions.find((s) => batchSubmissionIds.includes(s.id)), 'batch');
-                  }
-                }}
-                disabled={batchSubmissionIds.length === 0 || loading}
-                className="teacher-primary-btn flex-1 text-xs"
-              >
-                Generate Selected ({batchSubmissionIds.length})
-              </button>
-            </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col gap-2">
 
             {pageMessage && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-700">
@@ -1182,46 +1158,149 @@ const GradeSubmissions = () => {
             )}
 
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500">
-                    <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">Student Submissions</p>
-                    <p className="text-[11px] text-slate-400">{visibleSubmissions.length} of {submissions.length} total</p>
-                  </div>
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <Select
+                    value={selectedAssessment}
+                    onChange={(e) => { setSelectedAssessment(e.target.value); setStudentSearch(''); setViewMode('grade'); }}
+                    placeholder="Select an assessment"
+                  >
+                    {assessmentOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
-                <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+                <div className="relative flex-1">
+                  <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="Search student name..."
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs text-slate-700 placeholder:text-slate-400 transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  {studentSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {viewMode === 'return' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!canReturnAssessment) {
+                          toast.warning('Save every student result in this assessment before returning.');
+                          return;
+                        }
+                        returnAssessmentResults();
+                      }}
+                      disabled={loading}
+                      className="shrink-0 flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-2.5 text-[11px] font-semibold text-white shadow-md shadow-violet-200/50 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-300/50 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                      </svg>
+                      Return All Results
+                      {readyToReturnCount > 0 && (
+                        <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">{readyToReturnCount}</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setViewMode('grade'); setStudentSearch(''); }}
+                      className="teacher-secondary-btn shrink-0 flex items-center gap-1.5 text-[11px] px-3 py-2.5"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                      </svg>
+                      Back to Grading
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {readyToReturnCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setViewMode('return'); setStudentSearch(''); }}
+                        className="shrink-0 flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-[11px] font-semibold text-violet-700 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm hover:bg-violet-100 active:scale-[0.97]"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                        </svg>
+                        Return Results
+                        <span className="rounded-full bg-violet-200 px-1.5 py-0.5 text-[10px] font-bold text-violet-800">{readyToReturnCount}</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (batchSubmissionIds.length > 0) {
+                          openGradingModal(submissions.find((s) => batchSubmissionIds.includes(s.id)), 'batch');
+                        } else {
+                          const ungradedIds = pendingSubmissions.map((s) => s.id);
+                          setBatchSubmissionIds(ungradedIds);
+                          if (ungradedIds.length > 0) {
+                            openGradingModal(pendingSubmissions[0], 'batch');
+                          }
+                        }
+                      }}
+                      disabled={pendingSubmissions.length === 0 || loading || bulkGenerating}
+                      className="shrink-0 flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2.5 text-[11px] font-semibold text-white shadow-md shadow-blue-200/50 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-300/50 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423-1.423Z" />
+                      </svg>
+                      Generate All
+                      {pendingSubmissions.length > 0 && (
+                        <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">{pendingSubmissions.length}</span>
+                      )}
+                    </button>
+                  </>
+                )}
+                <span className="shrink-0 flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-2.5 text-[11px] font-medium text-slate-600">
                   <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  {visibleSubmissions.length} visible
+                  {visibleSubmissions.length}
                 </span>
               </div>
               {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
 
-              <div className="teacher-scrollbar min-h-0 flex-1 overflow-y-auto pb-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {loading && (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="relative">
-                      <div className="h-8 w-8 rounded-full border-[3px] border-blue-200 border-t-blue-500 animate-spin" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                      </div>
+              {loading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="relative">
+                    <div className="h-8 w-8 rounded-full border-[3px] border-blue-200 border-t-blue-500 animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                     </div>
-                    <span className="ml-3 text-sm font-medium text-slate-500">Loading submissions...</span>
                   </div>
-                )}
-                {!loading && visibleSubmissions.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 px-5 py-8 text-center">
+                  <span className="ml-3 text-sm font-medium text-slate-500">Loading submissions...</span>
+                </div>
+              )}
+              {!loading && visibleSubmissions.length === 0 && (
+                <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 px-5 py-8 text-center">
+                  <div className="flex flex-col items-center">
                     <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
                       <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        {viewMode === 'return' ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        )}
                       </svg>
                     </div>
-                    <p className="text-sm font-medium text-slate-600">No submissions yet</p>
-                    <p className="mt-1 text-xs text-slate-400">Submissions appear here once students turn in work.</p>
+                    <p className="text-sm font-medium text-slate-600">{viewMode === 'return' ? 'No results to return' : 'No submissions yet'}</p>
+                    <p className="mt-1 text-xs text-slate-400">{viewMode === 'return' ? 'Grade and save submissions first, then return them from here.' : 'Submissions appear here once students turn in work.'}</p>
                     <Link
                       to="/teacher/assessments/view"
                       className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold text-blue-600 transition hover:bg-blue-50"
@@ -1232,142 +1311,103 @@ const GradeSubmissions = () => {
                       </svg>
                     </Link>
                   </div>
-                )}
-
+                </div>
+              )}
+              {!loading && visibleSubmissions.length > 0 && (
+              <div className="teacher-scrollbar min-h-0 flex-1 overflow-y-auto pr-1 pb-2 flex flex-col gap-2">
                 {visibleSubmissions.map((submission) => {
                   const isActive = selectedSubmission?.id === submission.id;
                   const st = getStatusConfig(submission.status, submission.returned_at);
                   const isGraded = String(submission.status || '').toLowerCase() === 'graded';
                   const isReturned = Boolean(submission.returned_at);
-                  const isInBatch = batchSubmissionIds.includes(submission.id);
                   const score = submission.score;
                   return (
                     <div key={submission.id} className="relative">
-                      {/* Batch checkbox */}
-                      <div className="absolute left-2 top-2 z-10">
-                        <label className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isInBatch}
-                            onChange={() => {
-                              if (isInBatch) {
-                                setBatchSubmissionIds((prev) => prev.filter((id) => id !== submission.id));
-                              } else {
-                                setBatchSubmissionIds((prev) => [...prev, submission.id]);
-                              }
-                            }}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                        </label>
-                      </div>
                       <button
                         type="button"
                         onClick={() => openGradingModal(submission, 'single')}
-                        className={`group relative w-full text-left rounded-2xl border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${
+                        className={`group relative w-full text-left rounded-xl border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
                           isActive
                             ? 'border-blue-300 bg-blue-50/80 shadow-md ring-2 ring-blue-200'
-                            : isInBatch
-                              ? 'border-blue-200 bg-blue-50/40'
-                              : 'border-slate-200/80 bg-white hover:border-slate-300'
+                            : 'border-slate-200/80 bg-white hover:border-slate-300'
                         }`}
                       >
-                      {/* Top accent line */}
-                      <div className={`absolute inset-x-0 top-0 h-1 rounded-t-2xl ${
+                      {/* Left accent line */}
+                      <div className={`absolute left-0 top-0 h-full w-1 rounded-l-xl ${
                         isReturned
-                          ? 'bg-gradient-to-r from-slate-300 to-slate-400'
+                          ? 'bg-gradient-to-b from-slate-300 to-slate-400'
                           : isGraded
-                            ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                            : 'bg-gradient-to-r from-slate-200 to-slate-300'
+                            ? 'bg-gradient-to-b from-emerald-400 to-emerald-500'
+                            : 'bg-gradient-to-b from-slate-200 to-slate-300'
                       }`} />
                       
-                      <div className="p-4 pt-5">
-                        <div className="flex items-start gap-3.5">
-                          {/* Avatar */}
-                          <div className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold transition-transform duration-200 group-hover:scale-105 ${
-                            isActive
-                              ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200'
-                              : isReturned
-                                ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-md shadow-slate-200'
-                                : isGraded
-                                  ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-lg shadow-emerald-200'
-                                  : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600'
-                          }`}>
-                            {getInitials(submission.student_name)}
-                            {/* Status indicator dot */}
-                            <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white ${
-                              isReturned ? 'bg-slate-400' : isGraded ? 'bg-emerald-400' : 'bg-slate-300'
-                            }`} />
+                      <div className="flex items-center gap-3 p-3 pl-5">
+                        {/* Avatar */}
+                        <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-transform duration-200 group-hover:scale-105 ${
+                          isActive
+                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200'
+                            : isReturned
+                              ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-md shadow-slate-200'
+                              : isGraded
+                                ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-lg shadow-emerald-200'
+                                : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600'
+                        }`}>
+                          {getInitials(submission.student_name)}
+                          <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${
+                            isReturned ? 'bg-slate-400' : isGraded ? 'bg-emerald-400' : 'bg-slate-300'
+                          }`} />
+                        </div>
+                        
+                        {/* Content */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="truncate text-[13px] font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                              {submission.student_name}
+                            </h3>
                           </div>
-                          
-                          {/* Content */}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <h3 className="truncate text-[13px] font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
-                                  {submission.student_name}
-                                </h3>
-                                <p className="mt-0.5 truncate text-xs font-medium text-slate-500">
-                                  {submission.assessment_title}
-                                </p>
-                              </div>
-                              <span className={`teacher-status-pill shrink-0 border ${st.color}`}>
-                                <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${st.dot}`} />
-                                {st.label}
-                              </span>
-                            </div>
-                            
-                            {/* Score badge (if graded) */}
-                            {isGraded && score != null && !isReturned && (
-                              <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 border border-emerald-200">
-                                <svg className="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                </svg>
-                                <span className="text-xs font-bold text-emerald-700">{Number(score).toFixed(0)}%</span>
-                              </div>
-                            )}
-                            
-                            {/* Returned badge */}
-                            {isReturned && (
-                              <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 border border-slate-200">
-                                <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                </svg>
-                                <span className="text-xs font-bold text-slate-600">Returned</span>
-                              </div>
-                            )}
-                            
-                            {/* Meta info */}
-                            <div className="mt-2.5 flex items-center gap-3 text-[11px] text-slate-400">
-                              <span className="flex items-center gap-1">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                                </svg>
-                                {submission.submission_date}
-                              </span>
-                              <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
-                              <span className="truncate">{submission.subject_display || 'No subject'}</span>
-                            </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400">
+                            <span className="truncate">{submission.assessment_title}</span>
+                            <span className="h-0.5 w-0.5 rounded-full bg-slate-300 shrink-0" />
+                            <span>{submission.submission_date}</span>
+                            <span className="h-0.5 w-0.5 rounded-full bg-slate-300 shrink-0" />
+                            <span className="truncate">{submission.subject_display || 'No subject'}</span>
                           </div>
                         </div>
-                      </div>
-                      
-                      {/* Hover arrow indicator */}
-                      <div className={`absolute right-3 top-1/2 -translate-y-1/2 transition-all duration-200 ${
-                        isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'
-                      }`}>
-                        <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                        </svg>
+
+                        {/* Score / Arrow */}
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className={`teacher-status-pill shrink-0 border text-[10px] px-2.5 py-1 rounded-full font-medium ${st.color}`}>
+                            <span className={`mr-1 h-1.5 w-1.5 rounded-full inline-block ${st.dot}`} />
+                            {st.label}
+                          </span>
+                          {isGraded && score != null && !isReturned && (
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+                              {Number(score).toFixed(0)}%
+                            </span>
+                          )}
+                          {isReturned && (
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 border border-slate-200">
+                              Returned
+                            </span>
+                          )}
+                          <svg className={`h-4 w-4 transition-all duration-200 ${
+                            isActive ? 'text-blue-500 translate-x-0 opacity-100' : 'text-slate-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-1'
+                          }`} fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                          </svg>
+                        </div>
                       </div>
                     </button>
                     </div>
                   );
                 })}
               </div>
+              )}
+
+              </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
+            </div>
 
       {(selectedSubmission || batchCompleted) && (
         <div className="fixed inset-0 top-14 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/30 p-4 backdrop-blur-sm transition-opacity duration-200" onClick={closeGradingPanel}>
@@ -1377,17 +1417,43 @@ const GradeSubmissions = () => {
           >
             <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 px-4 sm:px-8 py-4 sm:py-6 text-white">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
                     {batchCompleted ? 'Batch Complete' : gradingMode === 'batch' ? 'Select All Ungraded' : 'Student Review'}
                   </p>
-                  <h2 className="mt-1 text-xl font-bold">{batchCompleted ? 'Assessment Ready to Return' : selectedSubmission?.student_name}</h2>
-                  <p className="mt-1 text-sm text-white/80">{batchCompleted ? batchAssessmentTitle : selectedSubmission?.assessment_title}</p>
+                  <h2 className="mt-1 text-xl font-bold truncate">{batchCompleted ? 'Assessment Ready to Return' : selectedSubmission?.student_name}</h2>
+                  <p className="mt-1 text-sm text-white/80 truncate">{batchCompleted ? batchAssessmentTitle : selectedSubmission?.assessment_title}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {selectedSubmission?.status && !batchCompleted && (
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                        selectedSubmission.status === 'Graded' ? 'bg-emerald-500/25 text-emerald-100' :
+                        selectedSubmission.status === 'Ready to Return' ? 'bg-blue-500/25 text-blue-100' :
+                        'bg-amber-500/25 text-amber-100'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          selectedSubmission.status === 'Graded' ? 'bg-emerald-400' :
+                          selectedSubmission.status === 'Ready to Return' ? 'bg-blue-400' :
+                          'bg-amber-400'
+                        }`} />
+                        {selectedSubmission.status === 'Graded' ? 'Graded' : selectedSubmission.status === 'Ready to Return' ? 'Ready to Return' : 'Pending'}
+                      </span>
+                    )}
+                    {selectedSubmission?.student_id && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-medium text-white/80">
+                        ID: {selectedSubmission.student_id}
+                      </span>
+                    )}
+                    {selectedSubmission?.submission_date && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-medium text-white/80">
+                        {selectedSubmission.submission_date}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={closeGradingPanel}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1395,46 +1461,6 @@ const GradeSubmissions = () => {
                 </button>
               </div>
             </div>
-
-            {selectedSubmission?.status === 'Graded' && selectedSubmission?.score != null && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 sm:px-8 pt-6">
-                <div className="rounded-2xl bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Status</p>
-                  <p className="mt-1 text-3xl font-black text-emerald-600">Graded</p>
-                  <p className="mt-0.5 text-[11px] font-medium text-emerald-400">Score assigned</p>
-                </div>
-                <div className="rounded-2xl bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Score</p>
-                  <p className="mt-1 text-3xl font-black text-emerald-600">{selectedSubmission.score != null ? `${Number(selectedSubmission.score).toFixed(1)}%` : '—'}</p>
-                  <p className="mt-0.5 text-[11px] font-medium text-emerald-400">Final result</p>
-                </div>
-                <div className="rounded-2xl bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Date</p>
-                  <p className="mt-1 text-lg font-black text-blue-600">{selectedSubmission?.submission_date ?? '—'}</p>
-                  <p className="mt-0.5 text-[11px] font-medium text-blue-400">Submitted on</p>
-                </div>
-              </div>
-            )}
-
-            {selectedSubmission?.status !== 'Graded' && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 sm:px-8 pt-6">
-                <div className="rounded-2xl bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Status</p>
-                  <p className="mt-1 text-xl font-black text-amber-600">{batchCompleted ? 'Ready to Return' : 'Pending'}</p>
-                  <p className="mt-0.5 text-[11px] font-medium text-amber-400">{batchCompleted ? 'All done' : 'Awaiting grade'}</p>
-                </div>
-                <div className="rounded-2xl bg-blue-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Date</p>
-                  <p className="mt-1 text-lg font-black text-blue-600">{selectedSubmission?.submission_date ?? '—'}</p>
-                  <p className="mt-0.5 text-[11px] font-medium text-blue-400">Submitted on</p>
-                </div>
-                <div className="rounded-2xl bg-indigo-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">Subject</p>
-                  <p className="mt-1 text-sm font-black text-indigo-600 truncate">{selectedSubmission?.assessment_title ?? '—'}</p>
-                  <p className="mt-0.5 text-[11px] font-medium text-indigo-400">Assessment</p>
-                </div>
-              </div>
-            )}
 
             {gradingMode === 'batch' && (
               <div className="px-8 pt-4">
@@ -1479,18 +1505,6 @@ const GradeSubmissions = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Student</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">{selectedSubmission?.student_name}</p>
-                      <p className="text-xs text-slate-500">{selectedSubmission?.assessment_title}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Submitted</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">{selectedSubmission?.student_id}</p>
-                      <p className="text-xs text-slate-500">{selectedSubmission?.submission_date}</p>
-                    </div>
-                  </div>
 
                   {selectedSubmission?.rubric_name && (
                     <div className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4">
@@ -1512,7 +1526,7 @@ const GradeSubmissions = () => {
                   )}
 
                   <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
-                    <div className="mb-3 flex items-center gap-2">
+              <div className="shrink-0 mb-3 flex items-center gap-2">
                       <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 0 0 1.5-1.5V4.5a1.5 1.5 0 0 0-1.5-1.5H3.75a1.5 1.5 0 0 0-1.5 1.5v15a1.5 1.5 0 0 0 1.5 1.5Z" />
                       </svg>
@@ -1577,7 +1591,7 @@ const GradeSubmissions = () => {
                           <div className="h-full">
                             <div className="flex items-center justify-between mb-2">
                               <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Extracted Solution</p>
-                              {!editingOcr && (
+                              {!editingOcr && selectedSubmission?.status !== 'Ready to Return' && (
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
@@ -1677,6 +1691,10 @@ const GradeSubmissions = () => {
                               const equivMax = (criterion.weight / 100) * draftMaxScore;
                               const equivEarned = (criterion.earned / 100) * draftMaxScore;
                               const contributionPct = criterion.weight > 0 ? Math.round((criterion.earned / criterion.weight) * 100) : 0;
+                              const rubricItems = selectedSubmission?.rubric_items || [];
+                              const matchedRubricItem = rubricItems.find(ri => (ri.description || '').toLowerCase() === (criterion.name || '').toLowerCase());
+                              const effortMin = matchedRubricItem ? Number(matchedRubricItem.min_points || 0) : 0;
+                              const effortMinEquiv = (effortMin / (matchedRubricItem?.points || 1)) * equivMax;
                               return (
                                 <div key={idx} className="space-y-1.5">
                                   <div className="flex items-center justify-between">
@@ -1686,9 +1704,12 @@ const GradeSubmissions = () => {
                                   <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                                     <div
                                       className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500"
-                                      style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                       style={{ width: `${Math.min(100, Math.max(0, contributionPct))}%` }}
                                     />
                                   </div>
+                                  {effortMin > 0 && (
+                                    <p className="text-[10px] text-amber-500 font-medium">Effort minimum: {effortMin} pts</p>
+                                  )}
                                   {criterion.explanation && (
                                     <p className="text-[11px] leading-relaxed text-slate-500">{criterion.explanation}</p>
                                   )}
@@ -1699,10 +1720,10 @@ const GradeSubmissions = () => {
                         </div>
                       )}
 
-                      {selectedSubmission?.feedback && (
+                      {selectedSubmission?.ai_feedback && (
                         <div className="rounded-2xl border border-slate-200 bg-white p-4">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400 mb-2">Feedback</p>
-                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedSubmission.feedback}</p>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedSubmission.ai_feedback}</p>
                         </div>
                       )}
 
@@ -1903,71 +1924,6 @@ const GradeSubmissions = () => {
                         </span>
                       </div>
 
-                      {selectedSubmission?.ocr_text && (
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Extracted Solution</p>
-                            {!editingOcr && (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={handleReextractOcr}
-                                  disabled={reextractingOcr}
-                                  className="text-[10px] font-semibold text-amber-500 hover:text-amber-700 transition disabled:opacity-50"
-                                  title="Re-extract text using AI vision (useful if extraction looks wrong)"
-                                >
-                                  {reextractingOcr ? 'Re-extracting...' : 'Re-extract'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setEditingOcr(true); setOcrDraft(selectedSubmission.ocr_text || ''); }}
-                                  className="text-[10px] font-semibold text-blue-500 hover:text-blue-700 transition"
-                                >
-                                  Edit
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          {editingOcr ? (
-                            <div className="space-y-2">
-                              <textarea
-                                value={ocrDraft}
-                                onChange={(event) => setOcrDraft(event.target.value)}
-                                rows={10}
-                                className="teacher-input !text-sm !whitespace-pre-wrap"
-                                style={{ scrollbarWidth: 'thin' }}
-                              />
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={handleSaveOcrText}
-                                  disabled={savingOcr}
-                                  className="teacher-primary-btn !px-3 !py-1.5 !text-[11px]"
-                                >
-                                  {savingOcr ? 'Saving...' : 'Save'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setEditingOcr(false); setOcrDraft(''); }}
-                                  disabled={savingOcr}
-                                  className="teacher-secondary-btn !px-3 !py-1.5 !text-[11px]"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div
-                              className="max-h-72 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-sm leading-relaxed"
-                              style={{ scrollbarWidth: 'thin' }}
-                            >
-                              <p className="mb-2 text-[10px] text-slate-400 italic">Extracted text may contain errors. Click Edit to correct.</p>
-                              {formatOcrText(selectedSubmission.ocr_text)}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
                       <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Score</p>
                         <p className="mt-2 text-4xl font-black text-blue-600">
@@ -2023,7 +1979,7 @@ const GradeSubmissions = () => {
                           rows={4}
                           className="teacher-input mt-2"
                           placeholder="Overall feedback for the student..."
-                          disabled={!selectedSubmission}
+                          disabled={!selectedSubmission || isResultSaved}
                         />
                       </label>
 
@@ -2058,6 +2014,7 @@ const GradeSubmissions = () => {
                                       max={item.max_score || undefined}
                                       value={item.score_earned}
                                       onChange={(event) => updateDraftItemScore(item.item_id, 'score_earned', event.target.value)}
+                                      disabled={isResultSaved}
                                       className="teacher-input !rounded-lg !px-2.5 !py-1.5 text-center text-sm"
                                     />
                                     <p className="mt-0.5 text-center text-[10px] text-slate-400">of {Number(item.max_score || 0).toFixed(2)}</p>
@@ -2069,6 +2026,7 @@ const GradeSubmissions = () => {
                                   rows={2}
                                   className="teacher-input mt-2 !rounded-lg !px-2.5 !py-1.5 text-xs"
                                   placeholder="Step-by-step feedback..."
+                                  disabled={isResultSaved}
                                 />
                               </div>
                             ))}
@@ -2120,7 +2078,7 @@ const GradeSubmissions = () => {
                     )}
                   </button>
                 )}
-                {selectedSubmission?.status !== 'Graded' && hasDraftResult && (
+                {selectedSubmission?.status !== 'Graded' && (gradingMode === 'batch' || selectedSubmission?.status !== 'Ready to Return') && hasDraftResult && (
                   <button
                     type="button"
                     onClick={gradingMode === 'batch' ? handleSaveAllResults : handleSaveResult}
@@ -2137,6 +2095,14 @@ const GradeSubmissions = () => {
                       </span>
                     ) : gradingMode === 'batch' ? 'Save All Results' : 'Save Result'}
                   </button>
+                )}
+                {selectedSubmission?.status === 'Ready to Return' && (
+                  <span className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-600">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    Saved
+                  </span>
                 )}
               </div>
             </div>

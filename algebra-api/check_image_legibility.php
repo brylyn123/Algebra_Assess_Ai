@@ -118,8 +118,8 @@ try {
     $legibilityLine = trim($lines[1] ?? '');
     $reason = trim($lines[2] ?? $legibilityLine);
 
-    // Whitelist: ONLY allow HANDWRITTEN_MATH - reject everything else
-    $isValidContent = str_contains($contentType, 'HANDWRITTEN_MATH');
+    // Whitelist: allow handwritten math and handwritten text (students often mix math with explanatory text)
+    $isValidContent = str_contains($contentType, 'HANDWRITTEN_MATH') || str_contains($contentType, 'HANDWRITTEN_TEXT');
     
     if (!$isValidContent) {
         // Friendly names for common non-math types
@@ -150,7 +150,7 @@ try {
     }
 
     // Check legibility for valid content
-    $readable = str_starts_with($legibilityLine, 'YES') || str_contains($contentType, 'HANDWRITTEN_MATH');
+    $readable = str_starts_with($legibilityLine, 'YES') || str_contains($contentType, 'HANDWRITTEN_MATH') || str_contains($contentType, 'HANDWRITTEN_TEXT');
 
     echo json_encode([
         'status' => 'success',

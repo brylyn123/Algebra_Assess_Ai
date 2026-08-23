@@ -4,6 +4,10 @@ import { useTeacherRecords } from './hooks/useTeacherRecords';
 const ViewHistoryCard = ({ maxHeight = '260px' }) => {
     const { assessments, rubrics, loading, statusMessage } = useTeacherRecords();
 
+    const publishedAssessments = assessments.filter(
+        (a) => (a.assessment_status || a.status || 'Draft').toLowerCase() !== 'draft'
+    );
+
     const formatLevelLabel = (level) => {
         const label = String(level?.label ?? '').trim();
         const points = Number(level?.points ?? 0);
@@ -57,10 +61,10 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                     <div className="space-y-2">
                         <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Assessments</p>
                         <div className="space-y-2">
-                            {assessments.length === 0 ? (
-                                <p className="text-xs text-slate-400">No assessments recorded yet.</p>
+                            {publishedAssessments.length === 0 ? (
+                                <p className="text-xs text-slate-400">No published assessments yet.</p>
                             ) : (
-                                assessments.map((item) => (
+                                publishedAssessments.map((item) => (
                                     <div
                                         key={item.exercise_id}
                                         className="space-y-2 rounded-2xl border border-slate-200 bg-white/90 p-3"

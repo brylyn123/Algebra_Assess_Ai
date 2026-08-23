@@ -2,12 +2,38 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/Toast';
 import MathText from './MathText';
+import MathEditor from './MathEditor';
 import Select from './components/Select';
 import axios from './axiosClient';
 import { findLocalUser } from './localAuthStore';
 
 const DRAFT_KEY = 'teacher:new-assessment-draft';
 const EDITOR_ITEMS_KEY = 'teacher:question-editor-items';
+
+function hasLatexPatterns(text) {
+  return /\\[a-zA-Z]|[_^{}]|[$]/.test(text);
+}
+
+const MATH_SYMBOLS = [
+  { label: 'Fraction', insert: '\\frac{a}{b}' },
+  { label: 'Square Root', insert: '\\sqrt{x}' },
+  { label: 'Power', insert: 'x^{n}' },
+  { label: 'Subscript', insert: 'x_{n}' },
+  { label: 'Greek Alpha', insert: '\\alpha' },
+  { label: 'Greek Beta', insert: '\\beta' },
+  { label: 'Greek Gamma', insert: '\\gamma' },
+  { label: 'Pi', insert: '\\pi' },
+  { label: 'Theta', insert: '\\theta' },
+  { label: 'Sigma Sum', insert: '\\sum_{i=1}^{n}' },
+  { label: 'Integral', insert: '\\int_{a}^{b}' },
+  { label: 'Plus/Minus', insert: '\\pm' },
+  { label: 'Times', insert: '\\times' },
+  { label: 'Divide', insert: '\\div' },
+  { label: 'Not Equal', insert: '\\neq' },
+  { label: 'Less/Equal', insert: '\\leq' },
+  { label: 'Greater/Equal', insert: '\\geq' },
+  { label: 'Infinity', insert: '\\infty' },
+];
 
 function loadEditorItems() {
   try {
@@ -28,12 +54,12 @@ export default function QuestionEditor() {
 
   const textareaRef = useRef(null);
   const [mathExpression, setMathExpression] = useState('');
-  const [questionLabel, setQuestionLabel] = useState('');
   const [questionScore, setQuestionScore] = useState('1.0');
   const [items, setItems] = useState(loadEditorItems);
   const [editingIndex, setEditingIndex] = useState(null);
   const [rubrics, setRubrics] = useState([]);
   const [rubricLoading, setRubricLoading] = useState(false);
+  const [showMathKeyboard, setShowMathKeyboard] = useState(false);
 
   useEffect(() => {
     saveEditorItems(items);
@@ -69,7 +95,6 @@ export default function QuestionEditor() {
       item_no: items.length + 1,
       question_type: 'handwritten_algebra',
       question_content: mathValue,
-      question_label: questionLabel.trim(),
       max_score: score,
     };
 
@@ -81,7 +106,6 @@ export default function QuestionEditor() {
     }
 
     setMathExpression('');
-    setQuestionLabel('');
     setQuestionScore('1.0');
     if (textareaRef.current) textareaRef.current.value = '';
   };
@@ -89,7 +113,6 @@ export default function QuestionEditor() {
   const handleEditItem = (index) => {
     const item = items[index];
     setEditingIndex(index);
-    setQuestionLabel(item.question_label || '');
     setQuestionScore(String(item.max_score || 1.0));
     setMathExpression(item.question_content || '');
     if (textareaRef.current) {
@@ -103,10 +126,22 @@ export default function QuestionEditor() {
     if (editingIndex === index) {
       setEditingIndex(null);
       setMathExpression('');
-      setQuestionLabel('');
       setQuestionScore('1.0');
       if (textareaRef.current) textareaRef.current.value = '';
     }
+  };
+
+  const insertSymbol = (symbol) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newValue = mathExpression.substring(0, start) + symbol + mathExpression.substring(end);
+    setMathExpression(newValue);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + symbol.length, start + symbol.length);
+    }, 0);
   };
 
   const handleDone = () => {
@@ -165,7 +200,6 @@ export default function QuestionEditor() {
                   onClick={() => {
                     setEditingIndex(null);
                     setMathExpression('');
-                    setQuestionLabel('');
                     setQuestionScore('1.0');
                     if (textareaRef.current) textareaRef.current.value = '';
                   }}
@@ -176,53 +210,74 @@ export default function QuestionEditor() {
               )}
             </div>
 
-            {/* Question textarea */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100">
-              <textarea
-                ref={textareaRef}
-                onChange={(e) => setMathExpression(e.target.value)}
-                placeholder="Type your question here... Use LaTeX for math (e.g. \frac{x}{2} or $x^2$)"
-                className="w-full resize-y rounded-xl border-transparent bg-transparent px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-transparent focus:ring-0"
-                rows={4}
-                style={{ minHeight: '6rem' }}
-              />
-              {mathExpression.trim() && (
-                <div className="border-t border-slate-200 bg-white px-4 py-3">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Preview</p>
-                  <div className="text-sm text-slate-800">
-                    <MathText text={mathExpression} />
+            {/* Question textarea with points */}
+            <div className="flex gap-3">
+              <div className="flex-1 rounded-xl border border-slate-200 bg-slate-50 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100">
+                <textarea
+                  ref={textareaRef}
+                  onChange={(e) => setMathExpression(e.target.value)}
+                  placeholder="Type your question here... Use LaTeX for math (e.g. \frac{x}{2} or $x^2$)"
+                  className="w-full resize-y rounded-xl border-transparent bg-transparent px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-transparent focus:ring-0"
+                  rows={4}
+                  style={{ minHeight: '6rem' }}
+                />
+                {mathExpression.trim() && hasLatexPatterns(mathExpression) && (
+                  <div className="border-t border-slate-200 bg-white px-4 py-3">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Preview</p>
+                    <div className="text-sm text-slate-800">
+                      <MathText text={mathExpression} />
+                    </div>
                   </div>
+                )}
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMathKeyboard(!showMathKeyboard)}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition ${showMathKeyboard ? 'border-blue-300 bg-blue-50 text-blue-600' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}
+                  title="Math Keyboard"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.75 9.25a.75.75 0 000 1.5h1.5v1.5a.75.75 0 001.5 0v-1.5h1.5a.75.75 0 000-1.5h-1.5v-1.5a.75.75 0 00-1.5 0v1.5h-1.5z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <div className="w-[60px]">
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="100"
+                    step="0.5"
+                    value={questionScore}
+                    onChange={(e) => setQuestionScore(e.target.value)}
+                    placeholder="Pts"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-center text-[11px] font-semibold text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  />
                 </div>
-              )}
-            </div>
-
-            {/* Label & Score row */}
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr,120px]">
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Label (optional)</label>
-                <input
-                  type="text"
-                  value={questionLabel}
-                  onChange={(e) => setQuestionLabel(e.target.value)}
-                  placeholder="e.g. Solve for x, Simplify the expression"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Points</label>
-                <input
-                  type="number"
-                  min="0.5"
-                  max="100"
-                  step="0.5"
-                  value={questionScore}
-                  onChange={(e) => setQuestionScore(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                />
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">pts</span>
               </div>
             </div>
 
-            {/* Add / Update button */}
+            {/* Math keyboard panel */}
+            {showMathKeyboard && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-slate-400">Math Symbols</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {MATH_SYMBOLS.map((sym) => (
+                    <button
+                      key={sym.label}
+                      type="button"
+                      onClick={() => insertSymbol(sym.insert)}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      title={sym.insert}
+                    >
+                      {sym.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add button */}
             <div className="mt-4 flex justify-end">
               <button
                 type="button"
@@ -252,9 +307,6 @@ export default function QuestionEditor() {
                       {index + 1}
                     </div>
                     <div className="min-w-0 flex-1">
-                      {item.question_label && (
-                        <p className="mb-1 text-xs font-medium text-slate-500">{item.question_label}</p>
-                      )}
                       <div className="text-sm text-slate-800 overflow-hidden break-words">
                         <MathText text={item.question_content} />
                       </div>

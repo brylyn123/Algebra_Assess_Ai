@@ -45,15 +45,17 @@ function buildDeepSeekGradePrompt(array $submission): string
         ]);
     } else {
         $gradingGuide = implode("\n\n", [
-            "No rubric provided. Use the following default grading criteria with fixed weights:",
-            "1. Mathematical Correctness (30%): Accuracy of operations, intermediate results, and final answer.",
-            "2. Solution Process (25%): Appropriate method, logical flow, and correct sequencing.",
-            "3. Completeness (20%): Required parts and essential solution steps are included.",
-            "4. Mathematical Understanding and Relevant Attempt (15%): Observable understanding or meaningful algebraic attempt.",
-            "5. Mathematical Notation (10%): Correct use of symbols, variables, equations, and notation.",
-            "For each item, evaluate these criteria. The total score is the sum of points earned across all criteria.",
+            "No rubric provided. Use the following default grading criteria:",
+            "For each item, evaluate TWO components:",
+            "1. Final Answer (40% of item max score): Binary scoring — if the final answer is correct, award full points for this component. If wrong, award 0. No partial credit for the answer itself.",
+            "2. Solution Steps (60% of item max score): Partial credit for each correct step shown. Award points for correct method, logical flow, and proper algebraic process — even if the final answer is wrong. Deduct for missing steps, incorrect logic, or unnecessary work.",
+            "The total score for each item = Final Answer score + Solution Steps score.",
             "IMPORTANT: If a student has submitted work (OCR text is not empty), each item's score_earned must be at least 10% of max_score, even if all answers are incorrect. This ensures students receive credit for attempting the problem.",
-            "Provide specific feedback explaining what the student did correctly and what errors were found.",
+            "PENALTY RULES (apply these deductions to Solution Steps):",
+            "- Missing steps: Deduct points for each essential step that is missing or incomplete.",
+            "- Incorrect logic: Deduct points for wrong method or algebraic errors.",
+            "- Unnecessary work: Minor deductions for redundant steps, but focus grading on correctness.",
+            "Provide specific feedback explaining what the student did correctly, what errors were found, and what to improve.",
         ]);
     }
 
@@ -64,11 +66,8 @@ function buildDeepSeekGradePrompt(array $submission): string
             'overall_score' => 0,
             'overall_feedback' => 'Short overall feedback summary.',
             'criteria_scores' => [
-                ['name' => 'Mathematical Correctness', 'weight' => 30, 'earned' => 0, 'explanation' => 'Why this score.'],
-                ['name' => 'Solution Process', 'weight' => 25, 'earned' => 0, 'explanation' => 'Why this score.'],
-                ['name' => 'Completeness', 'weight' => 20, 'earned' => 0, 'explanation' => 'Why this score.'],
-                ['name' => 'Mathematical Understanding and Relevant Attempt', 'weight' => 15, 'earned' => 0, 'explanation' => 'Why this score.'],
-                ['name' => 'Mathematical Notation', 'weight' => 10, 'earned' => 0, 'explanation' => 'Why this score.'],
+                ['name' => 'Final Answer', 'weight' => 40, 'earned' => 0, 'explanation' => 'Why this score.'],
+                ['name' => 'Solution Steps', 'weight' => 60, 'earned' => 0, 'explanation' => 'Why this score.'],
             ],
             'item_scores' => [
                 [
@@ -80,15 +79,18 @@ function buildDeepSeekGradePrompt(array $submission): string
             ],
         ], JSON_PRETTY_PRINT),
         "CRITICAL RULES:",
-        "- The criteria_scores field is MANDATORY. You MUST include all 5 criteria with their weights and earned scores.",
+        "- The criteria_scores field is MANDATORY. You MUST include all criteria with their weights and earned scores.",
+        "- If a custom rubric is provided, follow its criteria and weights exactly. The example above shows the default structure.",
         "- overall_score must be a percentage from 0 to 100.",
-        "- criteria_scores: Each criterion has a fixed weight. earned must be between 0 and weight. The sum of all earned values determines the overall quality.",
-        "- weight is fixed: Correctness=30, Process=25, Completeness=20, Effort=15, Notation=10. Do NOT change the weights.",
-        "- earned is the points the student achieved for that criterion (0 to weight).",
+        "- criteria_scores: earned must be between 0 and weight. The sum of all earned values determines the overall quality.",
+        "- Final Answer: Binary scoring — correct = full weight, wrong = 0. No partial credit for the answer itself.",
+        "- Solution Steps: Partial credit for each correct step. Give credit for method and process even if the final answer is wrong.",
         "- Provide a short explanation for each criterion describing why that score was given.",
         "- score_earned for each item must not exceed that item's max score.",
         "- ai_feedback for each item should explain what the student did correctly, what errors were found, and what to improve.",
         "- overall_feedback should summarize strengths, mistakes, and next steps.",
+        "- PERFECT SCORES: A score of 100% should only be given for a completely correct solution with the right answer AND all steps shown correctly.",
+        "- BE STRICT: Do not be overly generous. Deduct points for errors, missing steps, and wrong answers. Students should earn their scores.",
         "Assessment Title: " . $submission['assessment_title'],
         "Student Name: " . $submission['student_name'],
         $gradingGuide,
@@ -116,7 +118,7 @@ function generateDeepSeekGrade(array $submission): array
 
     $payload = [
         'model' => $config['model'] ?? 'deepseek-chat',
-        'temperature' => 0.2,
+        'temperature' => 0.0,
         'messages' => [
             [
                 'role' => 'system',
@@ -203,11 +205,31 @@ function generateDeepSeekGrade(array $submission): array
         ];
     }
 
+    // Build a lookup of rubric items by description for effort minimum enforcement
+    $rubricItems = $submission['rubric_items'] ?? [];
+    $rubricMinPointsByDesc = [];
+    foreach ($rubricItems as $ri) {
+        $desc = strtolower(trim((string)($ri['description'] ?? '')));
+        if ($desc !== '') {
+            $rubricMinPointsByDesc[$desc] = (float)($ri['min_points'] ?? 0);
+        }
+    }
+
     $criteriaScores = [];
     foreach (($parsedGeneration['criteria_scores'] ?? []) as $criterion) {
         $weight = isset($criterion['weight']) ? (float)$criterion['weight'] : 0;
         $earned = isset($criterion['earned']) ? (float)$criterion['earned'] : 0;
         $earned = max(0, min($weight, $earned));
+
+        // Apply effort minimum floor per rubric criterion if defined
+        $criterionName = strtolower(trim((string)($criterion['name'] ?? '')));
+        if (isset($rubricMinPointsByDesc[$criterionName])) {
+            $minPts = $rubricMinPointsByDesc[$criterionName];
+            if ($minPts > 0 && $earned < $minPts) {
+                $earned = $minPts;
+            }
+        }
+
         $criteriaScores[] = [
             'name' => trim((string)($criterion['name'] ?? '')),
             'weight' => $weight,
@@ -220,11 +242,8 @@ function generateDeepSeekGrade(array $submission): array
     if (empty($criteriaScores)) {
         $overallScore = isset($parsedGeneration['overall_score']) ? (float)$parsedGeneration['overall_score'] : 0;
         $defaultCriteria = [
-            ['name' => 'Mathematical Correctness', 'weight' => 30],
-            ['name' => 'Solution Process', 'weight' => 25],
-            ['name' => 'Completeness', 'weight' => 20],
-            ['name' => 'Mathematical Understanding and Relevant Attempt', 'weight' => 15],
-            ['name' => 'Mathematical Notation', 'weight' => 10],
+            ['name' => 'Final Answer', 'weight' => 40],
+            ['name' => 'Solution Steps', 'weight' => 60],
         ];
         foreach ($defaultCriteria as $dc) {
             $earned = round(($overallScore / 100) * $dc['weight'], 2);
@@ -287,6 +306,137 @@ function sanitizeOcrText(string $text): string
     return $result;
 }
 
+/**
+ * Detect if OCR text looks like garbage / low-quality extraction.
+ * Returns true if the text is likely garbled and should be cleaned up or re-extracted.
+ */
+function looksLikeOcrGarbage(string $text): bool
+{
+    if (strlen(trim($text)) < 5) return true;
+
+    // Check for common Tesseract diagnostic patterns
+    if (preg_match('/Estimating resolution/i', $text)) return true;
+    if (preg_match('/Warning:/i', $text)) return true;
+
+    // High ratio of non-alphanumeric noise characters suggests garbled output
+    $cleaned = preg_replace('/[\s\n\r\t]/', '', $text);
+    if (strlen($cleaned) === 0) return true;
+    $noise = preg_replace('@[a-zA-Z0-9=+\-*/^().,;:!？\[\]{}|\\\/<>~`\'"#%&_¥€£$§°±×÷√∑∏∫∂∞≈≠≤≥±]@', '', $cleaned);
+    $noiseRatio = strlen($noise) / strlen($cleaned);
+    if ($noiseRatio > 0.35) return true;
+
+    // Lines with very few recognizable words
+    $lines = array_filter(explode("\n", $text), fn($l) => trim($l) !== '');
+    if (count($lines) > 0) {
+        $shortLines = 0;
+        foreach ($lines as $line) {
+            // Lines with less than 40% alphanumeric chars
+            $lineClean = preg_replace('/[\s]/', '', $line);
+            if (strlen($lineClean) > 0) {
+                $alphaNum = preg_replace('/[^a-zA-Z0-9]/', '', $lineClean);
+                if (strlen($alphaNum) / strlen($lineClean) < 0.4) {
+                    $shortLines++;
+                }
+            }
+        }
+        if (count($lines) > 0 && $shortLines / count($lines) > 0.5) return true;
+    }
+
+    return false;
+}
+
+/**
+ * Use AI (Gemini) to clean up garbled OCR text from handwritten math.
+ * Fixes common OCR misrecognitions while preserving math notation.
+ */
+function cleanupOcrTextWithAi(string $ocrText): string
+{
+    $config = getAiConfig();
+    $apiKey = trim((string)($config['gemini_api_key'] ?? ''));
+    if ($apiKey === '') {
+        error_log('cleanupOcrTextWithAi: No Gemini API key, skipping cleanup');
+        return $ocrText;
+    }
+
+    $model = trim((string)($config['gemini_model'] ?? 'gemini-3-flash-preview'));
+    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+
+    $prompt = 'You are an OCR text cleanup assistant. The following text was extracted from a student\'s handwritten math solution using OCR, but the extraction is garbled and contains errors. '
+        . 'Your job is to FIX the OCR errors and produce a clean, accurate transcription of what the student actually wrote. '
+        . 'Common OCR mistakes to fix: '
+        - 'Misrecognized letters (e.g., "Ceegcey" might be "Correct", "Sowë" might be "Solve", "AnswER" might be "Answer") '
+        - 'Garbled math symbols (e.g., "¥" might be "=", "&-" might be "-" or "+") '
+        - 'Wrong variable names (e.g., "FIZ" might be "x", "BX" might be "x") '
+        - 'Broken equation formatting '
+        . 'RULES: '
+        . '1. Output ONLY the corrected text, no explanations or commentary '
+        . '2. Preserve the original structure (line breaks, numbering) '
+        . '3. Use standard math notation: x, y, z for variables; = for equals; +, -, *, / for operators '
+        . '4. If a line is completely unintelligible, write [unclear] '
+        . '5. Preserve equation numbers like "1.", "2.", "3." '
+        . '6. Keep math expressions in a readable format '
+        . 'Here is the garbled OCR text to clean up:';
+
+    $payload = [
+        'contents' => [
+            [
+                'parts' => [
+                    ['text' => $prompt],
+                    ['text' => $ocrText],
+                ],
+            ],
+        ],
+        'generationConfig' => [
+            'temperature' => 0.0,
+            'maxOutputTokens' => 4096,
+        ],
+    ];
+
+    $ch = curl_init($endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT => (int)($config['timeout_seconds'] ?? 60),
+    ]);
+
+    $rawResponse = curl_exec($ch);
+    if ($rawResponse === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        error_log('cleanupOcrTextWithAi: CURL error - ' . $error);
+        return $ocrText;
+    }
+
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode >= 400) {
+        error_log('cleanupOcrTextWithAi: HTTP error ' . $httpCode);
+        return $ocrText;
+    }
+
+    $decoded = json_decode($rawResponse, true);
+    $cleanedText = '';
+    $candidates = $decoded['candidates'] ?? [];
+    if (!empty($candidates[0]['content']['parts'])) {
+        foreach ($candidates[0]['content']['parts'] as $part) {
+            if (!empty($part['text'])) {
+                $cleanedText .= $part['text'];
+            }
+        }
+    }
+    $cleanedText = trim($cleanedText);
+
+    if (strlen($cleanedText) > 0) {
+        error_log('cleanupOcrTextWithAi: Cleaned from ' . strlen($ocrText) . ' to ' . strlen($cleanedText) . ' chars');
+        return $cleanedText;
+    }
+
+    return $ocrText;
+}
+
 function extractOcrTextFromSavedFiles(array $savedFiles): array
 {
     $config = getAiConfig();
@@ -294,66 +444,93 @@ function extractOcrTextFromSavedFiles(array $savedFiles): array
     error_log('OCR Provider configured: ' . $ocrProvider);
     error_log('Gemini API key present: ' . (!empty($config['gemini_api_key']) ? 'yes' : 'no'));
 
-    // For handwritten math, AI vision providers (Gemini/DeepSeek) are much better than Tesseract
-    // Try the configured AI vision provider FIRST, then fall back to Tesseract
-    if ($ocrProvider === 'gemini') {
+    $result = null;
+
+    // Always try Gemini first — it handles handwritten math far better than Tesseract.
+    // Tesseract only runs as a last-resort fallback if Gemini is unavailable or fails.
+    if (!empty($config['gemini_api_key'])) {
         try {
-            $result = extractTextWithGeminiApi($savedFiles);
-            $geminiText = trim((string)($result['ocr_text'] ?? ''));
+            $geminiResult = extractTextWithGeminiApi($savedFiles);
+            $geminiText = trim((string)($geminiResult['ocr_text'] ?? ''));
             if (!empty($geminiText)) {
                 error_log('Gemini OCR succeeded with ' . strlen($geminiText) . ' chars');
-                return $result;
+                $result = $geminiText;
+            } else {
+                error_log('Gemini OCR returned empty text');
             }
-            error_log('Gemini OCR returned empty text');
         } catch (Exception $e) {
             error_log('Gemini vision OCR failed: ' . $e->getMessage());
         }
-    } elseif ($ocrProvider === 'deepseek_vision' || $ocrProvider === 'vision') {
+    }
+
+    // If Gemini failed or is not configured, try DeepSeek Vision
+    if ($result === null && ($ocrProvider === 'deepseek_vision' || $ocrProvider === 'vision')) {
         try {
-            $result = extractTextWithVisionApi($savedFiles);
-            $visionText = trim((string)($result['ocr_text'] ?? ''));
+            $visionResult = extractTextWithVisionApi($savedFiles);
+            $visionText = trim((string)($visionResult['ocr_text'] ?? ''));
             if (!empty($visionText)) {
                 error_log('DeepSeek Vision OCR succeeded with ' . strlen($visionText) . ' chars');
-                return $result;
+                $result = $visionText;
             }
         } catch (Exception $e) {
             error_log('DeepSeek Vision OCR failed: ' . $e->getMessage());
         }
     }
 
-    // Fallback to Tesseract (better for printed text, weaker for handwriting)
-    $tesseractResult = null;
-    try {
-        $tesseractResult = extractTextWithTesseract($savedFiles, $config);
-        $tesseractText = trim((string)($tesseractResult['ocr_text'] ?? ''));
-        $tesseractText = sanitizeOcrText($tesseractText);
-        $tesseractResult['ocr_text'] = $tesseractText;
-        if (strlen($tesseractText) >= 10) {
-            return $tesseractResult;
-        }
-        error_log('Tesseract produced too short output (' . strlen($tesseractText) . ' chars)');
-    } catch (Exception $e) {
-        error_log('Tesseract OCR failed: ' . $e->getMessage());
-    }
-
-    // If Tesseract failed but Gemini is available, try it as final fallback
-    if ($ocrProvider !== 'gemini') {
+    // Last resort: Tesseract (weak for handwritten math, but better than nothing)
+    if ($result === null) {
         try {
-            $result = extractTextWithGeminiApi($savedFiles);
-            if (!empty(trim((string)($result['ocr_text'] ?? '')))) {
-                return $result;
+            $tesseractResult = extractTextWithTesseract($savedFiles, $config);
+            $tesseractText = trim((string)($tesseractResult['ocr_text'] ?? ''));
+            $tesseractText = sanitizeOcrText($tesseractText);
+            if (strlen($tesseractText) >= 10) {
+                $result = $tesseractText;
+            } else {
+                error_log('Tesseract produced too short output (' . strlen($tesseractText) . ' chars)');
             }
         } catch (Exception $e) {
-            error_log('Gemini fallback OCR failed: ' . $e->getMessage());
+            error_log('Tesseract OCR failed: ' . $e->getMessage());
         }
     }
 
-    // If we have a partial Tesseract result, return it as last resort
-    if ($tesseractResult && !empty(trim((string)($tesseractResult['ocr_text'] ?? '')))) {
-        return $tesseractResult;
+    if ($result === null || $result === '') {
+        throw new Exception('All OCR methods failed. Please type the student answer manually using the Edit button.');
     }
 
-    throw new Exception('All OCR methods failed. Please type the student answer manually using the Edit button.');
+    // AI cleanup: if the extracted text still looks garbled, clean it up
+    if (looksLikeOcrGarbage($result)) {
+        error_log('OCR text looks like garbage (' . strlen($result) . ' chars), attempting AI cleanup');
+        try {
+            $cleanedText = cleanupOcrTextWithAi($result);
+            if (strlen($cleanedText) > 0 && !looksLikeOcrGarbage($cleanedText)) {
+                error_log('AI cleanup improved OCR text from ' . strlen($result) . ' to ' . strlen($cleanedText) . ' chars');
+                $result = $cleanedText;
+            } else {
+                error_log('AI cleanup did not improve OCR text, keeping original');
+            }
+        } catch (Exception $e) {
+            error_log('AI cleanup failed: ' . $e->getMessage());
+        }
+    }
+
+    // Build the final result array
+    $fileResults = [];
+    foreach ($savedFiles as $file) {
+        $relativePath = trim((string)($file['file_path'] ?? ''));
+        if ($relativePath !== '') {
+            $fileResults[] = [
+                'file_path' => $relativePath,
+                'status' => 'completed',
+                'ocr_text' => $result,
+            ];
+        }
+    }
+
+    return [
+        'ocr_text' => $result,
+        'files' => $fileResults,
+        'model' => $ocrProvider,
+    ];
 }
 
 function extractTextWithTesseract(array $savedFiles, array $config): array
@@ -607,7 +784,7 @@ function extractTextWithGeminiApi(array $savedFiles): array
             ['parts' => $parts],
         ],
         'generationConfig' => [
-            'temperature' => 0.1,
+            'temperature' => 0.0,
             'maxOutputTokens' => 4096,
         ],
     ];
@@ -800,7 +977,7 @@ function extractTextWithVisionApi(array $savedFiles): array
 
     $payload = [
         'model' => $ocrModel,
-        'temperature' => 0.1,
+        'temperature' => 0.0,
         'max_tokens' => 4096,
         'messages' => [
             [

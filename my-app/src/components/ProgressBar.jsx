@@ -12,7 +12,7 @@ const ProgressBar = () => {
     const internalStart = () => {
       if (timerRef.current) return; // already running
       // mark global flag so new PageTransition mounts can detect an in-progress navigation
-      try { window.__routeChangeInProgress = true; } catch (e) {}
+      try { window.__routeChangeInProgress = true; } catch (e) { }
       setVisible(true);
       setWidth(6);
 
@@ -30,7 +30,7 @@ const ProgressBar = () => {
 
     const done = () => {
       // clear global flag
-      try { window.__routeChangeInProgress = false; } catch (e) {}
+      try { window.__routeChangeInProgress = false; } catch (e) { }
       clearInterval(incrementRef.current);
       incrementRef.current = null;
       if (timerRef.current) {
