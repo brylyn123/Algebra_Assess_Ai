@@ -105,14 +105,6 @@ ALTER TABLE captured_solution
 ALTER TABLE scores
     MODIFY date_scored TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
-CREATE TABLE IF NOT EXISTS item_rubric_mapping (
-    mapping_id INT AUTO_INCREMENT PRIMARY KEY,
-    item_id INT NOT NULL,
-    rubric_set_id INT NOT NULL,
-    CONSTRAINT fk_mapping_item FOREIGN KEY (item_id) REFERENCES exercise_items(item_id) ON DELETE CASCADE,
-    CONSTRAINT fk_mapping_rubric FOREIGN KEY (rubric_set_id) REFERENCES rubric_sets(rubric_set_id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS item_scores (
     item_score_id INT PRIMARY KEY AUTO_INCREMENT,
     solution_id INT NOT NULL,

@@ -151,14 +151,13 @@ try {
 
     if (count($items) > 0) {
         $itemStmt = $conn->prepare(
-            "INSERT INTO exercise_items (exercise_id, item_no, question_type, question_content, model_solution, max_score)
-             VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO exercise_items (exercise_id, item_no, question_type, question_content, max_score)
+             VALUES (?, ?, ?, ?, ?)"
         );
         foreach ($items as $item) {
             $itemNo = isset($item['item_no']) ? intval($item['item_no']) : 1;
             $questionType = trim($item['question_type'] ?? 'handwritten_algebra');
             $content = trim($item['question_content'] ?? '');
-            $modelSolution = trim($item['model_solution'] ?? '');
             $maxScore = isset($item['max_score']) ? (float)$item['max_score'] : 1.0;
 
             if ($questionType !== 'handwritten_algebra') {
@@ -168,8 +167,7 @@ try {
                 $maxScore = 1.0;
             }
 
-            $modelSolutionValue = $modelSolution === '' ? null : $modelSolution;
-            $itemStmt->bind_param("iisssd", $exercise_id, $itemNo, $questionType, $content, $modelSolutionValue, $maxScore);
+            $itemStmt->bind_param("iissd", $exercise_id, $itemNo, $questionType, $content, $maxScore);
             $itemStmt->execute();
         }
         $itemStmt->close();

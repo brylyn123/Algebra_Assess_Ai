@@ -17,30 +17,22 @@ const quickActions = [
     {
         label: 'New Assessment',
         description: 'Create a quiz or exam',
-        icon: '📝',
         path: '/teacher/assessments/new',
-        color: 'bg-gradient-to-br from-blue-500 to-blue-600',
     },
     {
         label: 'New Rubric',
         description: 'Build grading criteria',
-        icon: '📊',
         path: '/teacher/assessments/new-rubric',
-        color: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
     },
     {
         label: 'Grade Work',
         description: 'Review submissions',
-        icon: '✅',
         path: '/teacher/grade-submissions',
-        color: 'bg-gradient-to-br from-amber-500 to-orange-500',
     },
     {
         label: 'View Reports',
         description: 'Track performance',
-        icon: '📈',
         path: '/teacher/reports',
-        color: 'bg-gradient-to-br from-violet-500 to-purple-600',
     },
 ];
 
@@ -100,22 +92,16 @@ const DashboardHome = () => {
                 id: 1,
                 label: 'Total',
                 value: totals.total_submissions ?? 0,
-                icon: '📋',
-                color: 'from-blue-400 to-blue-600',
             },
             {
                 id: 2,
                 label: 'Pending',
                 value: totals.needs_review ?? totals.pending_submissions ?? 0,
-                icon: '⏳',
-                color: 'from-amber-400 to-orange-500',
             },
             {
                 id: 3,
                 label: 'Graded',
                 value: totals.graded_submissions ?? 0,
-                icon: '✓',
-                color: 'from-emerald-400 to-emerald-600',
             },
         ];
     }, [analytics]);
@@ -166,15 +152,10 @@ const DashboardHome = () => {
                                 {stats.map((stat) => (
                                     <div
                                         key={stat.id}
-                                        className="flex items-center gap-2 rounded-xl bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                                        className="rounded-xl bg-slate-50 p-3 text-center transition hover:bg-slate-100"
                                     >
-                                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-sm text-white shadow-sm`}>
-                                            {stat.icon}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
-                                            <p className="text-base font-bold text-slate-900">{stat.value}</p>
-                                        </div>
+                                        <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
+                                        <p className="text-lg font-bold text-slate-900">{stat.value}</p>
                                     </div>
                                 ))}
                             </div>
@@ -242,13 +223,10 @@ const DashboardHome = () => {
                                             key={action.label}
                                             type="button"
                                             onClick={() => navigate(action.path)}
-                                            className="group flex flex-col items-center rounded-xl bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                                            className="group flex flex-col items-center rounded-xl bg-slate-50 p-3 text-center transition hover:bg-slate-100"
                                         >
-                                            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${action.color} text-sm text-white shadow-sm transition group-hover:scale-105`}>
-                                                {action.icon}
-                                            </div>
-                                            <p className="mt-1.5 text-[9px] font-semibold text-slate-700">{action.label}</p>
-                                            <p className="text-[8px] text-slate-400">{action.description}</p>
+                                            <p className="text-xs font-semibold text-slate-700">{action.label}</p>
+                                            <p className="mt-0.5 text-[9px] text-slate-400">{action.description}</p>
                                         </button>
                                     ))}
                                 </div>

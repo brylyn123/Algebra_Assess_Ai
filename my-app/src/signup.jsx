@@ -280,10 +280,13 @@ const Signup = () => {
                 localStorage.setItem('user', JSON.stringify(userSession));
                 storeLocalUser({
                     ...userSession,
+                    user_id: result.user_id,
+                    student_id: result.user_id,
                     firstName: formData.firstName,
                     middleName: formData.middleName,
                     lastName: formData.lastName,
                     idNumber: formData.idNumber,
+                    institutional_id: formData.idNumber,
                     collegeId: normalizedCollegeId,
                     collegeName: selectedCollege?.college_name ?? '',
                     courseId: normalizedCourseId,

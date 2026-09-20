@@ -22,23 +22,55 @@ function decodeJsonObjectFromText(string $content): ?array
 
 function buildDeepSeekGradePrompt(array $submission): string
 {
-    $itemLines = [];
+    $hasAnyItemRubric = false;
     foreach ($submission['items'] as $item) {
-        $itemLines[] = sprintf(
-            "Item %d\nQuestion: %s\nMax Score: %.2f\nReference Solution: %s",
-            (int)$item['item_no'],
-            trim((string)$item['question_content']),
-            isset($item['max_score']) ? (float)$item['max_score'] : 0.0,
-            trim((string)($item['model_solution'] ?? '')) !== '' ? trim((string)$item['model_solution']) : 'Not provided'
-        );
+        if (!empty($item['rubric'])) {
+            $hasAnyItemRubric = true;
+            break;
+        }
     }
 
+    $itemLines = [];
+    foreach ($submission['items'] as $item) {
+        $itemRubric = $item['rubric'] ?? null;
+        $itemText = sprintf(
+            "Item %d\nQuestion: %s\nMax Score: %.2f",
+            (int)$item['item_no'],
+            trim((string)$item['question_content']),
+            isset($item['max_score']) ? (float)$item['max_score'] : 0.0
+        );
+
+        if ($itemRubric && !empty($itemRubric['rubric_criteria'])) {
+            $itemText .= "\nRubric for this item: " . $itemRubric['rubric_criteria'];
+            if (!empty($itemRubric['rubric_ai_instructions'])) {
+                $itemText .= "\nRubric AI Instructions: " . $itemRubric['rubric_ai_instructions'];
+            }
+            if (!empty($itemRubric['rubric_items'])) {
+                $criteriaLines = [];
+                foreach ($itemRubric['rubric_items'] as $ri) {
+                    $criteriaLines[] = sprintf(
+                        "- %s (max %.1f pts, effort min %.1f pts)",
+                        $ri['description'],
+                        $ri['points'],
+                        $ri['min_points']
+                    );
+                }
+                $itemText .= "\nRubric criteria:\n" . implode("\n", $criteriaLines);
+            }
+        }
+        $itemLines[] = $itemText;
+    }
+
+    // Build assessment-level rubric fallback
     $rubricText = trim((string)($submission['rubric_criteria'] ?? ''));
     $rubricInstructions = trim((string)($submission['rubric_ai_instructions'] ?? ''));
-    $hasRubric = $rubricText !== '' || $rubricInstructions !== '';
+    $hasAssessmentRubric = $rubricText !== '' || $rubricInstructions !== '';
 
     $gradingGuide = '';
-    if ($hasRubric) {
+    if ($hasAnyItemRubric) {
+        $gradingGuide = "Each item listed above has its own rubric. Grade EACH item using THAT item's specific rubric criteria and weights. "
+            . "Do NOT use a single rubric for all items — follow each item's rubric independently.";
+    } elseif ($hasAssessmentRubric) {
         $gradingGuide = implode("\n\n", [
             "Rubric Criteria: " . $rubricText,
             "Rubric AI Instructions: " . $rubricInstructions,
@@ -46,17 +78,61 @@ function buildDeepSeekGradePrompt(array $submission): string
     } else {
         $gradingGuide = implode("\n\n", [
             "No rubric provided. Use the following default grading criteria:",
-            "For each item, evaluate TWO components:",
-            "1. Final Answer (40% of item max score): Binary scoring — if the final answer is correct, award full points for this component. If wrong, award 0. No partial credit for the answer itself.",
-            "2. Solution Steps (60% of item max score): Partial credit for each correct step shown. Award points for correct method, logical flow, and proper algebraic process — even if the final answer is wrong. Deduct for missing steps, incorrect logic, or unnecessary work.",
-            "The total score for each item = Final Answer score + Solution Steps score.",
-            "IMPORTANT: If a student has submitted work (OCR text is not empty), each item's score_earned must be at least 10% of max_score, even if all answers are incorrect. This ensures students receive credit for attempting the problem.",
-            "PENALTY RULES (apply these deductions to Solution Steps):",
-            "- Missing steps: Deduct points for each essential step that is missing or incomplete.",
-            "- Incorrect logic: Deduct points for wrong method or algebraic errors.",
-            "- Unnecessary work: Minor deductions for redundant steps, but focus grading on correctness.",
+            "For each item, grade from 0 to the item's max score (shown above).",
+            "Use these 5 criteria to evaluate the student's work:",
+            "1. Understanding of the Problem (20%) — Did the student correctly identify the given information and what the problem asks?",
+            "2. Algebraic Method/Approach (20%) — Did the student select and apply an appropriate algebraic method, formula, or approach?",
+            "3. Solution Process and Computation (30%) — Are the steps correct, logical, properly ordered, and are computations accurate?",
+            "4. Completeness of Solution (20%) — Did the student provide sufficient steps and work to demonstrate the complete solution?",
+            "5. Final Answer (10%) — Is the final answer correct and provided in an appropriate form?",
+            "Credit Levels for Each Criterion:",
+            "- Full Credit: Correctly meets all requirements of the criterion.",
+            "- Partial Credit: Shows mostly correct understanding but misses or misinterprets a minor detail, or applies with some errors.",
+            "- Minimal Credit: Shows limited understanding or an incomplete/inappropriate attempt related to the criterion.",
+            "- No Credit: Shows no identifiable understanding or attempt for this criterion.",
+            "SCORING POLICY:",
+            "- Award 0 ONLY if no attempt is detected.",
+            "- If the student submits visible work, award at least 1 point total.",
+            "- If the final answer is wrong due to a minor error, preserve credit for correct process and method.",
+            "- BE STRICT: Deduct points for errors, missing steps, and wrong answers. Students should earn their scores.",
             "Provide specific feedback explaining what the student did correctly, what errors were found, and what to improve.",
         ]);
+    }
+
+    // Build the criteria_scores example based on whether per-item rubrics are used
+    if ($hasAnyItemRubric) {
+        $criteriaExample = [];
+        foreach ($submission['items'] as $item) {
+            $itemRubric = $item['rubric'] ?? null;
+            if ($itemRubric && !empty($itemRubric['rubric_items'])) {
+                foreach ($itemRubric['rubric_items'] as $ri) {
+                    $key = strtolower(trim($ri['description']));
+                    $criteriaExample[$key] = [
+                        'name' => $ri['description'],
+                        'weight' => (float)$ri['points'],
+                        'earned' => 0,
+                        'explanation' => 'Why this score.',
+                    ];
+                }
+            }
+        }
+        if (empty($criteriaExample)) {
+            $criteriaExample = [
+                ['name' => 'Understanding of the Problem', 'weight' => 20, 'earned' => 0, 'explanation' => 'Why this score.'],
+                ['name' => 'Algebraic Method/Approach', 'weight' => 20, 'earned' => 0, 'explanation' => 'Why this score.'],
+                ['name' => 'Solution Process and Computation', 'weight' => 30, 'earned' => 0, 'explanation' => 'Why this score.'],
+                ['name' => 'Completeness of Solution', 'weight' => 20, 'earned' => 0, 'explanation' => 'Why this score.'],
+                ['name' => 'Final Answer', 'weight' => 10, 'earned' => 0, 'explanation' => 'Why this score.'],
+            ];
+        }
+    } else {
+        $criteriaExample = [
+            ['name' => 'Understanding of the Problem', 'weight' => 20, 'earned' => 0, 'explanation' => 'Why this score.'],
+            ['name' => 'Algebraic Method/Approach', 'weight' => 20, 'earned' => 0, 'explanation' => 'Why this score.'],
+            ['name' => 'Solution Process and Computation', 'weight' => 30, 'earned' => 0, 'explanation' => 'Why this score.'],
+            ['name' => 'Completeness of Solution', 'weight' => 20, 'earned' => 0, 'explanation' => 'Why this score.'],
+            ['name' => 'Final Answer', 'weight' => 10, 'earned' => 0, 'explanation' => 'Why this score.'],
+        ];
     }
 
     return implode("\n\n", [
@@ -65,10 +141,7 @@ function buildDeepSeekGradePrompt(array $submission): string
         json_encode([
             'overall_score' => 0,
             'overall_feedback' => 'Short overall feedback summary.',
-            'criteria_scores' => [
-                ['name' => 'Final Answer', 'weight' => 40, 'earned' => 0, 'explanation' => 'Why this score.'],
-                ['name' => 'Solution Steps', 'weight' => 60, 'earned' => 0, 'explanation' => 'Why this score.'],
-            ],
+            'criteria_scores' => $criteriaExample,
             'item_scores' => [
                 [
                     'item_id' => 0,
@@ -79,14 +152,16 @@ function buildDeepSeekGradePrompt(array $submission): string
             ],
         ], JSON_PRETTY_PRINT),
         "CRITICAL RULES:",
-        "- The criteria_scores field is MANDATORY. You MUST include all criteria with their weights and earned scores.",
-        "- If a custom rubric is provided, follow its criteria and weights exactly. The example above shows the default structure.",
+        "- The criteria_scores field is MANDATORY.",
+        $hasAnyItemRubric
+            ? "- Each item has its own rubric. Grade each item using THAT item's rubric criteria and weights. Include ALL rubric criteria from ALL items in criteria_scores."
+            : "- If a custom rubric is provided, follow its criteria and weights exactly.",
         "- overall_score must be a percentage from 0 to 100.",
-        "- criteria_scores: earned must be between 0 and weight. The sum of all earned values determines the overall quality.",
-        "- Final Answer: Binary scoring — correct = full weight, wrong = 0. No partial credit for the answer itself.",
-        "- Solution Steps: Partial credit for each correct step. Give credit for method and process even if the final answer is wrong.",
-        "- Provide a short explanation for each criterion describing why that score was given.",
+        "- criteria_scores: earned must be between 0 and the criterion's weight. The sum of earned values divided by total weight gives the percentage, which is then multiplied by the item's max_score to get the final points.",
         "- score_earned for each item must not exceed that item's max score.",
+        "- BASELINE FLOOR: If a student has submitted work (OCR text is not empty), each item's score_earned must be at least 1 point, even if all criteria are wrong.",
+        "- PARTIAL CREDIT: If the final answer is wrong due to a minor error, preserve credit for correct process and method.",
+        "- Provide a short explanation for each criterion describing why that score was given.",
         "- ai_feedback for each item should explain what the student did correctly, what errors were found, and what to improve.",
         "- overall_feedback should summarize strengths, mistakes, and next steps.",
         "- PERFECT SCORES: A score of 100% should only be given for a completely correct solution with the right answer AND all steps shown correctly.",
@@ -185,9 +260,9 @@ function generateDeepSeekGrade(array $submission): array
         $maxScore = isset($matchedItem['max_score']) ? (float)$matchedItem['max_score'] : 0.0;
         $scoreEarned = isset($itemScore['score_earned']) ? (float)$itemScore['score_earned'] : 0.0;
 
-        // Apply 10% minimum floor when using default grading (no custom rubric)
+        // Apply baseline floor: minimum 1 point for any visible attempt (default grading only)
         $hasCustomRubric = !empty(trim((string)($submission['rubric_criteria'] ?? ''))) || !empty(trim((string)($submission['rubric_ai_instructions'] ?? '')));
-        $minScoreForAttempt = $maxScore * 0.10;
+        $minScoreForAttempt = 1.0;
         if (!$hasCustomRubric && $scoreEarned < $minScoreForAttempt) {
             $scoreEarned = $minScoreForAttempt;
         }
@@ -242,8 +317,11 @@ function generateDeepSeekGrade(array $submission): array
     if (empty($criteriaScores)) {
         $overallScore = isset($parsedGeneration['overall_score']) ? (float)$parsedGeneration['overall_score'] : 0;
         $defaultCriteria = [
-            ['name' => 'Final Answer', 'weight' => 40],
-            ['name' => 'Solution Steps', 'weight' => 60],
+            ['name' => 'Understanding of the Problem', 'weight' => 20],
+            ['name' => 'Algebraic Method/Approach', 'weight' => 20],
+            ['name' => 'Solution Process and Computation', 'weight' => 30],
+            ['name' => 'Completeness of Solution', 'weight' => 20],
+            ['name' => 'Final Answer', 'weight' => 10],
         ];
         foreach ($defaultCriteria as $dc) {
             $earned = round(($overallScore / 100) * $dc['weight'], 2);
@@ -264,12 +342,33 @@ function generateDeepSeekGrade(array $submission): array
         $totalWeight += (float)$cs['weight'];
     }
     $computedScore = $totalWeight > 0 ? round(($totalEarned / $totalWeight) * 100, 2) : 0;
-    $aiScore = isset($parsedGeneration['overall_score']) ? (float)$parsedGeneration['overall_score'] : $computedScore;
+
+    // Also compute score from item_scores to ensure effort minimums are reflected
+    $itemTotalEarned = 0;
+    $itemTotalMax = 0;
+    foreach ($normalizedItemScores as $nis) {
+        $itemTotalEarned += (float)$nis['score_earned'];
+        $itemTotalMax += (float)$nis['max_score'];
+    }
+    $itemBasedScore = $itemTotalMax > 0 ? round(($itemTotalEarned / $itemTotalMax) * 100, 2) : 0;
+
+    // Use whichever is higher — criteria-based or item-based — to respect effort minimums
+    $finalScore = max($computedScore, $itemBasedScore);
+
+    $overallFeedback = trim((string)($parsedGeneration['overall_feedback'] ?? ''));
+
+    // If item-based score is higher due to effort minimums, append a note to the feedback
+    if ($itemBasedScore > $computedScore && $itemTotalEarned > 0) {
+        $effortNote = "Note: A minimum effort score was applied based on the rubric settings. " .
+            "The student earned {$itemTotalEarned} out of {$itemTotalMax} possible points " .
+            "due to the minimum point guarantee for attempted work.";
+        $overallFeedback = $overallFeedback !== '' ? $overallFeedback . "\n\n" . $effortNote : $effortNote;
+    }
 
     return [
         'model' => $config['model'] ?? 'deepseek-chat',
-        'overall_score' => max(0.0, min(100.0, $computedScore)),
-        'overall_feedback' => trim((string)($parsedGeneration['overall_feedback'] ?? '')),
+        'overall_score' => max(0.0, min(100.0, $finalScore)),
+        'overall_feedback' => $overallFeedback,
         'criteria_scores' => $criteriaScores,
         'item_scores' => $normalizedItemScores,
         'raw_response' => $decodedResponse,
@@ -445,6 +544,7 @@ function extractOcrTextFromSavedFiles(array $savedFiles): array
     error_log('Gemini API key present: ' . (!empty($config['gemini_api_key']) ? 'yes' : 'no'));
 
     $result = null;
+    $perFileResults = null;
 
     // Always try Gemini first — it handles handwritten math far better than Tesseract.
     // Tesseract only runs as a last-resort fallback if Gemini is unavailable or fails.
@@ -455,6 +555,11 @@ function extractOcrTextFromSavedFiles(array $savedFiles): array
             if (!empty($geminiText)) {
                 error_log('Gemini OCR succeeded with ' . strlen($geminiText) . ' chars');
                 $result = $geminiText;
+                // Use per-file results from Gemini if available
+                if (!empty($geminiResult['files'])) {
+                    $perFileResults = $geminiResult['files'];
+                    error_log('Gemini OCR returned per-file results for ' . count($perFileResults) . ' files');
+                }
             } else {
                 error_log('Gemini OCR returned empty text');
             }
@@ -514,15 +619,44 @@ function extractOcrTextFromSavedFiles(array $savedFiles): array
     }
 
     // Build the final result array
+    // Use per-file results from Gemini if available, otherwise assign combined text to all files
     $fileResults = [];
-    foreach ($savedFiles as $file) {
-        $relativePath = trim((string)($file['file_path'] ?? ''));
-        if ($relativePath !== '') {
-            $fileResults[] = [
-                'file_path' => $relativePath,
-                'status' => 'completed',
-                'ocr_text' => $result,
-            ];
+    if ($perFileResults !== null) {
+        // Map per-file results from Gemini to the saved files
+        $perFileMap = [];
+        foreach ($perFileResults as $pf) {
+            $pfPath = trim((string)($pf['file_path'] ?? ''));
+            if ($pfPath !== '') {
+                $perFileMap[$pfPath] = $pf;
+            }
+        }
+        foreach ($savedFiles as $file) {
+            $relativePath = trim((string)($file['file_path'] ?? ''));
+            if ($relativePath !== '' && isset($perFileMap[$relativePath])) {
+                $ocrText = trim((string)($perFileMap[$relativePath]['ocr_text'] ?? ''));
+                $fileResults[] = [
+                    'file_path' => $relativePath,
+                    'status' => 'completed',
+                    'ocr_text' => !empty($ocrText) ? $ocrText : $result,
+                ];
+            } elseif ($relativePath !== '') {
+                $fileResults[] = [
+                    'file_path' => $relativePath,
+                    'status' => 'completed',
+                    'ocr_text' => $result,
+                ];
+            }
+        }
+    } else {
+        foreach ($savedFiles as $file) {
+            $relativePath = trim((string)($file['file_path'] ?? ''));
+            if ($relativePath !== '') {
+                $fileResults[] = [
+                    'file_path' => $relativePath,
+                    'status' => 'completed',
+                    'ocr_text' => $result,
+                ];
+            }
         }
     }
 
@@ -665,6 +799,8 @@ function extractTextWithGeminiApi(array $savedFiles): array
     error_log('Gemini OCR: Starting extraction with model=' . $model);
     error_log('Gemini OCR: API key length=' . strlen($apiKey) . ' chars');
 
+    $imageCount = count($savedFiles);
+
     $parts = [
         ['text' => 'You are a precise OCR assistant for student handwritten math submissions. '
             . 'Extract ALL text and mathematical expressions EXACTLY as written by the student. '
@@ -679,7 +815,14 @@ function extractTextWithGeminiApi(array $savedFiles): array
             . '- Systems of equations: use curly brace notation or label as Equation 1, Equation 2 '
             . '- Solution sets: write as (x, y) = (value, value) '
             . 'Include ALL intermediate steps, calculations, and final answers. '
-            . 'Do NOT add commentary or interpretation - output ONLY the extracted text.'],
+            . 'Do NOT add commentary or interpretation - output ONLY the extracted text. '
+            . ($imageCount > 1
+                ? "\n\nIMPORTANT: You are given {$imageCount} image(s). "
+                    . 'For EACH image, extract the text separately. '
+                    . 'Start each image extraction with the delimiter [IMAGE_N] where N is the image number (1, 2, 3...). '
+                    . 'Example format: [IMAGE_1]\nextracted text from image 1\n\n[IMAGE_2]\nextracted text from image 2\n\n'
+                    . 'Do NOT skip any image. Process ALL images.'
+                : '')],
     ];
 
     $fileResults = [];
@@ -779,13 +922,15 @@ function extractTextWithGeminiApi(array $savedFiles): array
 
     error_log('Gemini OCR: Sending ' . (count($parts) - 1) . ' image(s) to Gemini API');
 
+    $maxTokens = max(4096, $imageCount * 4096);
+
     $payload = [
         'contents' => [
             ['parts' => $parts],
         ],
         'generationConfig' => [
             'temperature' => 0.0,
-            'maxOutputTokens' => 4096,
+            'maxOutputTokens' => $maxTokens,
         ],
     ];
 
@@ -834,18 +979,57 @@ function extractTextWithGeminiApi(array $savedFiles): array
     $extractedText = trim($extractedText);
     error_log('Gemini OCR: Extracted text length=' . strlen($extractedText) . ' chars');
     if (strlen($extractedText) > 0) {
-        error_log('Gemini OCR: First 200 chars=' . substr($extractedText, 0, 200));
+        error_log('Gemini OCR: First 300 chars=' . substr($extractedText, 0, 300));
     }
 
+    // Split per-image results using [IMAGE_N] delimiters
+    $perImageTexts = [];
+    if ($imageCount > 1 && preg_match('/\[IMAGE_\d+\]/', $extractedText)) {
+        // Split by [IMAGE_N] delimiters
+        $segments = preg_split('/\s*\[IMAGE_(\d+)\]\s*/', $extractedText, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+        // $segments alternates: text, number, text, number, ...
+        $currentText = '';
+        for ($i = 0; $i < count($segments); $i++) {
+            if (ctype_digit($segments[$i])) {
+                // This is a captured number - save previous text if any
+                if ($currentText !== '') {
+                    $perImageTexts[] = $currentText;
+                }
+                $currentText = '';
+            } else {
+                $currentText .= $segments[$i];
+            }
+        }
+        if ($currentText !== '') {
+            $perImageTexts[] = $currentText;
+        }
+        // Trim each segment
+        $perImageTexts = array_map('trim', $perImageTexts);
+        error_log('Gemini OCR: Split into ' . count($perImageTexts) . ' image segments');
+    }
+
+    // Build per-file results
+    $fileIndex = 0;
     foreach ($savedFiles as $file) {
         $relativePath = trim((string)($file['file_path'] ?? ''));
-        if ($relativePath !== '') {
-            $fileResults[] = [
-                'file_path' => $relativePath,
-                'status' => 'completed',
-                'ocr_text' => $extractedText,
-            ];
+        if ($relativePath === '') {
+            continue;
         }
+
+        if (!empty($perImageTexts) && $fileIndex < count($perImageTexts)) {
+            // Use the per-image text if available
+            $ocrText = $perImageTexts[$fileIndex];
+        } else {
+            // Fall back to the full combined text
+            $ocrText = $extractedText;
+        }
+
+        $fileResults[] = [
+            'file_path' => $relativePath,
+            'status' => 'completed',
+            'ocr_text' => $ocrText,
+        ];
+        $fileIndex++;
     }
 
     return [
@@ -868,6 +1052,7 @@ function extractTextWithVisionApi(array $savedFiles): array
 
     $combinedText = [];
     $fileResults = [];
+    $imageCount = count($savedFiles);
     $contentParts = [
         [
             'type' => 'text',
@@ -884,7 +1069,14 @@ function extractTextWithVisionApi(array $savedFiles): array
                 . '- Systems of equations: use curly brace notation or label as Equation 1, Equation 2 '
                 . '- Solution sets: write as (x, y) = (value, value) '
                 . 'Include ALL intermediate steps, calculations, and final answers. '
-                . 'Do NOT add commentary or interpretation - output ONLY the extracted text.',
+                . 'Do NOT add commentary or interpretation - output ONLY the extracted text.'
+                . ($imageCount > 1
+                    ? "\n\nIMPORTANT: You are given {$imageCount} image(s). "
+                        . 'For EACH image, extract the text separately. '
+                        . 'Start each image extraction with the delimiter [IMAGE_N] where N is the image number (1, 2, 3...). '
+                        . 'Example format: [IMAGE_1]\nextracted text from image 1\n\n[IMAGE_2]\nextracted text from image 2\n\n'
+                        . 'Do NOT skip any image. Process ALL images.'
+                    : ''),
         ],
     ];
 
@@ -975,10 +1167,12 @@ function extractTextWithVisionApi(array $savedFiles): array
         ];
     }
 
+    $maxTokens = max(4096, $imageCount * 4096);
+
     $payload = [
         'model' => $ocrModel,
         'temperature' => 0.0,
-        'max_tokens' => 4096,
+        'max_tokens' => $maxTokens,
         'messages' => [
             [
                 'role' => 'system',
@@ -1021,15 +1215,46 @@ function extractTextWithVisionApi(array $savedFiles): array
 
     $extractedText = trim((string)($decodedResponse['choices'][0]['message']['content'] ?? ''));
 
+    // Split per-image results using [IMAGE_N] delimiters
+    $perImageTexts = [];
+    if ($imageCount > 1 && preg_match('/\[IMAGE_\d+\]/', $extractedText)) {
+        $segments = preg_split('/\s*\[IMAGE_(\d+)\]\s*/', $extractedText, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+        $currentText = '';
+        for ($i = 0; $i < count($segments); $i++) {
+            if (ctype_digit($segments[$i])) {
+                if ($currentText !== '') {
+                    $perImageTexts[] = $currentText;
+                }
+                $currentText = '';
+            } else {
+                $currentText .= $segments[$i];
+            }
+        }
+        if ($currentText !== '') {
+            $perImageTexts[] = $currentText;
+        }
+        $perImageTexts = array_map('trim', $perImageTexts);
+    }
+
+    $fileIndex = 0;
     foreach ($savedFiles as $file) {
         $relativePath = trim((string)($file['file_path'] ?? ''));
-        if ($relativePath !== '') {
-            $fileResults[] = [
-                'file_path' => $relativePath,
-                'status' => 'completed',
-                'ocr_text' => $extractedText,
-            ];
+        if ($relativePath === '') {
+            continue;
         }
+
+        if (!empty($perImageTexts) && $fileIndex < count($perImageTexts)) {
+            $ocrText = $perImageTexts[$fileIndex];
+        } else {
+            $ocrText = $extractedText;
+        }
+
+        $fileResults[] = [
+            'file_path' => $relativePath,
+            'status' => 'completed',
+            'ocr_text' => $ocrText,
+        ];
+        $fileIndex++;
     }
 
     return [

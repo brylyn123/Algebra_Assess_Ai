@@ -78,7 +78,6 @@ try {
     executeSeed($conn, "DELETE FROM Item_Scores");
     executeSeed($conn, "DELETE FROM Scores");
     executeSeed($conn, "DELETE FROM Captured_Solution");
-    executeSeed($conn, "DELETE FROM item_rubric_mapping");
     executeSeed($conn, "DELETE FROM rubric_set_items");
     executeSeed($conn, "DELETE FROM Exercises_Problem");
     executeSeed($conn, "DELETE FROM rubric_sets");
@@ -240,25 +239,19 @@ try {
     );
 
     $exerciseItems = [
-        [1, 'Solve 3x + 7 = 25 and show your steps.', 'x = 6', 5.0],
-        [2, 'Solve 2(x - 4) = 10 and justify the final answer.', 'x = 9', 5.0],
+        [1, 'Solve 3x + 7 = 25 and show your steps.', 5.0],
+        [2, 'Solve 2(x - 4) = 10 and justify the final answer.', 5.0],
     ];
     $itemIds = [];
-    foreach ($exerciseItems as [$itemNo, $questionContent, $modelSolution, $maxScore]) {
+    foreach ($exerciseItems as [$itemNo, $questionContent, $maxScore]) {
         $itemId = insertSeed(
             $conn,
-            "INSERT INTO Exercise_Items (exercise_id, item_no, question_type, question_content, model_solution, max_score)
-             VALUES (?, ?, 'handwritten_algebra', ?, ?, ?)",
-            'iissd',
-            [$exerciseId, $itemNo, $questionContent, $modelSolution, $maxScore]
+            "INSERT INTO Exercise_Items (exercise_id, item_no, question_type, question_content, max_score)
+             VALUES (?, ?, 'handwritten_algebra', ?, ?)",
+            'iisd',
+            [$exerciseId, $itemNo, $questionContent, $maxScore]
         );
         $itemIds[] = ['item_id' => $itemId, 'item_no' => $itemNo, 'max_score' => $maxScore];
-        executeSeed(
-            $conn,
-            "INSERT INTO item_rubric_mapping (item_id, rubric_set_id) VALUES (?, ?)",
-            'ii',
-            [$itemId, $rubricSetId]
-        );
     }
 
     $samplePaths = [

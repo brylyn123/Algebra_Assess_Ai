@@ -3,10 +3,10 @@ USE algebraassess;
 
 -- Disable checks to allow clean wiping of tables
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `Scores`, `Item_Scores`, `Captured_Solution`, `item_rubric_mapping`,
+DROP TABLE IF EXISTS `Scores`, `Item_Scores`, `Captured_Solution`,
                      `rubric_set_items`, `rubric_sets`, `Exercise_Items`, `Exercises_Problem`,
                      `Enrollment`, `Subject`, `Users`, `roles`, `Course`, `Section`, `Semester`,
-                     `School_Year`, `Year_Level`, `Colleges`;
+                     `school_year`, `Year_Level`, `Colleges`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 1. Organizations & Structure
@@ -17,6 +17,11 @@ CREATE TABLE Colleges (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
+
+INSERT INTO Colleges (college_name) VALUES
+    ('College of Business and Management'),
+    ('College of Fisheries and Marine Sciences'),
+    ('College of Sciences');
 
 CREATE TABLE Year_Level (
     year_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -42,6 +47,13 @@ CREATE TABLE Course (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_course_college FOREIGN KEY (college_id) REFERENCES Colleges(college_id)
 ) ENGINE=InnoDB;
+
+INSERT INTO Course (course_name, course_code, college_id) VALUES
+    ('Bachelor of Science in Office Administration', 'BSOA', 1),
+    ('Bachelor of Science in Hospitality Management', 'BSHM', 1),
+    ('Bachelor of Science in Fisheries', 'BSFi', 2),
+    ('Bachelor of Science in Marine Biology', 'BSMB', 2),
+    ('Bachelor of Science in Environmental Science', 'BSES', 3);
 
 -- 2. User Management
 CREATE TABLE roles (
@@ -81,7 +93,7 @@ CREATE TABLE Users (
 ) ENGINE=InnoDB;
 
 -- 3. Academic Calendar & Organization
-CREATE TABLE School_Year (
+CREATE TABLE school_year (
     school_year_id INT PRIMARY KEY AUTO_INCREMENT,
     label VARCHAR(64) NOT NULL UNIQUE,
     start_date DATE NULL,
@@ -120,7 +132,7 @@ CREATE TABLE Subject (
     CONSTRAINT fk_subject_section FOREIGN KEY (section_id) REFERENCES Section(section_id),
     CONSTRAINT fk_subject_year FOREIGN KEY (year_id) REFERENCES Year_Level(year_id),
     CONSTRAINT fk_subject_semester FOREIGN KEY (semester_id) REFERENCES Semester(semester_id),
-    CONSTRAINT fk_subject_school_year FOREIGN KEY (school_year_id) REFERENCES School_Year(school_year_id)
+    CONSTRAINT fk_subject_school_year FOREIGN KEY (school_year_id) REFERENCES school_year(school_year_id)
 ) ENGINE=InnoDB;
 
 -- 4. Class Instances
@@ -157,7 +169,6 @@ CREATE TABLE Exercise_Items (
     item_no INT DEFAULT 1,
     question_type ENUM('handwritten_algebra') DEFAULT 'handwritten_algebra',
     question_content TEXT NOT NULL,
-    model_solution TEXT,
     max_score DECIMAL(5,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -169,6 +180,7 @@ CREATE TABLE rubric_sets (
     rubric_set_id INT AUTO_INCREMENT PRIMARY KEY,
     teacher_user_id INT NOT NULL,
     rubric_name VARCHAR(255) NOT NULL,
+    rubric_type ENUM('procedural_algebra', 'problem_solving', 'general') NOT NULL DEFAULT 'general',
     criteria TEXT NOT NULL,
     ai_instructions TEXT,
     level_definitions JSON,
@@ -189,14 +201,6 @@ CREATE TABLE rubric_set_items (
     points DECIMAL(5,2) NOT NULL,
     min_points DECIMAL(5,2) NOT NULL DEFAULT 0,
     CONSTRAINT fk_rubric_set_item_set FOREIGN KEY (rubric_set_id) REFERENCES rubric_sets(rubric_set_id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
-CREATE TABLE item_rubric_mapping (
-    mapping_id INT AUTO_INCREMENT PRIMARY KEY,
-    item_id INT NOT NULL,
-    rubric_set_id INT NOT NULL,
-    CONSTRAINT fk_mapping_item FOREIGN KEY (item_id) REFERENCES Exercise_Items(item_id) ON DELETE CASCADE,
-    CONSTRAINT fk_mapping_rubric FOREIGN KEY (rubric_set_id) REFERENCES rubric_sets(rubric_set_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- 7. Submissions & AI Scoring

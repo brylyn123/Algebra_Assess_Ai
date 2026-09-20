@@ -5,6 +5,7 @@ import { clearCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import MobileNav from './components/MobileNav';
+import NotificationBell from './components/NotificationBell';
 
 const iconClassName = 'h-4 w-4';
 
@@ -36,11 +37,6 @@ const navIcons = {
       <path d="M12 4v10" strokeLinecap="round" />
       <path d="m8.5 10.5 3.5 3.5 3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 18.5h14" strokeLinecap="round" />
-    </svg>
-  ),
-  feedback: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className={iconClassName}>
-      <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v6A2.5 2.5 0 0 1 16.5 15H10l-4.5 4v-4A2.5 2.5 0 0 1 3 12.5v-6Z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   reports: (
@@ -89,7 +85,6 @@ const quickActions = [
   { label: 'Subjects', icon: navIcons.subjects, path: '/dashboard/subjects' },
   { label: 'Assessments', icon: navIcons.assessments, path: '/teacher/assessments' },
   { label: 'Grade Submissions', icon: navIcons.submissions, path: '/teacher/grade-submissions', badge: true },
-  { label: 'Feedback', icon: navIcons.feedback, path: '/teacher/feedback' },
   { label: 'Reports', icon: navIcons.reports, path: '/teacher/reports' },
 ];
 
@@ -281,7 +276,7 @@ const Dashboard = () => {
         }}
       >
         <header className="sticky top-0 z-50 border-b border-blue-600/40 bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:px-4">
             <div className="flex items-center gap-2">
               <MobileNav
                 actions={sidebarActions.map((a) => ({ label: a.label, icon: a.icon, path: a.path }))}
@@ -307,15 +302,7 @@ const Dashboard = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="hidden items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 backdrop-blur-sm sm:flex">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-blue-600">
-                  {teacherName.charAt(0)}
-                </div>
-                <div className="text-xs leading-tight">
-                  <p className="font-semibold text-white">{teacherName}</p>
-                  <p className="text-white/70">Online</p>
-                </div>
-              </div>
+              <NotificationBell />
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(true)}

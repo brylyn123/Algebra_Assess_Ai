@@ -2,6 +2,7 @@
 require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'notifications_helper.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -90,6 +91,7 @@ try {
 
     ensureAssessmentRubricColumn($conn);
     ensureAssessmentDueDate($conn);
+    ensureItemRubricColumn($conn);
 
     if ($rubric_set_id) {
         $rubricStmt = $conn->prepare(
@@ -111,6 +113,23 @@ try {
         $rubric_set_id = null;
     }
 
+    // Collect per-item rubric IDs and validate them
+    $itemRubricIds = [];
+    foreach ($items as $item) {
+        $itemRubricId = isset($item['rubric_set_id']) ? intval($item['rubric_set_id']) : null;
+        if ($itemRubricId > 0) {
+            $vrStmt = $conn->prepare("SELECT rubric_set_id FROM rubric_sets WHERE rubric_set_id = ? AND teacher_user_id = ? LIMIT 1");
+            $vrStmt->bind_param("ii", $itemRubricId, $teacher_id);
+            $vrStmt->execute();
+            $vrResult = $vrStmt->get_result();
+            $vrRow = $vrResult ? $vrResult->fetch_assoc() : null;
+            $vrStmt->close();
+            $itemRubricIds[] = $vrRow ? $itemRubricId : null;
+        } else {
+            $itemRubricIds[] = null;
+        }
+    }
+
     $conn->begin_transaction();
     $startedTransaction = true;
 
@@ -127,22 +146,22 @@ try {
     $itemStmt = $conn->prepare(
         "INSERT INTO exercise_items (
             exercise_id,
+            rubric_set_id,
             item_no,
             question_type,
             question_content,
-            model_solution,
             max_score
          ) VALUES (?, ?, ?, ?, ?, ?)"
     );
 
-    foreach ($items as $item) {
+    foreach ($items as $idx => $item) {
         $itemNo = isset($item['item_no']) ? intval($item['item_no']) : 1;
         $questionType = trim($item['question_type'] ?? 'handwritten_algebra');
         $content = trim($item['question_content'] ?? '');
-        $modelSolution = trim($item['model_solution'] ?? '');
         $maxScore = isset($item['max_score'])
             ? (float)$item['max_score']
             : (isset($item['max_score_per_item']) ? (float)$item['max_score_per_item'] : 1.0);
+        $itemRubricId = $itemRubricIds[$idx] ?? null;
 
         if ($questionType !== 'handwritten_algebra') {
             $questionType = 'handwritten_algebra';
@@ -160,15 +179,13 @@ try {
             throw new Exception('Question content must be under 5000 characters.');
         }
 
-        $modelSolutionValue = $modelSolution === '' ? null : $modelSolution;
-
         $itemStmt->bind_param(
-            "iisssd",
+            "iiissd",
             $exerciseId,
+            $itemRubricId,
             $itemNo,
             $questionType,
             $content,
-            $modelSolutionValue,
             $maxScore
         );
         $itemStmt->execute();
@@ -188,6 +205,38 @@ try {
     }
 
     $conn->commit();
+
+    // Notify all enrolled students in each subject
+    $enrollmentCol = getEnrollmentSubjectColumn($conn);
+    $notifStmt = $conn->prepare(
+        "SELECT DISTINCT e.student_user_id, u.email, u.first_name
+         FROM Enrollment e
+         INNER JOIN Users u ON u.user_id = e.student_user_id
+         WHERE e.$enrollmentCol = ? AND e.enrollment_status = 'enrolled'"
+    );
+    $subjNameStmt = $conn->prepare("SELECT subject_name FROM Subject WHERE subject_id = ? LIMIT 1");
+    foreach ($validSubjectIds as $sid) {
+        $subjNameStmt->bind_param('i', $sid);
+        $subjNameStmt->execute();
+        $subjNameRow = $subjNameStmt->get_result()->fetch_assoc();
+        $subject_name = $subjNameRow['subject_name'] ?? 'your subject';
+
+        $notifStmt->bind_param('i', $sid);
+        $notifStmt->execute();
+        $notifResult = $notifStmt->get_result();
+        while ($student = $notifResult->fetch_assoc()) {
+            $studentId = (int)$student['student_user_id'];
+            $studentEmail = (string)($student['email'] ?? '');
+            $dueMsg = $due_date ? " Due: {$due_date}." : '';
+            $notifMsg = "A new assessment \"{$title}\" has been added to {$subject_name}.{$dueMsg}";
+            createNotification($conn, $studentId, $teacher_id, 'assessment_created', 'New Assessment', $notifMsg, 'exercise', $exerciseId);
+            if (!empty($studentEmail)) {
+                sendNotificationEmail($studentEmail, 'assessment_created', 'New Assessment: ' . $title, $notifMsg);
+            }
+        }
+    }
+    $subjNameStmt->close();
+    $notifStmt->close();
 
     echo json_encode([
         "status" => "success",

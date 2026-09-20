@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import axios from './axiosClient';
 
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
@@ -11,6 +12,9 @@ import { useToast } from './components/Toast';
 import Select from './components/Select';
 import MathText from './MathText';
 import MathEditor from './MathEditor';
+
+const ALLOWED_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
 
 function hasLatexPatterns(text) {
   return /\\[a-zA-Z]|[_^{}]|[$]/.test(text);
@@ -122,41 +126,132 @@ function reducer(state, action) {
 
 const DEFAULT_GRADING_CRITERIA = [
   {
-    key: 'correctness',
-    title: 'Mathematical Correctness',
-    weight: 30,
-    icon: '✓',
-    description: 'Accuracy of operations, intermediate results, and final answer.',
+    key: 'understanding',
+    title: 'Problem Understanding & Attempt',
+    weight: 25,
+    icon: '★',
+    description: 'Visible effort, identification of given information, variable setup.',
+  },
+  {
+    key: 'method',
+    title: 'Algebraic Method & Setup',
+    weight: 25,
+    icon: '→',
+    description: 'Appropriate equation, formula, or method selected and applied.',
   },
   {
     key: 'process',
-    title: 'Solution Process',
+    title: 'Process & Logical Reasoning',
     weight: 25,
-    icon: '→',
-    description: 'Appropriate method, logical flow, and correct sequencing.',
-  },
-  {
-    key: 'completeness',
-    title: 'Completeness',
-    weight: 20,
     icon: '■',
-    description: 'Required parts and essential solution steps are included.',
+    description: 'Complete, sequential steps with clear mathematical reasoning.',
   },
   {
-    key: 'effort',
-    title: 'Mathematical Understanding and Relevant Attempt',
-    weight: 15,
-    icon: '★',
-    description: 'Observable understanding or meaningful algebraic attempt.',
-  },
-  {
-    key: 'notation',
-    title: 'Mathematical Notation',
-    weight: 10,
-    icon: '∑',
-    description: 'Correct use of symbols, variables, equations, and notation.',
+    key: 'accuracy',
+    title: 'Final Answer & Accuracy',
+    weight: 25,
+    icon: '✓',
+    description: 'Correct final answer with proper form.',
   },
 ];
+
+function SortableQuestion({ id, item, index, rubrics, onEdit, onRemove, onRubricChange }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 50 : 'auto',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group rounded-xl border bg-white p-3 sm:p-4 transition ${
+        isDragging ? 'border-blue-300 shadow-lg ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
+      }`}
+    >
+      <div className="flex items-start gap-2 sm:gap-2.5">
+        {/* Drag handle */}
+        <button
+          type="button"
+          className="mt-0.5 flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-100 hover:text-slate-500 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
+            <path d="M5.5 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-5 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-5 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
+          </svg>
+        </button>
+        <div className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">
+          {index + 1}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs sm:text-sm text-slate-800 overflow-hidden break-words">
+            <MathText text={item.question_content} />
+          </div>
+          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{item.max_score} pts</span>
+        </div>
+        <div className="flex shrink-0 gap-1 opacity-0 transition group-hover:opacity-100">
+          <button type="button" onClick={() => onEdit(index)} className="rounded-lg px-1.5 py-0.5 text-[10px] font-semibold text-blue-500 transition hover:bg-blue-50 hover:text-blue-700">Edit</button>
+          <button type="button" onClick={() => onRemove(index)} className="rounded-lg px-1.5 py-0.5 text-[10px] font-semibold text-red-500 transition hover:bg-red-50 hover:text-red-700">Remove</button>
+        </div>
+      </div>
+      <div className="mt-2 border-t border-slate-100 pt-2 flex items-center gap-2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 shrink-0 text-slate-400">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+        </svg>
+        <select
+          value={item.rubric_id || ''}
+          onChange={(e) => onRubricChange(index, e.target.value)}
+          className="flex-1 appearance-none rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-1 text-[10px] font-medium text-slate-600 outline-none transition hover:border-slate-300 hover:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        >
+          <option value="">Default (assessment rubric)</option>
+          {[...rubrics].sort((a, b) => {
+            const order = { procedural_algebra: 0, problem_solving: 1, general: 2 };
+            return (order[a.rubric_type] ?? 3) - (order[b.rubric_type] ?? 3);
+          }).map((r) => (
+            <option key={r.rubric_set_id} value={r.rubric_set_id}>
+              {r.rubric_name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function DragOverlayQuestion({ item, index, rubrics }) {
+  return (
+    <div className="rounded-xl border border-blue-300 bg-white p-3 sm:p-4 shadow-2xl ring-2 ring-blue-100" style={{ transform: 'scale(1.02)' }}>
+      <div className="flex items-start gap-2 sm:gap-2.5">
+        <div className="mt-0.5 flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-slate-300">
+          <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
+            <path d="M5.5 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-5 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-5 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
+          </svg>
+        </div>
+        <div className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">
+          {index + 1}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs sm:text-sm text-slate-800 overflow-hidden break-words">
+            <MathText text={item.question_content} />
+          </div>
+          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{item.max_score} pts</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const NewAssessment = () => {
 
@@ -185,6 +280,24 @@ const NewAssessment = () => {
   const [newCriterionName, setNewCriterionName] = useState('');
   const [newCriterionDesc, setNewCriterionDesc] = useState('');
   const [effortMinimumGuarantee, setEffortMinimumGuarantee] = useState(1);
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+
+  // File upload state
+  const [uploadFiles, setUploadFiles] = useState([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractedItems, setExtractedItems] = useState([]);
+  const [extractErrors, setExtractErrors] = useState([]);
+  const fileInputRef = useRef(null);
+
+  // Manual question input state
+  const [manualQuestionText, setManualQuestionText] = useState('');
+  const [manualQuestionScore, setManualQuestionScore] = useState('5.0');
+
+  // Drag-and-drop state
+  const [activeId, setActiveId] = useState(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const {
@@ -198,6 +311,8 @@ const NewAssessment = () => {
     rubricError,
     selectedRubric,
   } = state;
+
+  const sortableIds = testItems.map((item, i) => item.id || `item-${item.question_content}-${item.max_score}-${i}`);
 
   const insertSymbol = (symbol) => {
     if (mathEditorRef.current?.insertMath) {
@@ -245,6 +360,30 @@ const NewAssessment = () => {
     setQuestionScore(String(item.max_score || 1.0));
     setQuestionRubricId(item.rubric_id ? String(item.rubric_id) : '');
     setMathExpression(item.question_content || '');
+  };
+
+  const handleAddManualQuestion = () => {
+    const text = manualQuestionText.trim();
+    if (!text) {
+      toast.warning('Please type or paste a question before adding.');
+      return;
+    }
+    const score = parseFloat(manualQuestionScore);
+    if (isNaN(score) || score <= 0 || score > 100) {
+      toast.warning('Score must be between 0 and 100.');
+      return;
+    }
+    const newItem = {
+      item_no: testItems.length + 1,
+      question_type: 'problem_solving',
+      question_content: text,
+      max_score: score,
+      rubric_id: null,
+    };
+    dispatch({ type: 'ADD_TEST_ITEM', payload: newItem });
+    toast.success(`Item #${newItem.item_no} added successfully.`);
+    setManualQuestionText('');
+    setManualQuestionScore('5.0');
   };
 
   // Subject multi-select helpers
@@ -387,6 +526,155 @@ const NewAssessment = () => {
     }
   };
 
+  const handleRubricChange = (index, rubricId) => {
+    dispatch({
+      type: 'SET_TEST_ITEMS',
+      payload: testItems.map((it, i) => i === index ? { ...it, rubric_id: rubricId || null } : it),
+    });
+  };
+
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = sortableIds.indexOf(active.id);
+    const newIndex = sortableIds.indexOf(over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(testItems, oldIndex, newIndex).map((item, i) => ({
+      ...item,
+      item_no: i + 1,
+    }));
+    dispatch({ type: 'SET_TEST_ITEMS', payload: reordered });
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+  };
+
+  // File upload handlers
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const validFiles = [];
+    const errors = [];
+
+    for (const file of files) {
+      if (!ALLOWED_UPLOAD_TYPES.includes(file.type)) {
+        errors.push(`${file.name}: Unsupported file type.`);
+        continue;
+      }
+      if (file.size > MAX_UPLOAD_SIZE) {
+        errors.push(`${file.name}: Exceeds 10MB limit.`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (errors.length > 0) {
+      setExtractErrors(errors);
+      toast.warning(errors.join(' '));
+    }
+
+    setUploadFiles((prev) => [...prev, ...validFiles].slice(0, 5));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveUploadFile = (index) => {
+    setUploadFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleExtractItems = async () => {
+    if (uploadFiles.length === 0) {
+      toast.warning('Please select files to upload.');
+      return;
+    }
+
+    setIsExtracting(true);
+    setExtractErrors([]);
+    setExtractedItems([]);
+
+    try {
+      const formData = new FormData();
+      uploadFiles.forEach((file) => {
+        formData.append('files[]', file);
+      });
+
+      const response = await axios.post('/extract_assessment_items.php', formData, {
+        timeout: 120000,
+      });
+
+      if (response.data?.status === 'success') {
+        const items = response.data.items || [];
+        if (items.length === 0) {
+          toast.warning('No questions could be extracted from the uploaded files.');
+          const allErrors = ['No questions found in the uploaded files.'];
+          if (response.data.warnings?.length > 0) {
+            allErrors.push(...response.data.warnings);
+          }
+          setExtractErrors(allErrors);
+        } else {
+          setExtractedItems(items);
+          toast.success(`Extracted ${items.length} question${items.length !== 1 ? 's' : ''}. Review them below.`);
+          if (response.data.warnings?.length > 0) {
+            setExtractErrors(response.data.warnings);
+          }
+        }
+      } else {
+        throw new Error(response.data?.message || 'Extraction failed.');
+      }
+    } catch (error) {
+      console.error('Extraction failed', error);
+      const msg = error?.response?.data?.message || error.message || 'Extraction failed. Please try again.';
+      toast.error(msg);
+      setExtractErrors([msg]);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleExtractedItemChange = (index, field, value) => {
+    setExtractedItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleRemoveExtractedItem = (index) => {
+    setExtractedItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAcceptExtractedItems = () => {
+    const validItems = extractedItems.filter((item) => item.question_content?.trim());
+    if (validItems.length === 0) {
+      toast.warning('No valid items to add.');
+      return;
+    }
+
+    const newItems = validItems.map((item, idx) => ({
+      item_no: testItems.length + idx + 1,
+      question_type: item.question_type || 'handwritten_algebra',
+      question_content: item.question_content,
+      max_score: parseFloat(item.max_score) || 1.0,
+      rubric_id: item.rubric_id || null,
+    }));
+
+    newItems.forEach((item) => {
+      dispatch({ type: 'ADD_TEST_ITEM', payload: item });
+    });
+
+    setExtractedItems([]);
+    setUploadFiles([]);
+    toast.success(`Added ${newItems.length} question${newItems.length !== 1 ? 's' : ''} to the assessment.`);
+  };
+
 
 
   const normalizeSubjectRecord = (raw) => ({
@@ -453,6 +741,8 @@ const NewAssessment = () => {
           newAssessment,
           testItems,
           selectedRubric,
+          extractedItems,
+          currentStep,
           mathExpression,
           previewValue,
           savedAt: new Date().toISOString(),
@@ -465,10 +755,11 @@ const NewAssessment = () => {
     });
   };
 
-  const handleViewRubricDetails = () => {
-    if (!questionRubricId) return;
+  const handleViewRubricDetails = (rubricIdOverride) => {
+    const rubricId = rubricIdOverride || selectedRubric || questionRubricId;
+    if (!rubricId) return;
     const rubric = rubrics.find(
-      (r) => String(r.rubric_set_id) === String(questionRubricId)
+      (r) => String(r.rubric_set_id) === String(rubricId)
     );
     if (rubric) {
       setSelectedRubricDetail(rubric);
@@ -529,6 +820,14 @@ const NewAssessment = () => {
 
       if (parsedDraft?.selectedRubric) {
         dispatch({ type: 'SET_SELECTED_RUBRIC', payload: String(parsedDraft.selectedRubric) });
+      }
+
+      if (Array.isArray(parsedDraft?.extractedItems) && parsedDraft.extractedItems.length > 0) {
+        setExtractedItems(parsedDraft.extractedItems);
+      }
+
+      if (typeof parsedDraft?.currentStep === 'number') {
+        setCurrentStep(parsedDraft.currentStep);
       }
 
       if (parsedDraft?.previewValue) {
@@ -605,8 +904,7 @@ const NewAssessment = () => {
           question_content: item.question_content || '',
           question_label: item.question_label || '',
           max_score: item.max_score || 1.0,
-          rubric_id: item.rubric_id || null,
-          model_solution: item.model_solution || '',
+          rubric_id: item.rubric_set_id || item.rubric_id || null,
         }));
         dispatch({ type: 'SET_TEST_ITEMS', payload: items });
 
@@ -801,99 +1099,76 @@ const NewAssessment = () => {
 
 
 
-  const handleAddAssessment = async (e) => {
-
-    e.preventDefault();
-
+  const validateAssessment = () => {
     if (!newAssessment.title || !newAssessment.topic || !(newAssessment.subjectIds?.length > 0)) {
-
       toast.warning('Please fill out all assessment fields and select at least one subject.');
-
-      return;
-
+      return false;
     }
-
     if (newAssessment.title.length > 255) {
       toast.warning('Title must be under 255 characters.');
-      return;
+      return false;
     }
-
     if (newAssessment.description && newAssessment.description.length > 2000) {
       toast.warning('Description must be under 2000 characters.');
-      return;
+      return false;
     }
-
     if (testItems.length === 0) {
-
       toast.warning('Please add at least one item for the assessment.');
-
-      return;
-
+      return false;
     }
-
     const hasInvalidScore = testItems.some(
       (item) => !item.max_score || item.max_score <= 0 || item.max_score > 100
     );
     if (hasInvalidScore) {
       toast.warning('Each item score must be between 0 and 100.');
-      return;
+      return false;
     }
-
     const hasEmptyContent = testItems.some(
       (item) => !item.question_content || item.question_content.trim() === ''
     );
     if (hasEmptyContent) {
       toast.warning('Each item must include question content.');
-      return;
+      return false;
     }
+    return true;
+  };
 
+  const handleSubmitClick = (e) => {
+    e.preventDefault();
+    if (validateAssessment()) {
+      setShowCreateConfirm(true);
+    }
+  };
+
+  const handleAddAssessment = async () => {
     try {
-
       const payload = {
-
         teacher_id: teacherId,
-
         subject_id: Number(newAssessment.subjectIds[0]),
         subject_ids: newAssessment.subjectIds.map(Number),
-
         title: newAssessment.title,
-
         topic: newAssessment.topic,
-
         description: newAssessment.description,
         difficulty: newAssessment.difficulty,
         due_date: newAssessment.dueDate || null,
-
         items: testItems.map((item, index) => ({
-
           item_no: index + 1,
-
           question_type: item.question_type,
-
           question_content: item.question_content,
-
-          model_solution: item.model_solution || '',
-
           max_score: item.max_score || 1.0,
-
           rubric_set_id: item.rubric_id || null,
-
         })),
-
         effort_minimum_guarantee: effortMinimumGuarantee,
-
         grading_criteria: enabledCriteria.filter((c) => c.enabled).map((c) => ({
           key: c.key,
           title: c.title,
           weight: c.weight,
         })),
-
         custom_grading_criteria: customCriteria.filter((c) => c.enabled !== false).map((c) => ({
           key: c.key,
           title: c.title,
           weight: c.weight,
         })),
-
       };
 
       if (isEditMode) {
@@ -909,19 +1184,13 @@ const NewAssessment = () => {
       if (typeof window !== 'undefined') {
         window.sessionStorage.removeItem(ASSESSMENT_DRAFT_STORAGE_KEY);
       }
-
       setMathExpression('');
-
+      setShowCreateConfirm(false);
       navigate('/teacher/assessments');
-
     } catch (error) {
-
       console.error('Failed to save assessment', error);
-
       toast.error('We could not save the assessment. Please try again.');
-
     }
-
   };
 
   const handleSaveDraft = async () => {
@@ -949,7 +1218,6 @@ const NewAssessment = () => {
           item_no: index + 1,
           question_type: item.question_type || 'handwritten_algebra',
           question_content: item.question_content,
-          model_solution: item.model_solution || '',
           max_score: item.max_score || 1.0,
           rubric_set_id: item.rubric_id || null,
         })),
@@ -1069,7 +1337,7 @@ const NewAssessment = () => {
           </div>
 
           <div className="max-h-[calc(100vh-14rem)] overflow-y-auto px-6 py-6 md:px-8 md:py-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
-            <form onSubmit={handleAddAssessment} className="space-y-5">
+            <form onSubmit={handleSubmitClick} className="space-y-5">
               {/* Step 1: Details */}
               {currentStep === 0 && (
                 <div className="space-y-4">
@@ -1199,77 +1467,366 @@ const NewAssessment = () => {
               {/* Step 2: Questions — Inline Question Editor */}
               {currentStep === 1 && (
                 <div className="space-y-4">
-                  {/* Inline question editor */}
+                  {/* File Upload Section */}
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
                     <div className="mb-3 flex items-center justify-between">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                        {editingIndex !== null ? `Editing Question #${editingIndex + 1}` : `Question #${testItems.length + 1}`}
-                      </p>
-                      {editingIndex !== null && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingIndex(null);
-                            setMathExpression('');
-                            setQuestionScore('1.0');
-                          }}
-                          className="text-[10px] font-semibold text-slate-400 hover:text-slate-600"
-                        >
-                          Cancel Edit
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex gap-3">
-                      <div className="flex-1 rounded-xl border border-slate-200 bg-slate-50 transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100 overflow-hidden">
-                        <MathEditor
-                          ref={mathEditorRef}
-                          value={mathExpression}
-                          onChange={setMathExpression}
-                          placeholder="Type your question here... Use $...$ for inline math"
-                          style={{ minHeight: '6rem', maxHeight: '20rem', overflowY: 'auto' }}
-                        />
-                        {mathExpression.trim() && hasLatexPatterns(mathExpression) && (
-                          <div className="border-t border-slate-200 bg-white px-4 py-3">
-                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Preview</p>
-                            <div className="text-sm text-slate-800">
-                              <MathText text={mathExpression} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="w-[60px]">
-                          <input
-                            type="number"
-                            min="0.5"
-                            max="100"
-                            step="0.5"
-                            value={questionScore}
-                            onChange={(e) => setQuestionScore(e.target.value)}
-                            placeholder="Pts"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-center text-[11px] font-semibold text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                          />
-                        </div>
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">pts</span>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                          Upload Assessment File
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          Upload an image or PDF of your assessment and let AI extract the questions.
+                        </p>
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-center gap-2">
-                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-slate-400">
-                        <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
-                      </svg>
-                      <Select
-                        value={questionRubricId}
-                        onChange={(e) => setQuestionRubricId(e.target.value)}
-                        className="flex-1 text-[11px]"
-                      >
-                        <option value="">Default Rubric (AI Grading)</option>
-                        {rubrics.map((rubric) => (
-                          <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
-                            {rubric.rubric_name}
-                          </option>
+                    {/* Upload area */}
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const files = Array.from(e.dataTransfer.files);
+                        if (files.length > 0) {
+                          const syntheticEvent = { target: { files } };
+                          handleFileSelect(syntheticEvent);
+                        }
+                      }}
+                      className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 transition cursor-pointer ${
+                        isExtracting
+                          ? 'border-blue-300 bg-blue-50/50'
+                          : 'border-slate-300 bg-slate-50/50 hover:border-blue-400 hover:bg-blue-50/30'
+                      }`}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        disabled={isExtracting}
+                      />
+                      {isExtracting ? (
+                        <>
+                          <div className="mb-2 h-8 w-8 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+                          <p className="text-xs font-medium text-blue-600">AI is extracting questions...</p>
+                          <p className="mt-1 text-[10px] text-slate-400">This may take a moment.</p>
+                        </>
+                      ) : (
+                        <>
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="mb-2 h-8 w-8 text-slate-400">
+                            <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
+                            <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                          </svg>
+                          <p className="text-xs font-medium text-slate-600">Click to upload or drag and drop</p>
+                          <p className="mt-1 text-[10px] text-slate-400">JPG, PNG, WebP, or PDF (max 10MB each, up to 5 files)</p>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Uploaded files list */}
+                    {uploadFiles.length > 0 && (
+                      <div className="mt-3 space-y-1.5">
+                        {uploadFiles.map((file, idx) => {
+                          const isPdf = file.type === 'application/pdf';
+                          const isImage = file.type.startsWith('image/');
+                          const fileColor = isPdf ? 'red' : 'blue';
+                          const bgColor = isPdf ? 'bg-red-50' : 'bg-blue-50';
+                          const iconColor = isPdf ? 'text-red-500' : 'text-blue-500';
+                          const borderColor = isPdf ? 'border-red-200' : 'border-blue-200';
+                          const hoverBg = isPdf ? 'hover:bg-red-100' : 'hover:bg-blue-100';
+                          return (
+                            <div
+                              key={`${file.name}-${idx}`}
+                              className={`flex items-center gap-2.5 rounded-xl border ${borderColor} ${bgColor} px-3 py-2.5 transition hover:shadow-sm`}
+                            >
+                              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isPdf ? 'bg-red-100' : 'bg-blue-100'}`}>
+                                {isPdf ? (
+                                  <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 ${iconColor}`}>
+                                    <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5z" clipRule="evenodd" />
+                                  </svg>
+                                ) : (
+                                  <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 ${iconColor}`}>
+                                    <path fillRule="evenodd" d="M1 4a2 2 0 012-2h6a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2V4zm9 0v12H3V4h7zM6 8.5a.5.5 0 01.5-.5h5a.5.5 0 010 1h-5a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h5a.5.5 0 010 1h-5a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3a.5.5 0 01-.5-.5z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-medium text-slate-700">{file.name}</p>
+                                <p className="text-[10px] text-slate-400">{(file.size / 1024).toFixed(0)} KB</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveUploadFile(idx)}
+                                disabled={isExtracting}
+                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${hoverBg} text-slate-400 transition hover:text-red-500 disabled:opacity-50`}
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                                </svg>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Extract button */}
+                    {uploadFiles.length > 0 && extractedItems.length === 0 && (
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleExtractItems}
+                          disabled={isExtracting}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:from-purple-700 hover:to-indigo-700 hover:shadow-lg active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isExtracting ? (
+                            <>
+                              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                              Extracting...
+                            </>
+                          ) : (
+                            <>
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                <path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.683a1 1 0 01.633.633l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.551a1 1 0 01-.632.633l-.551.183a1 1 0 000 1.898l.551.183a1 1 0 01.633.633l.183.551a1 1 0 001.898 0l.184-.551a1 1 0 01.632-.633l.551-.183a1 1 0 000-1.898l-.551-.184a1 1 0 01-.633-.632l-.183-.551z" />
+                              </svg>
+                              Extract Questions with AI
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Extraction errors */}
+                    {extractErrors.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        {extractErrors.map((err, idx) => (
+                          <p key={idx} className="text-[11px] text-amber-700">{err}</p>
                         ))}
-                      </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Extracted Items Review */}
+                  {extractedItems.length > 0 && (
+                    <div className="rounded-2xl border border-purple-200 bg-purple-50/30 p-4 sm:p-5 shadow-sm">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-purple-500">
+                            Extracted Questions ({extractedItems.length})
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            Review and edit the extracted questions before adding them.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setExtractedItems([])}
+                          className="text-[10px] font-semibold text-slate-400 hover:text-slate-600"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {extractedItems.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-purple-200 bg-white p-3 transition hover:border-purple-300"
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-100 text-[10px] font-bold text-purple-700">
+                                {idx + 1}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <textarea
+                                  value={item.question_content}
+                                  onChange={(e) => handleExtractedItemChange(idx, 'question_content', e.target.value)}
+                                  rows={2}
+                                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-100"
+                                  placeholder="Question content..."
+                                />
+                                <div className="mt-1.5 flex items-center gap-2">
+                                  <span className="text-[10px] text-slate-400">Score:</span>
+                                  <input
+                                    type="number"
+                                    min="0.5"
+                                    max="10"
+                                    step="0.5"
+                                    defaultValue={item.max_score}
+                                    onChange={(e) => handleExtractedItemChange(idx, 'max_score', parseFloat(e.target.value) || 5.0)}
+                                    onFocus={(e) => { e.target.dataset.prevValue = e.target.value; e.target.value = ''; }}
+                                    onBlur={(e) => { if (e.target.value === '' || parseFloat(e.target.value) <= 0) { const prev = e.target.dataset.prevValue || '5'; e.target.value = prev; handleExtractedItemChange(idx, 'max_score', parseFloat(prev) || 5.0); } else { handleExtractedItemChange(idx, 'max_score', parseFloat(e.target.value) || 5.0); }}}
+                                    className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-[11px] font-semibold text-slate-700 outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
+                                  />
+                                  <span className="text-[10px] text-slate-400">pts</span>
+                                </div>
+                                <div className="mt-1.5 flex items-center gap-1.5">
+                                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 shrink-0 text-slate-400">
+                                    <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                                  </svg>
+                                  <select
+                                    value={item.rubric_id || ''}
+                                    onChange={(e) => handleExtractedItemChange(idx, 'rubric_id', e.target.value || null)}
+                                    className="min-w-0 flex-1 appearance-none rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-1 text-[10px] font-medium text-slate-600 outline-none transition hover:border-slate-300 hover:bg-white focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
+                                  >
+                                    <option value="">Default Rubric (AI Grading)</option>
+                                    {[...rubrics].sort((a, b) => {
+                                      const order = { procedural_algebra: 0, problem_solving: 1, general: 2 };
+                                      return (order[a.rubric_type] ?? 3) - (order[b.rubric_type] ?? 3);
+                                    }).map((r) => (
+                                      <option key={r.rubric_set_id} value={r.rubric_set_id}>
+                                        {r.rubric_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={handleOpenRubricBuilder}
+                                    className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-1.5 py-1 text-[10px] font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                                  >
+                                    + New
+                                  </button>
+                                  {item.rubric_id ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleViewRubricDetails(item.rubric_id)}
+                                      className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                                    >
+                                      Details
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowDefaultRubricModal(true)}
+                                        className="shrink-0 rounded-lg border border-blue-200 bg-white px-1.5 py-1 text-[10px] font-semibold text-blue-600 transition hover:bg-blue-50"
+                                      >
+                                        Details
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowModifyCriteriaModal(true)}
+                                        className="shrink-0 rounded-lg border border-amber-300 bg-white px-1.5 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
+                                      >
+                                        Modify
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveExtractedItem(idx)}
+                                className="text-slate-400 hover:text-red-500"
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                                </svg>
+                              </button>
+                            </div>
+                            {item.question_content && (
+                              <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2">
+                                <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-slate-400">Preview</p>
+                                <div className="text-xs text-slate-700">
+                                  <MathText text={item.question_content} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleAcceptExtractedItems}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:bg-emerald-700 hover:shadow-lg active:scale-[0.97]"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                            <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                          </svg>
+                          Add to Assessment
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manual Question Input (for problem-solving) */}
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-4 sm:p-5 shadow-sm">
+                    <div className="mb-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600">
+                        Add Problem-Solving Question
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Type or paste a question directly — great for word problems and open-ended questions.
+                      </p>
+                    </div>
+                    <textarea
+                      value={manualQuestionText}
+                      onChange={(e) => setManualQuestionText(e.target.value)}
+                      rows={3}
+                      placeholder="e.g. A farmer has 3 times as many chickens as ducks. If he has 24 chickens, how many ducks does he have? Show your reasoning."
+                      className="w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                    />
+                    <div className="mt-2.5 flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-slate-500">Score:</span>
+                        <input
+                          type="number"
+                          min="0.5"
+                          max="100"
+                          step="0.5"
+                          value={manualQuestionScore}
+                          onFocus={(e) => { e.target.dataset.prevValue = e.target.value; e.target.value = ''; }}
+                          onBlur={(e) => { if (e.target.value === '' || parseFloat(e.target.value) <= 0) { const prev = e.target.dataset.prevValue || '5.0'; e.target.value = prev; setManualQuestionScore(prev); } else { setManualQuestionScore(e.target.value); }}}
+                          onChange={(e) => setManualQuestionScore(e.target.value)}
+                          className="w-16 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-center text-[11px] font-semibold text-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                        <span className="text-[10px] text-slate-400">pts</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddManualQuestion}
+                        disabled={!manualQuestionText.trim()}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                          <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                        </svg>
+                        Add Question
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Grading Criteria */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+                    <div className="mb-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Grading Criteria</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-slate-400">
+                          <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                        </svg>
+                        <Select
+                          value={selectedRubric}
+                          onChange={(e) => dispatch({ type: 'SET_SELECTED_RUBRIC', payload: e.target.value })}
+                          className="flex-1 text-[11px]"
+                        >
+                          <option value="">Default Rubric (AI Grading)</option>
+                          {[...rubrics].sort((a, b) => {
+                            const order = { procedural_algebra: 0, problem_solving: 1, general: 2 };
+                            return (order[a.rubric_type] ?? 3) - (order[b.rubric_type] ?? 3);
+                          }).map((rubric) => (
+                            <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
+                              {rubric.rubric_name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
                       <button
                         type="button"
                         onClick={handleOpenRubricBuilder}
@@ -1277,34 +1834,32 @@ const NewAssessment = () => {
                       >
                         + New
                       </button>
-                      {questionRubricId ? (
+                      {selectedRubric ? (
                         <button
                           type="button"
-                          onClick={handleViewRubricDetails}
+                          onClick={() => handleViewRubricDetails(selectedRubric)}
                           className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                         >
                           View Details
                         </button>
                       ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setShowDefaultRubricModal(true)}
-                            className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-blue-600 transition hover:bg-blue-50"
-                          >
-                            View Details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowModifyCriteriaModal(true)}
-                            className="shrink-0 rounded-full border border-amber-300 bg-white px-2 py-1.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
-                          >
-                            Modify Criteria
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          onClick={() => setShowDefaultRubricModal(true)}
+                          className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-blue-600 transition hover:bg-blue-50"
+                        >
+                          View Details
+                        </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setShowModifyCriteriaModal(true)}
+                        className="shrink-0 rounded-full border border-amber-300 bg-white px-2 py-1.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
+                      >
+                        Modify Criteria
+                      </button>
                     </div>
-                    {!questionRubricId && (
+                    {!selectedRubric && (
                       <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
                         <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">AI Default Grading</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
@@ -1316,56 +1871,49 @@ const NewAssessment = () => {
                         </div>
                       </div>
                     )}
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleAddQuestion}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:bg-emerald-700 hover:shadow-lg active:scale-[0.97]"
-                      >
-                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                        </svg>
-                        {editingIndex !== null ? 'Update Question' : 'Add Question'}
-                      </button>
-                    </div>
-                  </div>
+                   </div>
 
                   {/* Questions list */}
                   {testItems.length > 0 ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white">
-                      <p className="border-b border-slate-100 px-4 sm:px-5 py-2.5 sm:py-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                        Questions ({testItems.length}) · {testItems.reduce((s, it) => s + (it.max_score || 0), 0).toFixed(1)} total pts
-                      </p>
-                      <div className="p-3 sm:p-4 space-y-2.5">
-                        {testItems.map((item, index) => (
-                          <div
-                            key={`${item.question_content}-${index}`}
-                            className="group rounded-xl border border-slate-200 bg-white p-3 sm:p-4 transition hover:border-slate-300 hover:shadow-sm"
-                          >
-                            <div className="flex items-start gap-2.5 sm:gap-3">
-                              <div className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-[10px] font-bold text-blue-700">
-                                {index + 1}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs sm:text-sm text-slate-800 overflow-hidden break-words">
-                                  <MathText text={item.question_content} />
-                                </div>
-                                <p className="mt-0.5 text-[10px] text-slate-400">{item.max_score} pts</p>
-                              </div>
-                              <div className="flex shrink-0 gap-1 opacity-0 transition group-hover:opacity-100">
-                                <button type="button" onClick={() => handleEditQuestion(index)} className="rounded-lg px-1.5 py-0.5 text-[10px] font-semibold text-blue-500 transition hover:bg-blue-50 hover:text-blue-700">Edit</button>
-                                <button type="button" onClick={() => handleRemoveQuestion(index)} className="rounded-lg px-1.5 py-0.5 text-[10px] font-semibold text-red-500 transition hover:bg-red-50 hover:text-red-700">Remove</button>
-                              </div>
-                            </div>
-                            {item.rubric_id && (
-                              <p className="mt-1.5 border-t border-slate-100 pt-1.5 text-[10px] text-slate-400">
-                                Rubric: {rubrics.find(r => r.rubric_set_id === item.rubric_id)?.rubric_name || 'Custom'}
-                              </p>
-                            )}
-                          </div>
-                        ))}
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onDragCancel={handleDragCancel}
+                    >
+                      <div className="rounded-2xl border border-slate-200 bg-white">
+                        <p className="border-b border-slate-100 px-4 sm:px-5 py-2.5 sm:py-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                          Questions ({testItems.length}) · {testItems.reduce((s, it) => s + (it.max_score || 0), 0)} total pts
+                          <span className="ml-2 text-slate-300 normal-case tracking-normal">· Drag to reorder</span>
+                        </p>
+                        <div className="p-3 sm:p-4 space-y-2.5">
+                          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                            {testItems.map((item, index) => (
+                              <SortableQuestion
+                                key={sortableIds[index]}
+                                id={sortableIds[index]}
+                                item={item}
+                                index={index}
+                                rubrics={rubrics}
+                                onEdit={handleEditQuestion}
+                                onRemove={handleRemoveQuestion}
+                                onRubricChange={handleRubricChange}
+                              />
+                            ))}
+                          </SortableContext>
+                        </div>
                       </div>
-                    </div>
+                      <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
+                        {activeId !== null ? (
+                          <DragOverlayQuestion
+                            item={testItems[sortableIds.indexOf(activeId)]}
+                            index={sortableIds.indexOf(activeId)}
+                            rubrics={rubrics}
+                          />
+                        ) : null}
+                      </DragOverlay>
+                    </DndContext>
                   ) : (
                     <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-8 text-center">
                       <p className="text-sm font-medium text-slate-500">No questions yet</p>
@@ -1381,7 +1929,7 @@ const NewAssessment = () => {
                   <button
                     type="button"
                     onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
-                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 sm:px-4 sm:py-2 sm:text-xs"
                   >
                     ← Back
                   </button>
@@ -1396,22 +1944,22 @@ const NewAssessment = () => {
                         setCurrentStep((prev) => Math.min(ASSESSMENT_STEPS.length - 1, prev + 1));
                       }
                     }}
-                    className="rounded-full bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 hover:shadow-lg active:scale-[0.97]"
+                    className="rounded-full bg-blue-600 px-4 py-2 text-[11px] font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 hover:shadow-lg active:scale-[0.97] sm:px-5 sm:py-2 sm:text-xs"
                   >
                     Continue →
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <button
                       type="button"
                       onClick={handleSaveDraft}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.97]"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.97] sm:px-4 sm:py-2 sm:text-xs"
                     >
                       Save as Draft
                     </button>
                     <button
                       type="submit"
-                      className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97]"
+                      className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-[11px] font-semibold text-white shadow-lg shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] sm:px-6 sm:py-2.5 sm:text-xs"
                     >
                       {isEditMode ? 'Update Assessment' : 'Create Assessment'}
                     </button>
@@ -1455,6 +2003,10 @@ const NewAssessment = () => {
         setNewCriterionDesc={setNewCriterionDesc}
         effortMinimumGuarantee={effortMinimumGuarantee}
         setEffortMinimumGuarantee={setEffortMinimumGuarantee}
+        rubrics={rubrics}
+        selectedRubricObj={rubrics.find((r) => String(r.rubric_set_id) === String(selectedRubric)) || null}
+        setEnabledCriteria={setEnabledCriteria}
+        setCustomCriteria={setCustomCriteria}
       />
       <RubricDetailModal
         isOpen={showRubricDetailModal}
@@ -1463,6 +2015,271 @@ const NewAssessment = () => {
         teacherId={teacherId}
         onSaved={() => loadRubrics()}
       />
+
+      {/* Edit Question Floating Card */}
+      {editingIndex !== null && createPortal(
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm" onClick={() => { setEditingIndex(null); setMathExpression(''); setQuestionScore('1.0'); setQuestionRubricId(''); }}>
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="relative bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.2em] text-white/90">
+                      Question {editingIndex + 1}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/25 px-2 py-0.5 text-[9px] font-bold text-amber-100">
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+                        <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                      </svg>
+                      Editing
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Edit Question</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setEditingIndex(null); setMathExpression(''); setQuestionScore('1.0'); setQuestionRubricId(''); }}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/20 hover:text-white"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              {/* Points badge */}
+              <div className="mb-4 flex items-center justify-end">
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="100"
+                    step="0.5"
+                    value={questionScore}
+                    onChange={(e) => setQuestionScore(e.target.value)}
+                    className="w-10 bg-transparent text-center text-[11px] font-bold text-slate-600 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  pts
+                </span>
+              </div>
+
+              {/* Per-item rubric selector */}
+              <div className="mb-4">
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Rubric for this question</label>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={questionRubricId}
+                    onChange={(e) => setQuestionRubricId(e.target.value)}
+                    className="flex-1 text-[11px]"
+                  >
+                    <option value="">Default (uses assessment rubric)</option>
+                    {[...rubrics].sort((a, b) => {
+                      const order = { procedural_algebra: 0, problem_solving: 1, general: 2 };
+                      return (order[a.rubric_type] ?? 3) - (order[b.rubric_type] ?? 3);
+                    }).map((rubric) => (
+                      <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
+                        {rubric.rubric_name}
+                      </option>
+                    ))}
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={handleOpenRubricBuilder}
+                    className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-600 transition hover:bg-blue-100"
+                  >
+                    + New
+                  </button>
+                </div>
+              </div>
+
+              {/* Editor area */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100">
+                <MathEditor
+                  ref={mathEditorRef}
+                  value={mathExpression}
+                  onChange={setMathExpression}
+                  placeholder="Type a question... e.g. Solve for x: 2x + 3 = 7"
+                  style={{ minHeight: '7rem', maxHeight: '14rem', overflowY: 'auto' }}
+                  showKeyboard={showMathKeyboard}
+                  onToggleKeyboard={() => setShowMathKeyboard((v) => !v)}
+                />
+                {mathExpression.trim() && hasLatexPatterns(mathExpression) && (
+                  <div className="border-t border-slate-200 bg-white px-4 py-3">
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Preview</p>
+                    </div>
+                    <div className="text-sm leading-6 text-slate-800">
+                      <MathText text={mathExpression} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Math hints panel */}
+              {showMathKeyboard && (
+                <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                  <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-blue-500">Quick Type Hints</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: 'Fraction', example: '\\frac{a}{b}' },
+                      { label: 'Square Root', example: '\\sqrt{x}' },
+                      { label: 'Power', example: 'x^2' },
+                      { label: 'Subscript', example: 'x_1' },
+                      { label: 'Greek', example: '\\alpha' },
+                      { label: 'Integral', example: '\\int_{a}^{b}' },
+                    ].map((hint) => (
+                      <button
+                        key={hint.label}
+                        type="button"
+                        onClick={() => { mathEditorRef.current?.insertMath?.(hint.example); }}
+                        className="rounded-lg border border-blue-200/60 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        {hint.label}: <span className="font-mono text-[10px] text-slate-400">{hint.example}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-3">
+              <button
+                type="button"
+                onClick={() => setShowMathKeyboard((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${showMathKeyboard ? 'rotate-180' : ''}`}>
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+                {showMathKeyboard ? 'Hide Hints' : 'Show Hints'}
+              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setEditingIndex(null); setMathExpression(''); setQuestionScore('1.0'); setQuestionRubricId(''); }}
+                  className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.97]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddQuestion}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg active:scale-[0.97]"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                  </svg>
+                  Update Question
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Confirm Create/Update Assessment Modal */}
+      {showCreateConfirm && createPortal(
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/60 px-4 backdrop-blur-sm" onClick={() => setShowCreateConfirm(false)}>
+          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.35)]" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={`bg-gradient-to-br px-6 py-5 ${isEditMode ? 'from-amber-500 via-amber-600 to-orange-600' : 'from-blue-600 via-blue-600 to-indigo-600'}`}>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                  {isEditMode ? (
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
+                      <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-white">
+                      <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zM8.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">{isEditMode ? 'Update Assessment' : 'Create Assessment'}</h3>
+                  <p className="text-sm text-white/70">{isEditMode ? 'Save changes to this assessment?' : 'Ready to publish this assessment?'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {isEditMode
+                  ? 'This will update the assessment with your latest changes. Students will see the updated version.'
+                  : 'This will create and publish the assessment. Students enrolled in the selected subjects will be able to view and attempt it.'}
+              </p>
+
+              {/* Summary */}
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Title</span>
+                  <span className="font-semibold text-slate-800 max-w-[200px] truncate">{newAssessment.title}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Questions</span>
+                  <span className="font-semibold text-slate-800">{testItems.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Total Points</span>
+                  <span className="font-semibold text-amber-600">{testItems.reduce((s, it) => s + (it.max_score || 0), 0)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Subjects</span>
+                  <span className="font-semibold text-slate-800">
+                    {subjects.filter((s) => newAssessment.subjectIds?.includes(s.id)).map((s) => s.name).join(', ') || 'None'}
+                  </span>
+                </div>
+                {newAssessment.difficulty && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Difficulty</span>
+                    <span className="font-semibold text-slate-800">{newAssessment.difficulty}</span>
+                  </div>
+                )}
+                {newAssessment.dueDate && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Due Date</span>
+                    <span className="font-semibold text-slate-800">{new Date(newAssessment.dueDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setShowCreateConfirm(false)}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.97]"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                onClick={handleAddAssessment}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97] ${
+                  isEditMode
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 shadow-amber-200/60 hover:from-amber-600 hover:to-orange-700'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-200/60 hover:from-blue-700 hover:to-indigo-700'
+                }`}
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                  <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                </svg>
+                {isEditMode ? 'Yes, Update' : 'Yes, Create'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
         </>
       );
 
@@ -1470,119 +2287,91 @@ const NewAssessment = () => {
 
 const CRITERIA_DETAILS = [
   {
-    key: 'correctness',
-    title: 'Mathematical Correctness',
-    weight: 30,
-    icon: '✓',
-    description: 'Accuracy of operations, intermediate results, and final answer.',
+    key: 'understanding',
+    title: 'Problem Understanding & Attempt',
+    weight: 25,
+    icon: '★',
+    description: 'Visible effort, identification of given information, variable setup.',
     whatAiLooksFor: [
-      'Correct final answer',
-      'Accurate intermediate calculations',
-      'No arithmetic or algebraic errors',
-      'Proper application of mathematical rules',
+      'Student identified given information',
+      'Variables are defined or attempted',
+      'Problem is set up correctly or with reasonable effort',
+      'Evidence of understanding the problem',
     ],
     scoringGuide: [
-      { label: 'Full marks', range: '100%', detail: 'All answers correct, no errors in any step.' },
-      { label: 'Mostly correct', range: '60–90%', detail: 'Minor calculation error but method is sound.' },
-      { label: 'Partial', range: '30–50%', detail: 'Some correct steps but final answer is wrong.' },
-      { label: 'Incorrect', range: '0–20%', detail: 'Major errors throughout or no meaningful attempt.' },
+      { label: 'Excellent', range: 'Full marks', detail: 'Clearly identified given info, defined variables, and set up the problem with strong understanding.' },
+      { label: 'Satisfactory', range: 'Partial', detail: 'Showed visible effort and reasonable attempt, but setup is incomplete or partially unclear.' },
+      { label: 'No Attempt', range: '0 pts', detail: 'Submission is blank or contains no relevant work.' },
     ],
     example: (total) => {
-      const pts = Math.round((30 / 100) * total * 10) / 10;
-      return `If a student solves 2 out of 3 items correctly, the AI awards up to ${pts} points (30% of ${total}).`;
+      const pts = Math.round((25 / 100) * total * 10) / 10;
+      return `If the student clearly sets up the problem, this criterion contributes up to ${pts} points toward the item's total.`;
+    },
+  },
+  {
+    key: 'method',
+    title: 'Algebraic Method & Setup',
+    weight: 25,
+    icon: '→',
+    description: 'Appropriate equation, formula, or method selected and applied.',
+    whatAiLooksFor: [
+      'Correct method or formula chosen',
+      'Appropriate to the problem type',
+      'Applied correctly with proper setup',
+      'No major method selection errors',
+    ],
+    scoringGuide: [
+      { label: 'Excellent', range: 'Full marks', detail: 'Selected and perfectly applied an appropriate equation, formula, or method.' },
+      { label: 'Satisfactory', range: 'Partial', detail: 'Chose a reasonable method but applied it with minor errors in setup.' },
+      { label: 'Wrong/Missing', range: '0 pts', detail: 'Used an inappropriate method or omitted setup entirely.' },
+    ],
+    example: (total) => {
+      const pts = Math.round((25 / 100) * total * 10) / 10;
+      return `If the student uses the correct formula, this criterion contributes up to ${pts} points toward the item's total.`;
     },
   },
   {
     key: 'process',
-    title: 'Solution Process',
+    title: 'Process & Logical Reasoning',
     weight: 25,
-    icon: '→',
-    description: 'Appropriate method, logical flow, and correct sequencing.',
+    icon: '■',
+    description: 'Complete, sequential steps with clear mathematical reasoning.',
     whatAiLooksFor: [
-      'Correct method or formula chosen',
-      'Logical step-by-step progression',
-      'Proper sequencing of operations',
-      'Clear justification of steps',
+      'Steps are complete and sequential',
+      'Each step logically follows from the previous one',
+      'Mathematical reasoning is clear',
+      'No missing critical steps',
     ],
     scoringGuide: [
-      { label: 'Full marks', range: '100%', detail: 'Method is correct, steps are logical and complete.' },
-      { label: 'Mostly correct', range: '60–90%', detail: 'Right method but minor sequencing issues.' },
-      { label: 'Partial', range: '30–50%', detail: 'Some correct steps but missing key parts.' },
-      { label: 'Incorrect', range: '0–20%', detail: 'Wrong method or no logical flow.' },
+      { label: 'Excellent', range: 'Full marks', detail: 'Steps are complete, sequential, and demonstrate clear mathematical reasoning.' },
+      { label: 'Satisfactory', range: 'Partial', detail: 'Most steps are correct, but one or more are missing, unclear, or disorganized.' },
+      { label: 'Wrong/Missing', range: '0 pts', detail: 'Steps are mostly incorrect, disorganized, or illegible.' },
     ],
     example: (total) => {
       const pts = Math.round((25 / 100) * total * 10) / 10;
-      return `If the student shows a correct approach with clear steps, the AI awards up to ${pts} points (25% of ${total}).`;
+      return `If the student shows clear step-by-step work, this criterion contributes up to ${pts} points toward the item's total.`;
     },
   },
   {
-    key: 'completeness',
-    title: 'Completeness',
-    weight: 20,
-    icon: '■',
-    description: 'Required parts and essential solution steps are included.',
+    key: 'accuracy',
+    title: 'Final Answer & Accuracy',
+    weight: 25,
+    icon: '✓',
+    description: 'Correct final answer with proper form.',
     whatAiLooksFor: [
-      'All required parts are answered',
-      'Essential steps are shown',
-      'No missing components',
-      'All sub-problems addressed',
+      'Final answer is correct',
+      'Answer is properly simplified',
+      'Correct formatting and form',
+      'No arithmetic errors',
     ],
     scoringGuide: [
-      { label: 'Full marks', range: '100%', detail: 'All parts answered, nothing missing.' },
-      { label: 'Mostly complete', range: '60–90%', detail: 'One minor part missing or incomplete.' },
-      { label: 'Partial', range: '30–50%', detail: 'Several parts missing or incomplete.' },
-      { label: 'Incomplete', range: '0–20%', detail: 'Most parts missing or unanswered.' },
+      { label: 'Excellent', range: 'Full marks', detail: 'Final answer is completely correct with proper form.' },
+      { label: 'Satisfactory', range: 'Partial', detail: 'Correct method with a single minor arithmetic error; answer is nearly correct.' },
+      { label: 'Wrong/Missing', range: '0 pts', detail: 'Final answer is completely incorrect, unreadable, or missing.' },
     ],
     example: (total) => {
-      const pts = Math.round((20 / 100) * total * 10) / 10;
-      return `If the student answers all required parts, the AI awards up to ${pts} points (20% of ${total}).`;
-    },
-  },
-  {
-    key: 'effort',
-    title: 'Mathematical Understanding & Attempt',
-    weight: 15,
-    icon: '★',
-    description: 'Observable understanding or meaningful algebraic attempt.',
-    whatAiLooksFor: [
-      'Evidence of understanding the problem',
-      'Meaningful attempt at solving',
-      'Use of relevant mathematical concepts',
-      'Shows reasoning even if incorrect',
-    ],
-    scoringGuide: [
-      { label: 'Full marks', range: '100%', detail: 'Clear understanding and strong attempt.' },
-      { label: 'Good attempt', range: '60–90%', detail: 'Shows understanding but with gaps.' },
-      { label: 'Basic attempt', range: '30–50%', detail: 'Some evidence of understanding.' },
-      { label: 'Minimal', range: '10–20%', detail: 'Submitted work but little evidence of understanding.' },
-    ],
-    example: (total) => {
-      const pts = Math.round((15 / 100) * total * 10) / 10;
-      const minPts = Math.round(total * 0.10 * 10) / 10;
-      return `If the student shows understanding, the AI awards up to ${pts} points (15% of ${total}). Minimum ${minPts} pts for any attempt.`;
-    },
-  },
-  {
-    key: 'notation',
-    title: 'Mathematical Notation',
-    weight: 10,
-    icon: '∑',
-    description: 'Correct use of symbols, variables, equations, and notation.',
-    whatAiLooksFor: [
-      'Proper use of mathematical symbols',
-      'Correct variable naming',
-      'Standard equation formatting',
-      'Appropriate use of notation',
-    ],
-    scoringGuide: [
-      { label: 'Full marks', range: '100%', detail: 'Perfect notation throughout.' },
-      { label: 'Mostly correct', range: '60–90%', detail: 'Minor notation errors.' },
-      { label: 'Partial', range: '30–50%', detail: 'Some correct notation but several errors.' },
-      { label: 'Poor', range: '0–20%', detail: 'Notation is unclear or incorrect.' },
-    ],
-    example: (total) => {
-      const pts = Math.round((10 / 100) * total * 10) / 10;
-      return `If the student uses proper notation, the AI awards up to ${pts} points (10% of ${total}).`;
+      const pts = Math.round((25 / 100) * total * 10) / 10;
+      return `If the final answer is correct, this criterion contributes up to ${pts} points toward the item's total.`;
     },
   },
 ];
@@ -1634,8 +2423,8 @@ const DefaultRubricModal = ({ isOpen, onClose, totalScore = 0 }) => {
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
               <p className="text-xs font-semibold text-amber-800 mb-2">How AI Grading Works</p>
               <p className="text-xs text-amber-700/80 leading-relaxed">
-                When you create an assessment <strong>without a rubric</strong>, the AI automatically grades student submissions using these 5 built-in criteria. 
-                Each criterion has a fixed percentage weight that determines its maximum points.
+                When you create an assessment <strong>without a rubric</strong>, the AI automatically grades student submissions using these 4 built-in criteria. 
+                The AI evaluates each item on your configured max score using the criteria as a guide.
               </p>
 
               {/* Sample Calculation - Always show */}
@@ -1693,11 +2482,11 @@ const DefaultRubricModal = ({ isOpen, onClose, totalScore = 0 }) => {
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">2</span>
-                  <p className="text-xs text-blue-700/80"><strong>Evaluate Each Criterion:</strong> AI scores the work against each of the 5 criteria.</p>
+                  <p className="text-xs text-blue-700/80"><strong>Evaluate Each Criterion:</strong> AI scores the work against each of the 4 criteria as a guide.</p>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">3</span>
-                  <p className="text-xs text-blue-700/80"><strong>Award Points:</strong> Each criterion earns points (0 to max) based on quality.</p>
+                  <p className="text-xs text-blue-700/80"><strong>Award Points:</strong> AI assigns a holistic score from 0 to the item's max score based on quality.</p>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">4</span>
@@ -1790,13 +2579,13 @@ const DefaultRubricModal = ({ isOpen, onClose, totalScore = 0 }) => {
               <div className="flex items-start gap-2">
                 <span className="text-emerald-600 text-lg">★</span>
                 <div>
-                  <p className="text-xs font-semibold text-emerald-800">Effort Minimum Guarantee</p>
+                  <p className="text-xs font-semibold text-emerald-800">Baseline Floor Guarantee</p>
                   <p className="mt-1 text-xs text-emerald-700/80 leading-relaxed">
-                    Students who submit work receive a <strong>minimum of 10% of the item's max score</strong>, even if all answers are incorrect. 
-                    This encourages students to attempt every problem rather than leave answers blank.
+                    Students who submit visible work receive a <strong>minimum of 1 point per item</strong>, even if all criteria are scored as wrong. 
+                    This encourages students to attempt every problem rather than leave submissions blank.
                   </p>
                   <p className="mt-1 text-xs text-emerald-700/80">
-                    <strong>Example:</strong> If an item is worth 20 points, the student earns at least 2 points for attempting it.
+                    <strong>Partial Credit:</strong> If the final answer has a minor error, points earned in Criteria 1-3 are preserved.
                   </p>
                 </div>
               </div>
@@ -1806,22 +2595,47 @@ const DefaultRubricModal = ({ isOpen, onClose, totalScore = 0 }) => {
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold text-slate-800 mb-2">Final Score Formula</p>
               <div className="rounded-lg bg-white border border-slate-200 px-4 py-3 font-mono text-sm text-slate-700 text-center">
-                Final Score = Criterion 1 + Criterion 2 + Criterion 3 + Criterion 4 + Criterion 5
+                Item Score = 0 to max_score (based on 4 criteria evaluation)
               </div>
               <div className="mt-3 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Example with 20 points:</p>
-                {DEFAULT_GRADING_CRITERIA.map((c) => {
-                  const pts = Math.round((c.weight / 100) * 20 * 10) / 10;
-                  return (
-                    <div key={c.key} className="flex items-center justify-between text-xs px-2">
-                      <span className="text-slate-600">{c.title} ({c.weight}%)</span>
-                      <span className="font-mono text-slate-700">0 to {pts} pts</span>
-                    </div>
-                  );
-                })}
-                <div className="border-t border-slate-200 mt-2 pt-2 flex items-center justify-between text-xs font-bold px-2">
-                  <span className="text-slate-700">Maximum Total</span>
-                  <span className="font-mono text-blue-600">20 pts</span>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Scoring Guide:</p>
+                <div className="space-y-1 text-xs px-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-emerald-600 font-semibold">Excellent</span>
+                    <span className="text-slate-600">near full marks — strong on all criteria</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-600 font-semibold">Good</span>
+                    <span className="text-slate-600">70–89% — minor errors</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-600 font-semibold">Satisfactory</span>
+                    <span className="text-slate-600">40–69% — some gaps</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-red-500 font-semibold">Needs Improvement</span>
+                    <span className="text-slate-600">1–39% — minimal correct</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-semibold">No Attempt</span>
+                    <span className="text-slate-600">0 points</span>
+                  </div>
+                </div>
+                <div className="border-t border-slate-200 mt-2 pt-2 space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Example with 20 points max:</p>
+                  {DEFAULT_GRADING_CRITERIA.map((c) => {
+                    const pts = Math.round((c.weight / 100) * 20 * 10) / 10;
+                    return (
+                      <div key={c.key} className="flex items-center justify-between text-xs px-2">
+                        <span className="text-slate-600">{c.title}</span>
+                        <span className="font-mono text-slate-700">guides evaluation</span>
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-slate-200 mt-2 pt-2 flex items-center justify-between text-xs font-bold px-2">
+                    <span className="text-slate-700">Maximum Score</span>
+                    <span className="font-mono text-blue-600">20 pts</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1861,17 +2675,34 @@ const ModifyCriteriaModal = ({
   setNewCriterionDesc,
   effortMinimumGuarantee,
   setEffortMinimumGuarantee,
+  selectedRubricObj,
+  setEnabledCriteria,
+  setCustomCriteria,
 }) => {
   if (!isOpen) return null;
 
   const modalRoot = typeof document !== 'undefined' ? document.body : null;
   if (!modalRoot) return null;
 
+  const isUsingSavedRubric = selectedRubricObj && Array.isArray(selectedRubricObj.items) && selectedRubricObj.items.length > 0;
+  const rubricItems = isUsingSavedRubric ? selectedRubricObj.items : [];
+
+  const rubricTotal = rubricItems.reduce((s, it) => s + (it.points || 0), 0);
+
+  const rubricWeights = isUsingSavedRubric ? rubricItems.map((item, idx) => {
+    const criterion = enabledCriteria.find((c) => c.key === `rubric-${selectedRubricObj.rubric_set_id}-${idx}`);
+    return criterion?.weight ?? (rubricTotal > 0 ? Math.round((item.points / rubricTotal) * 100) : 0);
+  }) : [];
+
   const totalWeight =
-    enabledCriteria.filter((c) => c.enabled).reduce((s, c) => s + c.weight, 0) +
+    (isUsingSavedRubric
+      ? rubricWeights.reduce((s, w) => s + w, 0)
+      : enabledCriteria.filter((c) => c.enabled).reduce((s, c) => s + c.weight, 0)) +
     customCriteria.filter((c) => c.enabled !== false).reduce((s, c) => s + c.weight, 0);
   const activeCount =
-    enabledCriteria.filter((c) => c.enabled).length +
+    (isUsingSavedRubric
+      ? rubricItems.length
+      : enabledCriteria.filter((c) => c.enabled).length) +
     customCriteria.filter((c) => c.enabled !== false).length;
 
   return createPortal(
@@ -1888,7 +2719,11 @@ const ModifyCriteriaModal = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-800">Modify AI Grading Criteria</h3>
-                <p className="text-[11px] text-slate-400">Toggle default criteria, adjust weights, and add your own</p>
+                <p className="text-[11px] text-slate-400">
+                  {isUsingSavedRubric
+                    ? `Editing: ${selectedRubricObj.rubric_name}`
+                    : 'Toggle default criteria, adjust weights, and add your own'}
+                </p>
               </div>
             </div>
             <button
@@ -1904,43 +2739,118 @@ const ModifyCriteriaModal = ({
 
           {/* Body - scrollable */}
           <div className="teacher-scrollbar flex-1 overflow-y-auto px-6 py-4 space-y-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
-            {/* Default criteria with checkboxes and editable weights */}
-            <div>
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Default Criteria</p>
-              <div className="space-y-1.5">
-                {enabledCriteria.map((c) => (
-                  <div
-                    key={c.key}
-                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition ${
-                      c.enabled
-                        ? 'border-blue-200 bg-white'
-                        : 'border-slate-200 bg-slate-50 opacity-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={c.enabled}
-                      onChange={() => onToggleDefault(c.key)}
-                      className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-xs text-slate-700 flex-1">{c.icon} {c.title}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={c.weight}
-                      onChange={(e) => {
-                        const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
-                        onUpdateDefaultWeight(c.key, val);
-                      }}
-                      className="w-14 rounded-lg border border-slate-200 px-1.5 py-0.5 text-center text-[10px] font-bold text-blue-600 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-                    />
-                    <span className="text-[10px] text-slate-400">%</span>
+
+            {/* Saved Rubric Breakdown */}
+            {isUsingSavedRubric && (() => {
+              return (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    {selectedRubricObj.rubric_name} — Breakdown
+                  </p>
+                  <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                    {rubricItems.length} criteria
+                  </span>
+                </div>
+                {selectedRubricObj.criteria && (
+                  <p className="mb-2 text-[11px] text-slate-500 leading-4">{selectedRubricObj.criteria}</p>
+                )}
+                {selectedRubricObj.ai_instructions && (
+                  <div className="mb-2 rounded-lg border border-blue-100 bg-blue-50/70 px-2.5 py-2">
+                    <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-blue-600">AI Instructions</p>
+                    <p className="mt-0.5 text-[10px] text-slate-600">{selectedRubricObj.ai_instructions}</p>
                   </div>
-                ))}
+                )}
+                <div className="space-y-1.5">
+                  {rubricItems.map((item, idx) => {
+                    const criterion = enabledCriteria.find((c) => c.key === `rubric-${selectedRubricObj.rubric_set_id}-${idx}`);
+                    const isEnabled = criterion?.enabled ?? true;
+                    const weight = criterion?.weight ?? (rubricTotal > 0 ? Math.round((item.points / rubricTotal) * 100) : 0);
+                    return (
+                      <div
+                        key={item.rubric_item_id || idx}
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition ${
+                          isEnabled
+                            ? 'border-blue-200 bg-white'
+                            : 'border-slate-200 bg-slate-50 opacity-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={() => onToggleDefault(`rubric-${selectedRubricObj.rubric_set_id}-${idx}`)}
+                          className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs text-slate-700 block truncate">{item.description || `Criterion ${idx + 1}`}</span>
+                          {item.min_points > 0 && (
+                            <span className="text-[9px] text-amber-600">Min: {item.min_points} pts</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="5"
+                            value={weight}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                              onUpdateDefaultWeight(`rubric-${selectedRubricObj.rubric_set_id}-${idx}`, val);
+                            }}
+                            className={`w-14 rounded-lg border px-1.5 py-0.5 text-center text-[10px] font-bold outline-none focus:ring-1 ${totalWeight > 100 ? 'border-red-300 text-red-600 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 text-blue-600 focus:border-blue-400 focus:ring-blue-100'}`}
+                          />
+                          <span className="text-[10px] text-slate-400">%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+              );
+            })()}
+
+            {/* Default Criteria (shown when no rubric selected) */}
+            {!isUsingSavedRubric && (
+              <div>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Default Criteria</p>
+                <div className="space-y-1.5">
+                  {enabledCriteria.map((c) => (
+                    <div
+                      key={c.key}
+                      className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition ${
+                        c.enabled
+                          ? 'border-blue-200 bg-white'
+                          : 'border-slate-200 bg-slate-50 opacity-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={c.enabled}
+                        onChange={() => onToggleDefault(c.key)}
+                        className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-700 flex-1">{c.icon} {c.title}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={c.weight}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                          onUpdateDefaultWeight(c.key, val);
+                        }}
+                        className={`w-14 rounded-lg border px-1.5 py-0.5 text-center text-[10px] font-bold outline-none focus:ring-1 ${totalWeight > 100 ? 'border-red-300 text-red-600 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 text-blue-600 focus:border-blue-400 focus:ring-blue-100'}`}
+                      />
+                      <span className="text-[10px] text-slate-400">%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Effort Minimum Guarantee */}
             <div>
@@ -1957,6 +2867,7 @@ const ModifyCriteriaModal = ({
                       max="5"
                       step="0.5"
                       value={effortMinimumGuarantee}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => {
                         const val = Math.max(0, Math.min(5, parseFloat(e.target.value) || 0));
                         setEffortMinimumGuarantee(val);
@@ -2003,11 +2914,12 @@ const ModifyCriteriaModal = ({
                           max="100"
                           step="5"
                           value={c.weight}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
                             onUpdateCustomWeight(c.key, val);
                           }}
-                          className="w-14 rounded-lg border border-slate-200 px-1.5 py-0.5 text-center text-[10px] font-bold text-blue-600 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                          className={`w-14 rounded-lg border px-1.5 py-0.5 text-center text-[10px] font-bold outline-none focus:ring-1 ${totalWeight > 100 ? 'border-red-300 text-red-600 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 text-blue-600 focus:border-blue-400 focus:ring-blue-100'}`}
                         />
                         <span className="text-[10px] text-slate-400">%</span>
                         <button
@@ -2059,14 +2971,19 @@ const ModifyCriteriaModal = ({
             </div>
 
             {/* Total weight */}
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+            <div className={`flex items-center justify-between rounded-lg border px-3 py-2 ${totalWeight > 100 ? 'border-red-200 bg-red-50' : totalWeight === 100 ? 'border-emerald-200 bg-emerald-50' : 'bg-slate-50 border-slate-200'}`}>
               <span className="text-[11px] text-slate-500">
                 {activeCount} criteria active
               </span>
-              <span className={`text-[11px] font-bold ${totalWeight === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+              <span className={`text-[11px] font-bold ${totalWeight === 100 ? 'text-emerald-600' : totalWeight > 100 ? 'text-red-600' : 'text-amber-600'}`}>
                 Total: {totalWeight}%
               </span>
             </div>
+            {totalWeight > 100 && (
+              <p className="mt-1.5 text-[11px] font-semibold text-red-500">
+                Total cannot exceed 100%. Please adjust the weights.
+              </p>
+            )}
           </div>
 
           {/* Footer - fixed */}
@@ -2074,7 +2991,8 @@ const ModifyCriteriaModal = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-slate-800 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
+              disabled={totalWeight > 100}
+              className="rounded-full bg-slate-800 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
             >
               Done
             </button>
@@ -2387,11 +3305,11 @@ const RubricDetailModal = ({ isOpen, onClose, rubric, teacherId, onSaved }) => {
                 >
                   Edit Rubric
                 </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-full bg-slate-800 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
-                >
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full bg-slate-800 px-5 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 active:scale-[0.97]"
+            >
                   Close
                 </button>
               </>

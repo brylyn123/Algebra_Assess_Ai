@@ -117,6 +117,7 @@ try {
 
     ensureAssessmentRubricColumn($conn);
     ensureAssessmentDueDate($conn);
+    ensureItemRubricColumn($conn);
 
     if ($rubric_set_id) {
         $rubricStmt = $conn->prepare(
@@ -132,6 +133,23 @@ try {
         }
     } else {
         $rubric_set_id = null;
+    }
+
+    // Collect per-item rubric IDs and validate them
+    $itemRubricIds = [];
+    foreach ($items as $item) {
+        $itemRubricId = isset($item['rubric_set_id']) ? intval($item['rubric_set_id']) : null;
+        if ($itemRubricId > 0) {
+            $vrStmt = $conn->prepare("SELECT rubric_set_id FROM rubric_sets WHERE rubric_set_id = ? AND teacher_user_id = ? LIMIT 1");
+            $vrStmt->bind_param("ii", $itemRubricId, $teacher_id);
+            $vrStmt->execute();
+            $vrResult = $vrStmt->get_result();
+            $vrRow = $vrResult ? $vrResult->fetch_assoc() : null;
+            $vrStmt->close();
+            $itemRubricIds[] = $vrRow ? $itemRubricId : null;
+        } else {
+            $itemRubricIds[] = null;
+        }
     }
 
     $conn->begin_transaction();
@@ -156,16 +174,16 @@ try {
 
     // Insert new items
     $itemStmt = $conn->prepare(
-        "INSERT INTO exercise_items (exercise_id, item_no, question_type, question_content, model_solution, max_score)
+        "INSERT INTO exercise_items (exercise_id, rubric_set_id, item_no, question_type, question_content, max_score)
          VALUES (?, ?, ?, ?, ?, ?)"
     );
 
-    foreach ($items as $item) {
+    foreach ($items as $idx => $item) {
         $itemNo = isset($item['item_no']) ? intval($item['item_no']) : 1;
         $questionType = trim($item['question_type'] ?? 'handwritten_algebra');
         $content = trim($item['question_content'] ?? '');
-        $modelSolution = trim($item['model_solution'] ?? '');
         $maxScore = isset($item['max_score']) ? (float)$item['max_score'] : 1.0;
+        $itemRubricId = $itemRubricIds[$idx] ?? null;
 
         if ($questionType !== 'handwritten_algebra') {
             $questionType = 'handwritten_algebra';
@@ -174,8 +192,7 @@ try {
             throw new Exception('Each item must include question_content.');
         }
 
-        $modelSolutionValue = $modelSolution === '' ? null : $modelSolution;
-        $itemStmt->bind_param("iisssd", $exercise_id, $itemNo, $questionType, $content, $modelSolutionValue, $maxScore);
+        $itemStmt->bind_param("iiissd", $exercise_id, $itemRubricId, $itemNo, $questionType, $content, $maxScore);
         $itemStmt->execute();
     }
     $itemStmt->close();

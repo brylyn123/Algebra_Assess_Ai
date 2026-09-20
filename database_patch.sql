@@ -244,3 +244,51 @@ CREATE TABLE IF NOT EXISTS assessment_subjects (
     FOREIGN KEY (assessment_id) REFERENCES Exercises_Problem(exercise_id) ON DELETE CASCADE,
     FOREIGN KEY (subject_id) REFERENCES Subject(subject_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- Notifications table
+CREATE TABLE IF NOT EXISTS Notifications (
+    notification_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    sender_user_id INT,
+    type ENUM('assessment_created', 'assessment_submitted', 'grade_returned') NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    reference_type VARCHAR(50),
+    reference_id INT,
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notifications_user_unread (user_id, is_read),
+    INDEX idx_notifications_created_at (created_at)
+) ENGINE=InnoDB;
+
+SET @notif_fk_user_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'Notifications'
+      AND CONSTRAINT_NAME = 'fk_notifications_user'
+);
+SET @add_notif_fk_user_sql := IF(
+    @notif_fk_user_exists = 0,
+    'ALTER TABLE Notifications ADD CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES Users(user_id)',
+    'SELECT ''fk_notifications_user already exists'' AS message'
+);
+PREPARE stmt FROM @add_notif_fk_user_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @notif_fk_sender_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'Notifications'
+      AND CONSTRAINT_NAME = 'fk_notifications_sender'
+);
+SET @add_notif_fk_sender_sql := IF(
+    @notif_fk_sender_exists = 0,
+    'ALTER TABLE Notifications ADD CONSTRAINT fk_notifications_sender FOREIGN KEY (sender_user_id) REFERENCES Users(user_id)',
+    'SELECT ''fk_notifications_sender already exists'' AS message'
+);
+PREPARE stmt FROM @add_notif_fk_sender_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

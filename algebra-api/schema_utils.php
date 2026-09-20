@@ -1506,3 +1506,66 @@ function ensureRubricItemMinPoints(mysqli $conn): void {
         $conn->query("ALTER TABLE rubric_set_items ADD COLUMN min_points DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER points");
     }
 }
+
+function ensureRubricTypeColumn(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    $hasCol = schemaColumnExists($conn, 'rubric_sets', 'rubric_type');
+    if (!$hasCol) {
+        $conn->query("ALTER TABLE rubric_sets ADD COLUMN rubric_type ENUM('procedural_algebra', 'problem_solving', 'general') NOT NULL DEFAULT 'general' AFTER rubric_name");
+    }
+}
+
+function ensureItemRubricColumn(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    $hasCol = schemaColumnExists($conn, 'Exercise_Items', 'rubric_set_id');
+    if (!$hasCol) {
+        $conn->query("ALTER TABLE Exercise_Items ADD COLUMN rubric_set_id INT NULL AFTER exercise_id");
+        $conn->query("ALTER TABLE Exercise_Items ADD CONSTRAINT fk_exercise_items_rubric_set FOREIGN KEY (rubric_set_id) REFERENCES rubric_sets(rubric_set_id) ON DELETE SET NULL");
+    }
+}
+
+function ensureNotificationsTable(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    $result = $conn->query("SHOW TABLES LIKE 'Notifications'");
+    if ($result && $result->num_rows > 0) {
+        $result->free();
+        return;
+    }
+    if ($result) { $result->free(); }
+
+    $conn->query("CREATE TABLE IF NOT EXISTS Notifications (
+        notification_id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        sender_user_id INT,
+        type ENUM('assessment_created', 'assessment_submitted', 'grade_returned') NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        reference_type VARCHAR(50),
+        reference_id INT,
+        is_read TINYINT(1) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_notifications_user_unread (user_id, is_read),
+        INDEX idx_notifications_created_at (created_at)
+    ) ENGINE=InnoDB");
+
+    $fkUser = $conn->query("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'Notifications' AND CONSTRAINT_NAME = 'fk_notifications_user' LIMIT 1");
+    if ($fkUser && $fkUser->num_rows === 0) {
+        $conn->query("ALTER TABLE Notifications ADD CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES Users(user_id)");
+    }
+    if ($fkUser) { $fkUser->free(); }
+
+    $fkSender = $conn->query("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'Notifications' AND CONSTRAINT_NAME = 'fk_notifications_sender' LIMIT 1");
+    if ($fkSender && $fkSender->num_rows === 0) {
+        $conn->query("ALTER TABLE Notifications ADD CONSTRAINT fk_notifications_sender FOREIGN KEY (sender_user_id) REFERENCES Users(user_id)");
+    }
+    if ($fkSender) { $fkSender->free(); }
+}

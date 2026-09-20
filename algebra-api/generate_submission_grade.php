@@ -6,6 +6,7 @@ require_once 'ai_client.php';
 require_once 'schema_utils.php';
 
 ensureRubricItemMinPoints($conn);
+ensureItemRubricColumn($conn);
 
 function decodeSubmissionRawPayload($rawJson) {
     if (!$rawJson) {
@@ -100,7 +101,7 @@ try {
     }
 
     $itemStmt = $conn->prepare(
-        "SELECT item_id, item_no, question_content, model_solution, max_score
+        "SELECT item_id, item_no, question_content, max_score, rubric_set_id
          FROM exercise_items
          WHERE exercise_id = ?
          ORDER BY item_no ASC"
@@ -116,36 +117,78 @@ try {
             'item_id' => (int)$itemRow['item_id'],
             'item_no' => isset($itemRow['item_no']) ? (int)$itemRow['item_no'] : 1,
             'question_content' => $itemRow['question_content'],
-            'model_solution' => $itemRow['model_solution'] ?? '',
             'max_score' => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 0.0,
+            'rubric_set_id' => isset($itemRow['rubric_set_id']) ? (int)$itemRow['rubric_set_id'] : null,
         ];
     }
     $itemStmt->close();
+
+    // Fetch per-item rubric details (items fall back to assessment-level rubric)
+    $assessmentRubricId = isset($submission['rubric_set_id']) ? (int)$submission['rubric_set_id'] : 0;
+    $rubricCache = [];
+    foreach ($items as &$item) {
+        $itemRubricId = $item['rubric_set_id'] ?? null;
+        $effectiveRubricId = $itemRubricId > 0 ? $itemRubricId : ($assessmentRubricId > 0 ? $assessmentRubricId : 0);
+
+        if ($effectiveRubricId > 0) {
+            if (!isset($rubricCache[$effectiveRubricId])) {
+                $rStmt = $conn->prepare(
+                    "SELECT rs.rubric_name, rs.criteria AS rubric_criteria, rs.ai_instructions AS rubric_ai_instructions
+                     FROM rubric_sets rs WHERE rs.rubric_set_id = ? LIMIT 1"
+                );
+                $rStmt->bind_param('i', $effectiveRubricId);
+                $rStmt->execute();
+                $rRow = $rStmt->get_result()->fetch_assoc();
+                $rStmt->close();
+
+                $riStmt = $conn->prepare(
+                    "SELECT description, points, min_points FROM rubric_set_items WHERE rubric_set_id = ? ORDER BY rubric_item_id ASC"
+                );
+                $riStmt->bind_param('i', $effectiveRubricId);
+                $riStmt->execute();
+                $riResult = $riStmt->get_result();
+                $riItems = [];
+                while ($ri = $riResult->fetch_assoc()) {
+                    $riItems[] = [
+                        'description' => $ri['description'],
+                        'points' => (float)$ri['points'],
+                        'min_points' => (float)($ri['min_points'] ?? 0),
+                    ];
+                }
+                $riStmt->close();
+
+                $rubricCache[$effectiveRubricId] = [
+                    'rubric_set_id' => $effectiveRubricId,
+                    'rubric_name' => $rRow['rubric_name'] ?? null,
+                    'rubric_criteria' => $rRow['rubric_criteria'] ?? '',
+                    'rubric_ai_instructions' => $rRow['rubric_ai_instructions'] ?? '',
+                    'rubric_items' => $riItems,
+                ];
+            }
+            $item['rubric'] = $rubricCache[$effectiveRubricId];
+        } else {
+            $item['rubric'] = null;
+        }
+    }
+    unset($item);
 
     $existingRawPayload = decodeSubmissionRawPayload($submission['ai_raw_json'] ?? null);
     $savedFiles = extractSubmissionFilesForOcr($existingRawPayload, $submission['file_path'] ?? null);
     $ocrText = isset($submission['ocr_text']) ? trim((string)$submission['ocr_text']) : '';
 
-    // Fetch rubric items with min_points if a rubric is attached
-    $rubricItems = [];
-    $rubricSetId = isset($submission['rubric_set_id']) ? (int)$submission['rubric_set_id'] : 0;
-    if ($rubricSetId > 0) {
-        $rubricItemStmt = $conn->prepare(
-            "SELECT description, points, min_points FROM rubric_set_items WHERE rubric_set_id = ? ORDER BY rubric_item_id ASC"
-        );
-        $rubricItemStmt->bind_param('i', $rubricSetId);
-        $rubricItemStmt->execute();
-        $rubricItemResult = $rubricItemStmt->get_result();
-        while ($riRow = $rubricItemResult->fetch_assoc()) {
-            $rubricItems[] = [
-                'description' => $riRow['description'],
-                'points' => (float)$riRow['points'],
-                'min_points' => (float)($riRow['min_points'] ?? 0),
-            ];
+    // Build combined rubric items from per-item rubrics (for effort minimum enforcement)
+    $allRubricItems = [];
+    foreach ($items as $item) {
+        if (!empty($item['rubric']['rubric_items'])) {
+            foreach ($item['rubric']['rubric_items'] as $ri) {
+                $desc = strtolower(trim($ri['description']));
+                if ($desc !== '' && !isset($allRubricItems[$desc])) {
+                    $allRubricItems[$desc] = $ri;
+                }
+            }
         }
-        $rubricItemStmt->close();
     }
-    $submission['rubric_items'] = $rubricItems;
+    $submission['rubric_items'] = array_values($allRubricItems);
 
     $statusValue = 'processing';
     $processingPayload = $existingRawPayload;

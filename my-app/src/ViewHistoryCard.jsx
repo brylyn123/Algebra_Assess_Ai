@@ -102,45 +102,76 @@ const ViewHistoryCard = ({ maxHeight = '260px' }) => {
                             {rubrics.length === 0 ? (
                                 <p className="text-xs text-slate-400">No rubrics stored yet.</p>
                             ) : (
-                                rubrics.map((rubric) => (
-                                    <div
-                                        key={rubric.rubric_set_id}
-                                        className="space-y-2 rounded-2xl border border-slate-200 bg-white/90 p-3"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="font-semibold text-slate-900">{rubric.rubric_name}</p>
-                                                <p className="text-[11px] text-slate-500">{formatDate(rubric.created_at)}</p>
+                                <div className="space-y-3">
+                                    {[
+                                        { type: 'procedural_algebra', label: 'Procedural Algebra', color: 'blue' },
+                                        { type: 'problem_solving', label: 'Problem-Solving', color: 'purple' },
+                                        { type: 'general', label: 'General', color: 'emerald' },
+                                    ].map((group) => {
+                                        const groupRubrics = rubrics.filter((r) => r.rubric_type === group.type || (!r.rubric_type && group.type === 'general'));
+                                        if (groupRubrics.length === 0) return null;
+                                        return (
+                                            <div key={group.type}>
+                                                <div className="flex items-center gap-1.5 mb-1.5">
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${
+                                                        group.color === 'blue' ? 'bg-blue-400' :
+                                                        group.color === 'purple' ? 'bg-purple-400' :
+                                                        'bg-emerald-400'
+                                                    }`} />
+                                                    <p className={`text-[10px] font-bold uppercase tracking-[0.15em] ${
+                                                        group.color === 'blue' ? 'text-blue-600' :
+                                                        group.color === 'purple' ? 'text-purple-600' :
+                                                        'text-emerald-600'
+                                                    }`}>
+                                                        {group.label}
+                                                    </p>
+                                                    <span className="text-[9px] text-slate-400">{groupRubrics.length}</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {groupRubrics.map((rubric) => (
+                                                        <div
+                                                            key={rubric.rubric_set_id}
+                                                            className="space-y-2 rounded-2xl border border-slate-200 bg-white/90 p-3"
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <div>
+                                                                    <p className="font-semibold text-slate-900">{rubric.rubric_name}</p>
+                                                                    <p className="text-[11px] text-slate-500">{formatDate(rubric.created_at)}</p>
+                                                                </div>
+                                                                <span className="text-[10px] uppercase tracking-[0.4em] text-slate-500">
+                                                                    Criteria
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs text-slate-500">{rubric.criteria}</p>
+                                                            {rubric.ai_instructions && (
+                                                                <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-slate-600">
+                                                                    {rubric.ai_instructions}
+                                                                </p>
+                                                            )}
+                                                            {Array.isArray(rubric.level_definitions) && rubric.level_definitions.length > 0 && (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {rubric.level_definitions.map((level, index) => (
+                                                                        <span
+                                                                            key={`${rubric.rubric_set_id}-history-level-${index}`}
+                                                                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600"
+                                                                        >
+                                                                            {formatLevelLabel(level)}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <div className="flex justify-end">
+                                                                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                                                                    Saved
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                            <span className="text-[10px] uppercase tracking-[0.4em] text-slate-500">
-                                                Criteria
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-slate-500">{rubric.criteria}</p>
-                                        {rubric.ai_instructions && (
-                                            <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-slate-600">
-                                                {rubric.ai_instructions}
-                                            </p>
-                                        )}
-                                        {Array.isArray(rubric.level_definitions) && rubric.level_definitions.length > 0 && (
-                                            <div className="flex flex-wrap gap-2">
-                                                {rubric.level_definitions.map((level, index) => (
-                                                    <span
-                                                        key={`${rubric.rubric_set_id}-history-level-${index}`}
-                                                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600"
-                                                    >
-                                                        {formatLevelLabel(level)}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <div className="flex justify-end">
-                                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
-                                                Saved
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
                     </div>

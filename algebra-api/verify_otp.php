@@ -7,11 +7,10 @@ require_once 'schema_utils.php';
 $data = json_decode(file_get_contents('php://input'), true);
 $email = trim((string)($data['email'] ?? ''));
 $otp = trim((string)($data['otp'] ?? ''));
-$newPassword = (string)($data['password'] ?? '');
 
-if ($email === '' || $otp === '' || $newPassword === '') {
+if ($email === '' || $otp === '') {
     http_response_code(422);
-    echo json_encode(['status' => 'error', 'message' => 'Email, OTP, and new password are required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Email and OTP are required.']);
     exit();
 }
 
@@ -27,12 +26,6 @@ if (!preg_match('/^\d{6}$/', $otp)) {
     exit();
 }
 
-if (strlen($newPassword) < 8 || strlen($newPassword) > 128) {
-    http_response_code(422);
-    echo json_encode(['status' => 'error', 'message' => 'Password must be between 8 and 128 characters.']);
-    exit();
-}
-
 try {
     $userTable = resolveExistingTableName($conn, ['Users', 'users']);
 
@@ -44,9 +37,8 @@ try {
         exit();
     }
 
-    // Find user by email and OTP
-    $stmt = $conn->prepare("SELECT user_id, reset_otp, reset_otp_expires FROM {$userTable} WHERE email = ? AND reset_otp = ? LIMIT 1");
-    $stmt->bind_param('ss', $email, $otp);
+    $stmt = $conn->prepare("SELECT user_id, reset_otp, reset_otp_expires FROM {$userTable} WHERE email = ? LIMIT 1");
+    $stmt->bind_param('s', $email);
     $stmt->execute();
     $result = $stmt->get_result();
     $user = $result ? $result->fetch_assoc() : null;
@@ -54,33 +46,31 @@ try {
 
     if (!$user) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Invalid or expired OTP.']);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid email or OTP.']);
         exit();
     }
 
-    // Check expiry
+    if (empty($user['reset_otp']) || $user['reset_otp'] !== $otp) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid OTP. Please check the code and try again.']);
+        exit();
+    }
+
     if ($user['reset_otp_expires'] && strtotime($user['reset_otp_expires']) < time()) {
         http_response_code(400);
         echo json_encode(['status' => 'error', 'message' => 'OTP has expired. Please request a new one.']);
         exit();
     }
 
-    // Hash new password and update, clear OTP
-    $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-    $updateStmt = $conn->prepare("UPDATE {$userTable} SET password = ?, reset_otp = NULL, reset_otp_expires = NULL WHERE user_id = ?");
-    $updateStmt->bind_param('si', $hashedPassword, $user['user_id']);
-    $updateStmt->execute();
-    $updateStmt->close();
-
     echo json_encode([
         'status' => 'success',
-        'message' => 'Password has been reset successfully. You can now log in.',
+        'message' => 'OTP verified successfully. You can now reset your password.',
     ]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Unable to reset password. Please try again later.',
+        'message' => 'Unable to verify OTP. Please try again later.',
     ]);
 }
 

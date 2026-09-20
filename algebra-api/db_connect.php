@@ -20,13 +20,29 @@ if ($username === null || $username === '') {
     $username = 'root';
 }
 
-// 3. Create persistent connection
-$conn = new mysqli("p:{$servername}", $username, $password, $dbname, $port);
+// 3. Create connection with retry logic
+$conn = null;
+$lastError = '';
+for ($attempt = 1; $attempt <= 3; $attempt++) {
+    $conn = @new mysqli($servername, $username, $password, $dbname, $port);
+    if ($conn->connect_error) {
+        $lastError = $conn->connect_error;
+        error_log("Database connection attempt {$attempt} failed: {$lastError}");
+        $conn->close();
+        $conn = null;
+        if ($attempt < 3) {
+            usleep(500000);
+        }
+        continue;
+    }
+    $conn->set_charset('utf8mb4');
+    break;
+}
 
 // 4. Check connection
-if ($conn->connect_error) {
-    http_response_code(500);
-    error_log("Database connection failed: " . $conn->connect_error);
+if ($conn === null || $conn->connect_error) {
+    http_response_code(503);
+    error_log("Database connection failed after 3 attempts: {$lastError}");
     echo json_encode(["status" => "error", "message" => "Unable to connect to the database. Please try again later."]);
     exit();
 }

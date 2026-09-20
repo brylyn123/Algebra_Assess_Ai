@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   findLocalUser,
   getCurrentLocalUserEmail,
   getLocalUserEventName,
   storeLocalUser,
 } from './localAuthStore';
+import { API_BASE_URL } from './apiBase';
 
 const getNormalizedStudentProfile = (stored) => {
   const firstName = stored?.firstName ?? stored?.first_Name ?? '';
@@ -22,7 +24,7 @@ const getNormalizedStudentProfile = (stored) => {
     fullName,
     email: stored?.email || 'student@example.com',
     studentId: stored?.institutional_id || stored?.idNumber || stored?.student_id || 'Not set',
-    school: stored?.collegeName || 'Algebra High School',
+    school: stored?.collegeName || 'Not set',
     course: stored?.courseName || 'Not set',
     section: stored?.sectionName || 'Section A',
     year: stored?.yearLevel || 'Year 1',
@@ -38,6 +40,10 @@ const StudentProfile = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [enrolledSubjects, setEnrolledSubjects] = useState([]);
+  const [archivedSubjects, setArchivedSubjects] = useState([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [formValues, setFormValues] = useState({
     firstName: '',
     middleName: '',
@@ -67,6 +73,32 @@ const StudentProfile = () => {
   }, []);
 
   const profileSummary = useMemo(() => getNormalizedStudentProfile(stored), [stored]);
+
+  const loadSubjects = useCallback(async () => {
+    const studentId = stored?.user_id ?? stored?.student_id;
+    if (!studentId) {
+      setLoadingSubjects(false);
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/get_student_subjects.php?student_id=${studentId}`, {
+        credentials: 'include',
+      });
+      const payload = await response.json();
+      if (response.ok && payload.status === 'success') {
+        setEnrolledSubjects(Array.isArray(payload.enrolled_subjects) ? payload.enrolled_subjects : []);
+        setArchivedSubjects(Array.isArray(payload.archived_subjects) ? payload.archived_subjects : []);
+      }
+    } catch {
+      // silent
+    } finally {
+      setLoadingSubjects(false);
+    }
+  }, [stored]);
+
+  useEffect(() => {
+    loadSubjects();
+  }, [loadSubjects]);
 
   useEffect(() => {
     setFormValues({
@@ -168,49 +200,127 @@ const StudentProfile = () => {
             </div>
           </div>
 
-          {isEditing && (
-            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
-              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-blue-500 mb-3">Edit Details</p>
-              <div className="grid gap-3 md:grid-cols-2">
-                {[
-                  { name: 'firstName', label: 'First Name', value: formValues.firstName },
-                  { name: 'middleName', label: 'Middle Name', value: formValues.middleName },
-                  { name: 'lastName', label: 'Last Name', value: formValues.lastName },
-                  { name: 'studentId', label: 'Student ID', value: formValues.studentId },
-                  { name: 'course', label: 'Course', value: formValues.course },
-                  { name: 'school', label: 'School', value: formValues.school },
-                  { name: 'section', label: 'Section', value: formValues.section },
-                  { name: 'year', label: 'Year Level', value: formValues.year },
-                ].map((field) => (
-                  <div key={field.name}>
-                    <label className="mb-1 block text-[10px] font-semibold text-slate-500">{field.label}</label>
-                    <input
-                      name={field.name}
-                      value={field.value}
-                      onChange={handleChange}
-                      placeholder={field.label}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex gap-2">
+          {/* Active/Archived Toggle */}
+          <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-slate-900">My Subjects</p>
+              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
                 <button
                   type="button"
-                  onClick={handleSave}
-                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+                  onClick={() => setShowArchived(false)}
+                  className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${!showArchived
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
-                  Save Changes
+                  Active ({enrolledSubjects.length})
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                  onClick={() => setShowArchived(true)}
+                  className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${showArchived
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
                 >
-                  Cancel
+                  Archived ({archivedSubjects.length})
                 </button>
               </div>
             </div>
+
+            {loadingSubjects ? (
+              <p className="text-xs text-slate-400">Loading subjects...</p>
+            ) : (
+              <div className="space-y-2">
+                {(showArchived ? archivedSubjects : enrolledSubjects).length === 0 ? (
+                  <p className="text-xs text-slate-400">
+                    {showArchived ? 'No archived subjects yet.' : 'No active subjects yet.'}
+                  </p>
+                ) : (
+                  (showArchived ? archivedSubjects : enrolledSubjects).map((subject) => (
+                    <div
+                      key={subject.subject_id}
+                      className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 transition hover:bg-slate-100"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                          {subject.subject_code || 'Subject'}
+                        </p>
+                        <p className="truncate text-xs font-semibold text-slate-900">{subject.subject_name}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${showArchived
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                        {showArchived ? 'Archived' : 'Active'}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {isEditing && typeof document !== 'undefined' && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => setIsEditing(false)}>
+              <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Edit Profile</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Update your personal details below.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {[
+                    { name: 'firstName', label: 'First Name', value: formValues.firstName },
+                    { name: 'middleName', label: 'Middle Name', value: formValues.middleName },
+                    { name: 'lastName', label: 'Last Name', value: formValues.lastName },
+                    { name: 'studentId', label: 'Student ID', value: formValues.studentId },
+                    { name: 'course', label: 'Course', value: formValues.course },
+                    { name: 'school', label: 'School', value: formValues.school },
+                    { name: 'section', label: 'Section', value: formValues.section },
+                    { name: 'year', label: 'Year Level', value: formValues.year },
+                  ].map((field) => (
+                    <div key={field.name}>
+                      <label className="mb-1 block text-[10px] font-semibold text-slate-500">{field.label}</label>
+                      <input
+                        name={field.name}
+                        value={field.value}
+                        onChange={handleChange}
+                        placeholder={field.label}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
           )}
 
           {saveMessage && (

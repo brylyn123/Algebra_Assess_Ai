@@ -34,11 +34,13 @@ const RUBRIC_STEPS = [
     { id: 'criteria', label: 'Criteria', description: 'Criterion list + scoring' },
 ];
 
-const MATH_TEMPLATE_CRITERIA = 'Final Answer (2 pts), Solution Steps (3 pts)';
-const MATH_TEMPLATE_AI = 'Grade the final answer as binary — correct = full points, wrong = 0. For solution steps, award partial credit for each correct step shown, giving credit for method and process even if the final answer is wrong.';
+const MATH_TEMPLATE_CRITERIA = 'Problem Understanding, Algebraic Method, Process & Reasoning, Final Answer';
+const MATH_TEMPLATE_AI = 'Grade each item from 0 to its max score. Use these 4 criteria as a guide: Problem Understanding, Algebraic Method, Process & Reasoning, Final Answer. Excellent = near full marks, Good = 70-89%, Satisfactory = 40-69%, Needs Improvement = 1-39%, No Attempt = 0. If the student submits visible work, award at least 1 point. If the final answer is wrong due to a minor error, preserve credit for correct process and method.';
 const MATH_TEMPLATE_ITEMS = [
-    { id: 'math-final', description: 'Final Answer', points: 2, min_points: 0 },
-    { id: 'math-steps', description: 'Solution Steps', points: 3, min_points: 1 },
+    { id: 'mu-understanding', description: 'Problem Understanding & Attempt', points: 2, min_points: 1 },
+    { id: 'mu-method', description: 'Algebraic Method & Setup', points: 2, min_points: 0 },
+    { id: 'mu-process', description: 'Process & Logical Reasoning', points: 2, min_points: 0 },
+    { id: 'mu-accuracy', description: 'Final Answer & Accuracy', points: 2, min_points: 0 },
 ];
 
 const NewRubric = () => {
@@ -46,6 +48,7 @@ const NewRubric = () => {
     const location = useLocation();
     const { toast } = useToast();
     const [newRubric, setNewRubric] = useState({ name: '', criteria: '' });
+    const [rubricType, setRubricType] = useState('general');
     const [rubricItems, setRubricItems] = useState([]);
     const [itemDescription, setItemDescription] = useState('');
     const [itemPoints, setItemPoints] = useState('');
@@ -104,6 +107,7 @@ const NewRubric = () => {
             name: source.rubric_name ?? '',
             criteria: source.criteria ?? '',
         });
+        setRubricType(source.rubric_type ?? 'general');
         setRubricItems(
             Array.isArray(source.items)
                 ? source.items.map((item, index) => ({
@@ -120,6 +124,7 @@ const NewRubric = () => {
 
     const resetToDefaults = () => {
         setNewRubric({ name: '', criteria: '' });
+        setRubricType('general');
         setRubricItems([]);
         setItemDescription('');
         setItemPoints('');
@@ -314,6 +319,7 @@ const NewRubric = () => {
             const payload = {
                 teacher_id: teacherId,
                 name: newRubric.name.trim(),
+                rubric_type: rubricType,
                 criteria: newRubric.criteria.trim(),
                 items: rubricItems,
                 ai_instructions: aiInstructions.trim(),
@@ -443,10 +449,13 @@ const NewRubric = () => {
                                             onChange={handleTemplateChange}
                                             placeholder="Start from scratch"
                                         >
-                                            {availableRubrics.map((rubric) => (
-                                                <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
-                                                    {rubric.rubric_name}
-                                                </option>
+                                            {[...availableRubrics].sort((a, b) => {
+                                              const order = { procedural_algebra: 0, problem_solving: 1, general: 2 };
+                                              return (order[a.rubric_type] ?? 3) - (order[b.rubric_type] ?? 3);
+                                            }).map((rubric) => (
+                                              <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
+                                                {rubric.rubric_name}
+                                              </option>
                                             ))}
                                         </Select>
                                         <p className="mt-1 text-[10px] text-slate-400">Pick a saved rubric to clone its structure.</p>
@@ -472,6 +481,19 @@ const NewRubric = () => {
                                             placeholder="e.g., Standard Quiz Rubric"
                                             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
                                         />
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Rubric Type</p>
+                                        <Select
+                                            value={rubricType}
+                                            onChange={(e) => setRubricType(e.target.value)}
+                                        >
+                                            <option value="general">General</option>
+                                            <option value="procedural_algebra">Procedural Algebra (Items 1-4)</option>
+                                            <option value="problem_solving">Problem-Solving (Items 5-6)</option>
+                                        </Select>
+                                        <p className="mt-1 text-[10px] text-slate-400">Select the type of rubric to help organize and filter rubrics.</p>
                                     </div>
 
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

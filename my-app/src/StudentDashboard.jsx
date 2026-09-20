@@ -13,6 +13,7 @@ import { getSubjectCardTheme } from './subjectCardThemes';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import MobileNav from './components/MobileNav';
+import NotificationBell from './components/NotificationBell';
 import { useToast } from './components/Toast';
 import MathText from './MathText';
 
@@ -254,7 +255,7 @@ const StudentDashboard = () => {
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollMessage, setEnrollMessage] = useState('');
   const [enrollSuccess, setEnrollSuccess] = useState(false);
-  const [showJoinCard, setShowJoinCard] = useState(true);
+  const [showJoinCard, setShowJoinCard] = useState(false);
   const [availableAssessments, setAvailableAssessments] = useState([]);
   const [loadingAssessments, setLoadingAssessments] = useState(false);
   const [assessmentsError, setAssessmentsError] = useState('');
@@ -280,6 +281,7 @@ const StudentDashboard = () => {
   useEffect(() => {
     setCollapsed(true);
     setHovering(false);
+    setShowJoinCard(false);
   }, [location.pathname]);
 
   const fetchSubjects = useCallback(async () => {
@@ -540,7 +542,7 @@ const StudentDashboard = () => {
         }}
       >
         <header className="sticky top-0 z-50 border-b border-slate-200/50 bg-blue-500 text-white shadow-sm">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-1.5 sm:px-6">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-1.5 sm:px-6 lg:px-8">
             <div className="flex items-center gap-1.5">
               <MobileNav
                 actions={quickActions.map((a) => ({ label: a.label, icon: a.icon, path: a.path }))}
@@ -556,15 +558,7 @@ const StudentDashboard = () => {
             </div>
 
             <div className="flex items-center gap-1.5">
-              <div className="hidden items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2.5 py-1 sm:flex">
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold text-blue-600">
-                  {displayName.charAt(0)}
-                </div>
-                <div className="text-[10px] leading-tight">
-                  <p className="font-semibold text-white">{displayName}</p>
-                  <p className="text-white/60">Online</p>
-                </div>
-              </div>
+              <NotificationBell />
               <button
                 type="button"
                 onClick={() => setLogoutConfirm(true)}
@@ -576,7 +570,7 @@ const StudentDashboard = () => {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
           {(() => {
             const isExpanded = !collapsed || hovering;
             return (
@@ -681,9 +675,9 @@ export const StudentOverview = () => {
   } = useOutletContext() ?? {};
 
   const stats = [
-    { key: 'enrolledSubjects', label: 'Subjects', icon: '📚', color: 'from-blue-400 to-blue-600' },
-    { key: 'completedAssessments', label: 'Completed', icon: '✅', color: 'from-emerald-400 to-emerald-600' },
-    { key: 'averageScore', label: 'Avg Score', icon: '📊', color: 'from-amber-400 to-orange-500' },
+    { key: 'enrolledSubjects', label: 'Subjects' },
+    { key: 'completedAssessments', label: 'Completed' },
+    { key: 'averageScore', label: 'Avg Score' },
   ];
 
   const isLoading = loadingAssessments && pendingAssessments.length === 0;
@@ -723,15 +717,10 @@ export const StudentOverview = () => {
               {stats.map((stat) => (
                 <div
                   key={stat.key}
-                  className="flex items-center gap-2 rounded-lg bg-slate-50 p-2.5 transition hover:bg-slate-100"
+                  className="rounded-lg bg-slate-50 p-3 text-center transition hover:bg-slate-100"
                 >
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-sm text-white shadow-sm`}>
-                    {stat.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
-                    <p className="text-base font-bold text-slate-900">{dashboardStats[stat.key] ?? '-'}</p>
-                  </div>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
+                  <p className="text-lg font-bold text-slate-900">{dashboardStats[stat.key] ?? '-'}</p>
                 </div>
               ))}
             </div>
@@ -781,19 +770,14 @@ export const StudentOverview = () => {
                       </p>
                     </div>
                     {assessment.due_date && (() => {
-                      const now = new Date();
                       const due = new Date(assessment.due_date);
                       if (Number.isNaN(due.getTime())) return null;
-                      const diffMs = due.getTime() - now.getTime();
-                      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                      let cls = 'bg-blue-50 text-blue-600';
-                      let label = `${diffDays}d left`;
-                      if (diffDays < 0) { cls = 'bg-red-50 text-red-600'; label = 'Overdue'; }
-                      else if (diffDays === 0) { cls = 'bg-amber-50 text-amber-600'; label = 'Today'; }
-                      else if (diffDays <= 3) { cls = 'bg-orange-50 text-orange-600'; }
+                      const formatted = due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + due.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                      const isPast = due.getTime() < Date.now();
+                      const cls = isPast ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600';
                       return (
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
-                          {label}
+                          Due {formatted}
                         </span>
                       );
                     })()}
@@ -1081,7 +1065,7 @@ export const StudentSubjects = () => {
 
   const subjectAssessmentCount = subjectAssessments.length;
   const isSubjectAssessmentPage = Boolean(subjectIdParam);
-  const visibleSubjects = showArchivedSubjects ? archivedSubjects : enrolledSubjects;
+  const visibleSubjects = enrolledSubjects;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
@@ -1105,133 +1089,101 @@ export const StudentSubjects = () => {
       )}
 
       {!isSubjectAssessmentPage && (
-        <section className="space-y-2">
-          {showJoinCard ? (
-            <div className="rounded-[1.25rem] border border-slate-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]">
-              {enrollSuccess && enrollMessage ? (
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-                    <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-emerald-800">Subject Joined!</p>
-                    <p className="mt-0.5 text-xs text-emerald-600">{enrollMessage}</p>
+        <section>
+          <button
+            type="button"
+            onClick={() => {
+              setShowJoinCard(true);
+              setEnrollMessage('');
+              setEnrollSuccess(false);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Join Subject
+          </button>
+        </section>
+      )}
+
+      {/* Join Subject Modal */}
+      {!isSubjectAssessmentPage && showJoinCard && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            {enrollSuccess && enrollMessage ? (
+              <div className="text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                  <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                </div>
+                <p className="text-sm font-bold text-slate-900">Subject Joined!</p>
+                <p className="mt-1 text-xs text-slate-500">{enrollMessage}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEnrollMessage('');
+                    setEnrollSuccess(false);
+                    setShowJoinCard(false);
+                  }}
+                  className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Join Subject</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">Enter the class code from your teacher.</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setEnrollMessage('');
-                      setEnrollSuccess(false);
-                      setShowJoinCard(false);
-                    }}
-                    className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                    onClick={() => setShowJoinCard(false)}
+                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Join Subject</p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">Enter the class code from your teacher to add a subject.</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowJoinCard(false)}
-                      className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <form onSubmit={handleEnroll} className="flex w-full gap-2">
-                    <input
-                      value={enrollCode}
-                      onChange={(event) => {
-                        setEnrollCode(event.target.value);
-                        if (enrollMessage) {
-                          setEnrollMessage('');
-                          setEnrollSuccess(false);
-                        }
-                      }}
-                      placeholder="Paste join code"
-                      className="teacher-input h-9 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-                    />
-                    <button
-                      type="submit"
-                      disabled={enrollLoading}
-                      className="teacher-primary-btn h-9 whitespace-nowrap rounded-xl px-4 text-xs font-semibold disabled:cursor-wait disabled:bg-blue-300"
-                    >
-                      {enrollLoading ? 'Joining...' : 'Join'}
-                    </button>
-                  </form>
-                  {enrollMessage && !enrollSuccess && (
-                    <p className="text-[11px] font-medium text-rose-600">{enrollMessage}</p>
-                  )}
-                </>
-              )}
-            </div>
-          ) : (
-            <div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowJoinCard(true);
-                  setEnrollMessage('');
-                  setEnrollSuccess(false);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Join Subject
-              </button>
-            </div>
-          )}
-        </section>
+                <form onSubmit={handleEnroll} className="flex gap-2">
+                  <input
+                    value={enrollCode}
+                    onChange={(event) => {
+                      setEnrollCode(event.target.value);
+                      if (enrollMessage) {
+                        setEnrollMessage('');
+                        setEnrollSuccess(false);
+                      }
+                    }}
+                    placeholder="Paste join code"
+                    autoFocus
+                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={enrollLoading}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-300"
+                  >
+                    {enrollLoading ? 'Joining...' : 'Join'}
+                  </button>
+                </form>
+                {enrollMessage && !enrollSuccess && (
+                  <p className="mt-2 text-[11px] font-medium text-rose-600">{enrollMessage}</p>
+                )}
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
 
       <section className="flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
         {!isSubjectAssessmentPage && (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-bold text-slate-900">Subject Library</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">
-                  Active classes and archived records.
-                </p>
-              </div>
-              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setShowArchivedSubjects(false)}
-                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${!showArchivedSubjects
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                    : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                >
-                  Active
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowArchivedSubjects(true)}
-                  className={`rounded-full px-4 py-1.5 text-[11px] font-semibold transition ${showArchivedSubjects
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                    : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                >
-                  Archived ({archivedSubjects.length})
-                </button>
-              </div>
-            </div>
-
             <div className="teacher-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto pr-2 pb-4 sm:grid-cols-2 lg:grid-cols-3">
               {loadingSubjects ? (
                 <p className="text-sm text-slate-500">Loading subjects...</p>
@@ -1239,13 +1191,9 @@ export const StudentSubjects = () => {
                 <p className="text-sm text-rose-600">{subjectsError}</p>
               ) : visibleSubjects.length === 0 ? (
                 <div className="col-span-full rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {showArchivedSubjects ? 'No archived subjects yet' : 'No subjects yet'}
-                  </p>
+                  <p className="text-sm font-semibold text-slate-900">No subjects yet</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {showArchivedSubjects
-                      ? 'Archived subjects will appear here once one of your enrolled classes is archived by your teacher.'
-                      : 'Use the join subject form above to unlock your classes.'}
+                    Use the join subject button above to unlock your classes.
                   </p>
                 </div>
               ) : (
@@ -1257,58 +1205,26 @@ export const StudentSubjects = () => {
                       key={subject.subject_id}
                       type="button"
                       onClick={() => {
-                        if (!showArchivedSubjects) {
-                          navigate(`/student/subjects/${subject.subject_id}`);
-                        }
+                        navigate(`/student/subjects/${subject.subject_id}`);
                       }}
-                      className={`group relative flex flex-col overflow-hidden rounded-[0.85rem] border border-slate-200/60 p-2.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.03),0_2px_8px_rgba(0,0,0,0.02)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_1px_2px_rgba(0,0,0,0.05),0_6px_16px_rgba(0,0,0,0.05)] ${subjectTheme.surfaceClass}`}
-                    >
-                      <div className={`absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r ${subjectTheme.accentClass}`} />
+                      className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/60 p-6 text-left shadow-[0_2px_4px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)] transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_4px_8px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.06)] min-h-[10rem] ${subjectTheme.surfaceClass}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                              {subject.subject_code || 'Subject'}
+                            </p>
+                            <p className="mt-2 text-lg font-bold text-slate-900">{subject.subject_name}</p>
+                            <p className="mt-2 text-sm leading-snug text-slate-500">
+                              {subject.course || 'Course'} • {subject.year || 'Year'} • {subject.section_name || subject.section || 'Section'}
+                            </p>
+                          </div>
 
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                            {subject.subject_code || 'Subject'}
-                          </p>
-                          <p className="mt-1 truncate text-sm font-bold text-slate-900">{subject.subject_name}</p>
-                          <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
-                            {subject.course || 'Course'} • {subject.year || 'Year'} • {subject.section_name || subject.section || 'Section'}
-                          </p>
-                        </div>
-
-                        <div className="flex shrink-0 flex-col items-end gap-1.5">
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${showArchivedSubjects ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                            }`}>
-                            {showArchivedSubjects ? 'Archived' : 'Active'}
+                          <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-semibold text-emerald-700">
+                            Active
                           </span>
                         </div>
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold shadow-sm ${showArchivedSubjects
-                          ? 'border-amber-200 bg-amber-50 text-amber-700'
-                          : 'border-blue-200 bg-white text-blue-700'
-                          }`}>
-                          {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'}
-                        </span>
-                        {subject.school_year && (
-                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
-                            {subject.school_year}
-                          </span>
-                        )}
-                        {subject.semester && (
-                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm">
-                            {subject.semester}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-auto pt-2">
-                        <span className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200/60 bg-slate-50 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500 transition group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:text-blue-600">
-                          {showArchivedSubjects ? 'View Subject' : 'Open Assessments'}
-                        </span>
-                      </div>
-                    </button>
+                      </button>
                   );
                 })
               )}
@@ -1405,20 +1321,16 @@ export const StudentSubjects = () => {
                                 <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
                                 <span>{assessment.item_count ?? 0} items</span>
                                 {assessment.due_date && (() => {
-                                  const now = new Date();
                                   const due = new Date(assessment.due_date);
                                   if (Number.isNaN(due.getTime())) return null;
-                                  const diffMs = due.getTime() - now.getTime();
-                                  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                                  const formatted = due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + due.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                                  const isPast = due.getTime() < Date.now();
                                   let cls = 'text-slate-400';
-                                  let label = `Due in ${diffDays}d`;
-                                  if (diffDays < 0) { cls = 'text-red-500 font-semibold'; label = 'Overdue'; }
-                                  else if (diffDays === 0) { cls = 'text-amber-500 font-semibold'; label = 'Due today'; }
-                                  else if (diffDays <= 3) { cls = 'text-orange-500 font-semibold'; }
+                                  if (isPast) { cls = 'text-red-500 font-semibold'; }
                                   return (
                                     <>
                                       <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
-                                      <span className={cls}>{label}</span>
+                                      <span className={cls}>Due {formatted}</span>
                                     </>
                                   );
                                 })()}

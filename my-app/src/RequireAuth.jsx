@@ -46,7 +46,7 @@ const RequireAuth = ({ allowedRoles = ['teacher', 'student', 'admin'], children 
   if (status === 'loading') {
     return (
       <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center backdrop-blur-md"
-        style={{ backgroundColor: 'rgba(241, 245, 249, 0.7)' }}
+        style={{ backgroundColor: 'rgba(214, 232, 255, 0.7)' }}
       >
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}

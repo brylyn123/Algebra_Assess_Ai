@@ -6,6 +6,7 @@ import MathEditor from './MathEditor';
 import Select from './components/Select';
 import axios from './axiosClient';
 import { findLocalUser } from './localAuthStore';
+import { getQuickTypeHints } from './latexAutoConvert';
 
 const DRAFT_KEY = 'teacher:new-assessment-draft';
 const EDITOR_ITEMS_KEY = 'teacher:question-editor-items';
@@ -13,27 +14,6 @@ const EDITOR_ITEMS_KEY = 'teacher:question-editor-items';
 function hasLatexPatterns(text) {
   return /\\[a-zA-Z]|[_^{}]|[$]/.test(text);
 }
-
-const MATH_SYMBOLS = [
-  { label: 'Fraction', insert: '\\frac{a}{b}' },
-  { label: 'Square Root', insert: '\\sqrt{x}' },
-  { label: 'Power', insert: 'x^{n}' },
-  { label: 'Subscript', insert: 'x_{n}' },
-  { label: 'Greek Alpha', insert: '\\alpha' },
-  { label: 'Greek Beta', insert: '\\beta' },
-  { label: 'Greek Gamma', insert: '\\gamma' },
-  { label: 'Pi', insert: '\\pi' },
-  { label: 'Theta', insert: '\\theta' },
-  { label: 'Sigma Sum', insert: '\\sum_{i=1}^{n}' },
-  { label: 'Integral', insert: '\\int_{a}^{b}' },
-  { label: 'Plus/Minus', insert: '\\pm' },
-  { label: 'Times', insert: '\\times' },
-  { label: 'Divide', insert: '\\div' },
-  { label: 'Not Equal', insert: '\\neq' },
-  { label: 'Less/Equal', insert: '\\leq' },
-  { label: 'Greater/Equal', insert: '\\geq' },
-  { label: 'Infinity', insert: '\\infty' },
-];
 
 function loadEditorItems() {
   try {
@@ -52,7 +32,7 @@ export default function QuestionEditor() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const textareaRef = useRef(null);
+  const mathEditorRef = useRef(null);
   const [mathExpression, setMathExpression] = useState('');
   const [questionScore, setQuestionScore] = useState('1.0');
   const [items, setItems] = useState(loadEditorItems);
@@ -107,7 +87,6 @@ export default function QuestionEditor() {
 
     setMathExpression('');
     setQuestionScore('1.0');
-    if (textareaRef.current) textareaRef.current.value = '';
   };
 
   const handleEditItem = (index) => {
@@ -115,9 +94,6 @@ export default function QuestionEditor() {
     setEditingIndex(index);
     setQuestionScore(String(item.max_score || 1.0));
     setMathExpression(item.question_content || '');
-    if (textareaRef.current) {
-      textareaRef.current.value = item.question_content || '';
-    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -127,21 +103,15 @@ export default function QuestionEditor() {
       setEditingIndex(null);
       setMathExpression('');
       setQuestionScore('1.0');
-      if (textareaRef.current) textareaRef.current.value = '';
     }
   };
 
   const insertSymbol = (symbol) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const newValue = mathExpression.substring(0, start) + symbol + mathExpression.substring(end);
-    setMathExpression(newValue);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + symbol.length, start + symbol.length);
-    }, 0);
+    if (mathEditorRef.current?.insertMath) {
+      mathEditorRef.current.insertMath(symbol);
+    } else {
+      setMathExpression((prev) => prev + symbol);
+    }
   };
 
   const handleDone = () => {
@@ -201,7 +171,6 @@ export default function QuestionEditor() {
                     setEditingIndex(null);
                     setMathExpression('');
                     setQuestionScore('1.0');
-                    if (textareaRef.current) textareaRef.current.value = '';
                   }}
                   className="text-[10px] font-semibold text-slate-400 hover:text-slate-600"
                 >
@@ -213,13 +182,14 @@ export default function QuestionEditor() {
             {/* Question textarea with points */}
             <div className="flex gap-3">
               <div className="flex-1 rounded-xl border border-slate-200 bg-slate-50 shadow-inner transition focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-100">
-                <textarea
+                <MathEditor
                   ref={textareaRef}
-                  onChange={(e) => setMathExpression(e.target.value)}
-                  placeholder="Type your question here... Use LaTeX for math (e.g. \frac{x}{2} or $x^2$)"
-                  className="w-full resize-y rounded-xl border-transparent bg-transparent px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-transparent focus:ring-0"
-                  rows={4}
-                  style={{ minHeight: '6rem' }}
+                  value={mathExpression}
+                  onChange={setMathExpression}
+                  placeholder="Type naturally... e.g. x^2 + sqrt(x) = 5"
+                  style={{ minHeight: '6rem', maxHeight: '20rem', overflowY: 'auto' }}
+                  showKeyboard={showMathKeyboard}
+                  onToggleKeyboard={() => setShowMathKeyboard((v) => !v)}
                 />
                 {mathExpression.trim() && hasLatexPatterns(mathExpression) && (
                   <div className="border-t border-slate-200 bg-white px-4 py-3">
@@ -231,16 +201,6 @@ export default function QuestionEditor() {
                 )}
               </div>
               <div className="flex flex-col items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setShowMathKeyboard(!showMathKeyboard)}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition ${showMathKeyboard ? 'border-blue-300 bg-blue-50 text-blue-600' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}
-                  title="Math Keyboard"
-                >
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.75 9.25a.75.75 0 000 1.5h1.5v1.5a.75.75 0 001.5 0v-1.5h1.5a.75.75 0 000-1.5h-1.5v-1.5a.75.75 0 00-1.5 0v1.5h-1.5z" clipRule="evenodd" />
-                  </svg>
-                </button>
                 <div className="w-[60px]">
                   <input
                     type="number"
@@ -260,17 +220,23 @@ export default function QuestionEditor() {
             {/* Math keyboard panel */}
             {showMathKeyboard && (
               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-slate-400">Math Symbols</p>
+                <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-slate-400">Quick Type Hints</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {MATH_SYMBOLS.map((sym) => (
+                  {getQuickTypeHints().map((hint) => (
                     <button
-                      key={sym.label}
+                      key={hint.label}
                       type="button"
-                      onClick={() => insertSymbol(sym.insert)}
+                      onClick={() => {
+                        const textarea = textareaRef.current;
+                        if (textarea) textarea.focus();
+                        if (textareaRef.current?.insertMath) {
+                          textareaRef.current.insertMath(hint.example);
+                        }
+                      }}
                       className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                      title={sym.insert}
+                      title={`${hint.example} → ${hint.becomes}`}
                     >
-                      {sym.label}
+                      {hint.label}: {hint.example}
                     </button>
                   ))}
                 </div>
@@ -343,7 +309,10 @@ export default function QuestionEditor() {
                       className="flex-1 text-[11px]"
                     >
                       <option value="">No rubric (AI default)</option>
-                      {rubrics.map((rubric) => (
+                      {[...rubrics].sort((a, b) => {
+                        const order = { procedural_algebra: 0, problem_solving: 1, general: 2 };
+                        return (order[a.rubric_type] ?? 3) - (order[b.rubric_type] ?? 3);
+                      }).map((rubric) => (
                         <option key={rubric.rubric_set_id} value={rubric.rubric_set_id}>
                           {rubric.rubric_name}
                         </option>

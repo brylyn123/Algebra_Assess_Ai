@@ -507,7 +507,7 @@ html,
 body,
 #root {
   height: 100%;
-  background: transparent;
+  background: #d6e8ff;
 }
 
 /* Persistent app background to avoid white flashes between route changes */
@@ -518,9 +518,9 @@ body,
   /* place above the document background but beneath app UI */
   pointer-events: none;
   background:
-    radial-gradient(circle at top left, rgba(96, 165, 250, 0.08), transparent 22%),
-    radial-gradient(circle at top right, rgba(129, 140, 248, 0.06), transparent 20%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.26), transparent 24%),
+    radial-gradient(circle at top right, rgba(129, 140, 248, 0.22), transparent 30%),
+    linear-gradient(180deg, #d7e9ff 0%, #dcebff 38%, #eef5ff 72%, #f8fbff 100%);
   background-attachment: fixed;
 }
 

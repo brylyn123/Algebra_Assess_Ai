@@ -209,52 +209,84 @@ const ViewAssessments = ({ compact = false }) => {
                                     <p className="mt-1 max-w-xs text-xs text-slate-400">No rubrics have been created yet.</p>
                                 </div>
                             ) : (
-                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                    {rubrics.map((rubric) => (
-                                        <div
-                                            key={rubric.rubric_set_id}
-                                            className="group relative overflow-hidden rounded-xl sm:rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg flex flex-col min-h-[110px] sm:min-h-[180px]"
-                                        >
-                                            <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-emerald-400 to-teal-600" />
-                                            <div className="flex flex-1 flex-col gap-1.5 sm:gap-2.5 p-3 pl-4 sm:p-4 sm:pl-5">
-                                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                                    <div className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs font-bold">
-                                                        {rubric.rubric_name?.charAt(0)?.toUpperCase() || 'R'}
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{rubric.rubric_name}</h3>
-                                                            <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wider text-emerald-700">
-                                                                Criteria
-                                                            </span>
-                                                        </div>
-                                                        <p className="mt-0.5 text-[10px] sm:text-[11px] text-emerald-600/80">{formatDate(rubric.created_at)}</p>
-                                                    </div>
+                                <div className="space-y-5">
+                                    {[
+                                        { type: 'procedural_algebra', label: 'Procedural Algebra', sublabel: 'Items 1-4', color: 'blue' },
+                                        { type: 'problem_solving', label: 'Problem-Solving', sublabel: 'Items 5-6', color: 'purple' },
+                                        { type: 'general', label: 'General', sublabel: null, color: 'emerald' },
+                                    ].map((group) => {
+                                        const groupRubrics = rubrics.filter((r) => r.rubric_type === group.type || (!r.rubric_type && group.type === 'general'));
+                                        if (groupRubrics.length === 0) return null;
+                                        return (
+                                            <div key={group.type}>
+                                                <div className="flex items-center gap-2 mb-2.5">
+                                                    <span className={`h-2 w-2 rounded-full ${
+                                                        group.color === 'blue' ? 'bg-blue-400' :
+                                                        group.color === 'purple' ? 'bg-purple-400' :
+                                                        'bg-emerald-400'
+                                                    }`} />
+                                                    <h4 className={`text-[11px] font-bold uppercase tracking-[0.15em] ${
+                                                        group.color === 'blue' ? 'text-blue-600' :
+                                                        group.color === 'purple' ? 'text-purple-600' :
+                                                        'text-emerald-600'
+                                                    }`}>
+                                                        {group.label}
+                                                    </h4>
+                                                    {group.sublabel && (
+                                                        <span className="text-[10px] text-slate-400 font-medium">({group.sublabel})</span>
+                                                    )}
+                                                    <span className="text-[10px] text-slate-400 ml-auto">{groupRubrics.length}</span>
                                                 </div>
-                                                <p className="hidden sm:block text-[10px] leading-4 text-slate-600 line-clamp-2">
-                                                    {rubric.criteria || 'No criteria added yet.'}
-                                                </p>
-                                                {rubric.ai_instructions && (
-                                                    <div className="hidden sm:block rounded-lg border border-blue-100 bg-blue-50/70 px-2 py-1.5">
-                                                        <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-blue-600">AI Instructions</p>
-                                                        <p className="mt-0.5 text-[9px] leading-4 text-slate-600 line-clamp-2">{rubric.ai_instructions}</p>
-                                                    </div>
-                                                )}
-                                                {Array.isArray(rubric.level_definitions) && rubric.level_definitions.length > 0 && (
-                                                    <div className="mt-auto flex flex-wrap gap-1">
-                                                        {rubric.level_definitions.map((level, index) => (
-                                                            <span
-                                                                key={`${rubric.rubric_set_id}-level-${index}`}
-                                                                className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold text-emerald-700"
-                                                            >
-                                                                {formatLevelLabel(level)}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                                    {groupRubrics.map((rubric) => (
+                                                        <div
+                                                            key={rubric.rubric_set_id}
+                                                            className="group relative overflow-hidden rounded-xl sm:rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg flex flex-col min-h-[110px] sm:min-h-[180px]"
+                                                        >
+                                                            <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-emerald-400 to-teal-600" />
+                                                            <div className="flex flex-1 flex-col gap-1.5 sm:gap-2.5 p-3 pl-4 sm:p-4 sm:pl-5">
+                                                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                                                    <div className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs font-bold">
+                                                                        {rubric.rubric_name?.charAt(0)?.toUpperCase() || 'R'}
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{rubric.rubric_name}</h3>
+                                                                            <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] sm:text-[8px] font-bold uppercase tracking-wider text-emerald-700">
+                                                                                Criteria
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="mt-0.5 text-[10px] sm:text-[11px] text-emerald-600/80">{formatDate(rubric.created_at)}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <p className="hidden sm:block text-[10px] leading-4 text-slate-600 line-clamp-2">
+                                                                    {rubric.criteria || 'No criteria added yet.'}
+                                                                </p>
+                                                                {rubric.ai_instructions && (
+                                                                    <div className="hidden sm:block rounded-lg border border-blue-100 bg-blue-50/70 px-2 py-1.5">
+                                                                        <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-blue-600">AI Instructions</p>
+                                                                        <p className="mt-0.5 text-[9px] leading-4 text-slate-600 line-clamp-2">{rubric.ai_instructions}</p>
+                                                                    </div>
+                                                                )}
+                                                                {Array.isArray(rubric.level_definitions) && rubric.level_definitions.length > 0 && (
+                                                                    <div className="mt-auto flex flex-wrap gap-1">
+                                                                        {rubric.level_definitions.map((level, index) => (
+                                                                            <span
+                                                                                key={`${rubric.rubric_set_id}-level-${index}`}
+                                                                                className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold text-emerald-700"
+                                                                            >
+                                                                                {formatLevelLabel(level)}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </>
@@ -390,12 +422,6 @@ const ViewAssessments = ({ compact = false }) => {
                                                     <p className="mt-2 text-xs leading-6 text-slate-700">
                                                         <MathText text={item.question_content} />
                                                     </p>
-                                                    {item.model_solution && (
-                                                        <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
-                                                            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-emerald-600">Model Solution</p>
-                                                            <p className="mt-0.5 text-xs text-slate-700">{item.model_solution}</p>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             ))}
                                         </div>

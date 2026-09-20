@@ -5,6 +5,7 @@ require_once 'db_connect.php';
 require_once 'schema_utils.php';
 
 ensureRubricItemMinPoints($conn);
+ensureRubricTypeColumn($conn);
 
 $data = json_decode(file_get_contents("php://input"), true);
 $authUser = requireAuthenticatedUser('teacher');
@@ -12,12 +13,18 @@ validateCsrfToken();
 $teacher_id = (int)$authUser['user_id'];
 $rubric_set_id = isset($data['rubric_set_id']) ? intval($data['rubric_set_id']) : null;
 $rubric_name = trim($data['name'] ?? '');
+$rubric_type = trim($data['rubric_type'] ?? 'general');
 $criteria = trim($data['criteria'] ?? '');
 $items = is_array($data['items']) ? $data['items'] : [];
 $ai_instructions = trim($data['ai_instructions'] ?? '');
 $level_definitions = null;
 if (is_array($data['level_definitions']) && count($data['level_definitions']) > 0) {
     $level_definitions = json_encode(array_values($data['level_definitions']));
+}
+
+$allowed_types = ['procedural_algebra', 'problem_solving', 'general'];
+if (!in_array($rubric_type, $allowed_types)) {
+    $rubric_type = 'general';
 }
 
 if (!$teacher_id || !$rubric_set_id || !$rubric_name || !$criteria || count($items) === 0) {
@@ -46,10 +53,10 @@ try {
 
     $updateStmt = $conn->prepare(
         "UPDATE rubric_sets
-         SET rubric_name = ?, criteria = ?, ai_instructions = ?, level_definitions = ?
+         SET rubric_name = ?, rubric_type = ?, criteria = ?, ai_instructions = ?, level_definitions = ?
          WHERE rubric_set_id = ?"
     );
-    $updateStmt->bind_param("ssssi", $rubric_name, $criteria, $ai_instructions, $level_definitions, $rubric_set_id);
+    $updateStmt->bind_param("sssssi", $rubric_name, $rubric_type, $criteria, $ai_instructions, $level_definitions, $rubric_set_id);
     $updateStmt->execute();
     $updateStmt->close();
 

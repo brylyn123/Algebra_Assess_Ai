@@ -1,158 +1,298 @@
-import React, { useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import { Node } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState, useCallback } from 'react';
+import { MathfieldElement } from 'mathlive';
+import { autoConvertToLatex } from './latexAutoConvert';
 
-function renderKaTeX(latex, displayMode = false) {
-  try {
-    return katex.renderToString(latex, {
-      displayMode,
-      throwOnError: false,
-      trust: true,
-      strict: false,
+if (typeof customElements !== 'undefined' && !customElements.get('math-field')) {
+  customElements.define('math-field', MathfieldElement);
+}
+
+function normalizeStyle(style) {
+  if (!style) return {};
+  if (typeof style === 'string') {
+    const obj = {};
+    style.split(';').forEach((decl) => {
+      const [prop, val] = decl.split(':').map((s) => s.trim());
+      if (prop && val) obj[prop] = val;
     });
-  } catch {
-    return null;
+    return obj;
   }
+  return style;
 }
 
-function serializeContent(editor) {
-  if (!editor) return '';
-  const json = editor.getJSON();
-  const parts = [];
-  for (const block of json.content || []) {
-    if (block.content) {
-      for (const node of block.content) {
-        if (node.type === 'mathInline') {
-          parts.push(`$${node.attrs.latex}$`);
-        } else if (node.type === 'text') {
-          parts.push(node.text);
-        }
-      }
-    }
-    parts.push('\n');
-  }
-  return parts.join('').replace(/\n+$/, '');
-}
-
-function parseToEditorContent(text) {
-  if (!text) return [{ type: 'paragraph' }];
-  const lines = text.split('\n');
-  return lines.map((line) => {
-    const nodes = [];
-    let remaining = line;
-    while (remaining.length > 0) {
-      const dollarIdx = remaining.indexOf('$');
-      if (dollarIdx === -1) {
-        if (remaining) nodes.push({ type: 'text', text: remaining });
-        break;
-      }
-      if (dollarIdx > 0) {
-        nodes.push({ type: 'text', text: remaining.substring(0, dollarIdx) });
-      }
-      const isDouble = remaining.substring(dollarIdx, dollarIdx + 2) === '$$';
-      const searchFrom = dollarIdx + (isDouble ? 2 : 1);
-      const endMarker = isDouble ? '$$' : '$';
-      const endIdx = remaining.indexOf(endMarker, searchFrom);
-      if (endIdx === -1) {
-        nodes.push({ type: 'text', text: remaining.substring(dollarIdx) });
-        break;
-      }
-      const latex = remaining.substring(dollarIdx + (isDouble ? 2 : 1), endIdx);
-      nodes.push({ type: 'mathInline', attrs: { latex, display: isDouble } });
-      remaining = remaining.substring(endIdx + (isDouble ? 2 : 1));
-    }
-    return { type: 'paragraph', content: nodes.length > 0 ? nodes : undefined };
-  });
-}
-
-const MathInline = Node.create({
-  name: 'mathInline',
-  group: 'inline',
-  inline: true,
-  atom: true,
-  selectable: true,
-  addAttributes() {
-    return { latex: { default: '' }, display: { default: false } };
-  },
-  parseHTML() {
-    return [{ tag: 'span[data-math]' }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ['span', { 'data-math': '', ...HTMLAttributes }];
-  },
-  addNodeView() {
-    return ({ node }) => {
-      const dom = document.createElement('span');
-      dom.className = 'math-inline-node';
-      dom.contentEditable = 'false';
-      dom.style.cssText = 'cursor:pointer;padding:0 2px;border-radius:4px;display:inline-block;vertical-align:baseline;transition:background-color 0.15s';
-      const html = renderKaTeX(node.attrs.latex, node.attrs.display);
-      dom.innerHTML = html || `$${node.attrs.latex}$`;
-      if (!html) dom.style.color = '#ef4444';
-      dom.addEventListener('mouseenter', () => { dom.style.backgroundColor = 'rgba(59,130,246,0.08)'; });
-      dom.addEventListener('mouseleave', () => { dom.style.backgroundColor = 'transparent'; });
-      return {
-        dom,
-        update: (updatedNode) => {
-          const newHtml = renderKaTeX(updatedNode.attrs.latex, updatedNode.attrs.display);
-          dom.innerHTML = newHtml || `$${updatedNode.attrs.latex}$`;
-          dom.style.color = newHtml ? '' : '#ef4444';
-          return true;
-        },
-      };
-    };
-  },
-});
-
-const MathEditor = forwardRef(function MathEditor({ value, onChange, placeholder, className = '', style = {} }, ref) {
+const MathEditor = forwardRef(function MathEditor(
+  { value, onChange, placeholder, className = '', style = {}, showKeyboard, onToggleKeyboard },
+  ref
+) {
+  const mfRef = useRef(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const skipNextUpdate = useRef(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [editorMode, setEditorMode] = useState('quicktype');
+  const [rawInput, setRawInput] = useState('');
+  const textareaRef = useRef(null);
+  const isUpdatingFromProp = useRef(false);
 
-  const styleString = typeof style === 'string'
-    ? style
-    : Object.entries(style || {})
-        .map(([key, val]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}:${val}`)
-        .join(';');
+  const containerStyle = { minHeight: '6rem', ...normalizeStyle(style) };
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ heading: false, blockquote: false, codeBlock: false, horizontalRule: false }),
-      Placeholder.configure({ placeholder: placeholder || 'Type your question here...' }),
-      MathInline,
-    ],
-    content: { type: 'doc', content: parseToEditorContent(value || '') },
-    editorProps: {
-      attributes: {
-        class: `prose prose-sm max-w-none focus:outline-none min-h-[6rem] px-3 py-2.5 text-sm text-slate-800 ${className}`,
-        style: styleString,
-      },
-    },
-    onUpdate: ({ editor: ed }) => {
-      if (skipNextUpdate.current) { skipNextUpdate.current = false; return; }
-      const text = serializeContent(ed);
-      if (onChangeRef.current) onChangeRef.current(text);
-    },
-  });
+  const convertAndEmit = useCallback((raw) => {
+    const converted = autoConvertToLatex(raw);
+    if (onChangeRef.current) onChangeRef.current(converted);
+  }, []);
 
   useImperativeHandle(ref, () => ({
     insertMath: (latex) => {
-      if (!editor) return;
-      editor.chain().focus()
-        .insertContent({ type: 'mathInline', attrs: { latex, display: false } })
-        .insertContent(' ')
-        .run();
+      if (editorMode === 'quicktype') {
+        setRawInput((prev) => prev + latex);
+        const newRaw = rawInput + latex;
+        const converted = autoConvertToLatex(newRaw);
+        if (onChangeRef.current) onChangeRef.current(converted);
+        return;
+      }
+      const mf = mfRef.current;
+      if (!mf) return;
+      mf.focus();
+      mf.insert(latex, { format: 'latex' });
     },
-    focus: () => editor?.commands.focus(),
+    focus: () => {
+      if (editorMode === 'quicktype') {
+        textareaRef.current?.focus();
+      } else {
+        mfRef.current?.focus();
+      }
+    },
+    getMathfield: () => mfRef.current,
+    setMode: (mode) => setEditorMode(mode),
+    getMode: () => editorMode,
   }));
 
-  useEffect(() => () => editor?.destroy(), [editor]);
+  useEffect(() => {
+    if (editorMode !== 'visual') return;
+    const mf = mfRef.current;
+    if (!mf) return;
 
-  return <EditorContent editor={editor} />;
+    const handleInput = () => {
+      if (skipNextUpdate.current) {
+        skipNextUpdate.current = false;
+        return;
+      }
+      const latex = mf.getValue('latex');
+      if (onChangeRef.current) onChangeRef.current(latex);
+    };
+
+    const handleFocus = () => setIsFocused(true);
+    const handleBlur = () => setIsFocused(false);
+
+    mf.addEventListener('input', handleInput);
+    mf.addEventListener('focus', handleFocus);
+    mf.addEventListener('blur', handleBlur);
+
+    return () => {
+      mf.removeEventListener('input', handleInput);
+      mf.removeEventListener('focus', handleFocus);
+      mf.removeEventListener('blur', handleBlur);
+    };
+  }, [editorMode]);
+
+  useEffect(() => {
+    if (editorMode !== 'visual') return;
+    const mf = mfRef.current;
+    if (!mf) return;
+    const currentVal = mf.getValue('latex');
+    if ((value || '') !== currentVal) {
+      skipNextUpdate.current = true;
+      mf.setValue(value || '', { silent: true });
+    }
+  }, [value, editorMode]);
+
+  useEffect(() => {
+    if (editorMode !== 'visual') return;
+    const mf = mfRef.current;
+    if (!mf) return;
+    mf.setOptions({
+      virtualKeyboardMode: 'manual',
+      virtualKeyboardTheme: 'apple',
+      fontsDirectory: null,
+      virtualKeyboardLabels: 'english',
+      virtualKeyboards: 'numeric functions symbols greek-letters',
+    });
+  }, [editorMode]);
+
+  useEffect(() => {
+    if (editorMode !== 'visual') return;
+    const mf = mfRef.current;
+    if (!mf) return;
+    if (showKeyboard) {
+      mf.executeCommand('showVirtualKeyboard');
+    } else {
+      mf.executeCommand('hideVirtualKeyboard');
+    }
+  }, [showKeyboard, editorMode]);
+
+  useEffect(() => {
+    if (editorMode === 'quicktype' && isUpdatingFromProp.current) {
+      isUpdatingFromProp.current = false;
+      return;
+    }
+    if (editorMode === 'quicktype' && value !== undefined) {
+      setRawInput(value || '');
+    }
+  }, [value, editorMode]);
+
+  const handleModeSwitch = (newMode) => {
+    if (newMode === editorMode) return;
+    if (newMode === 'quicktype') {
+      const currentLatex = mfRef.current?.getValue('latex') || value || '';
+      setRawInput(currentLatex);
+      setEditorMode('quicktype');
+    } else {
+      setEditorMode('visual');
+      isUpdatingFromProp.current = true;
+    }
+  };
+
+  const handleQuickTypeChange = (e) => {
+    const raw = e.target.value;
+    setRawInput(raw);
+    convertAndEmit(raw);
+  };
+
+  return (
+    <div className={`math-editor-wrapper ${className}`} style={containerStyle}>
+      <style>{`
+        .math-editor-mode-toggle {
+          display: flex;
+          gap: 0;
+          border-bottom: 1px solid #e2e8f0;
+          margin-bottom: 0;
+        }
+        .math-editor-mode-btn {
+          flex: 1;
+          padding: 6px 12px;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          text-align: center;
+          border: none;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          background: transparent;
+          color: #94a3b8;
+        }
+        .math-editor-mode-btn:first-child {
+          border-right: 1px solid #e2e8f0;
+        }
+        .math-editor-mode-btn.active {
+          color: #2563eb;
+          background: #eff6ff;
+          border-bottom: 2px solid #2563eb;
+        }
+        .math-editor-mode-btn:hover:not(.active) {
+          color: #64748b;
+          background: #f8fafc;
+        }
+        .quicktype-textarea {
+          width: 100%;
+          min-height: 4rem;
+          resize: vertical;
+          border: none;
+          outline: none;
+          background: transparent;
+          padding: 0.5rem 0.75rem;
+          font-size: 0.875rem;
+          line-height: 1.5;
+          color: #1e293b;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        }
+        .quicktype-textarea::placeholder {
+          color: #94a3b8;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .quicktype-hints {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          padding: 6px 8px;
+          border-top: 1px solid #f1f5f9;
+          background: #f8fafc;
+        }
+        .quicktype-hint {
+          font-size: 9px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: #e0f2fe;
+          color: #0369a1;
+          font-weight: 500;
+          white-space: nowrap;
+        }
+        math-field {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+          font-size: 1rem;
+          width: 100%;
+          min-height: 3rem;
+          padding: 0.5rem 0.75rem;
+        }
+        math-field:focus {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        .ml-keyboard {
+          z-index: 9999 !important;
+        }
+      `}</style>
+
+      <div className="math-editor-mode-toggle">
+        <button
+          type="button"
+          className={`math-editor-mode-btn ${editorMode === 'quicktype' ? 'active' : ''}`}
+          onClick={() => handleModeSwitch('quicktype')}
+        >
+          Quick Type
+        </button>
+        <button
+          type="button"
+          className={`math-editor-mode-btn ${editorMode === 'visual' ? 'active' : ''}`}
+          onClick={() => handleModeSwitch('visual')}
+        >
+          Visual Editor
+        </button>
+      </div>
+
+      {editorMode === 'quicktype' ? (
+        <div>
+          <textarea
+            ref={textareaRef}
+            className="quicktype-textarea"
+            value={rawInput}
+            onChange={handleQuickTypeChange}
+            placeholder={placeholder || 'Type naturally... e.g. x^2 + sqrt(x) = 5, alpha + beta >= 0'}
+            rows={3}
+          />
+          <div className="quicktype-hints">
+            <span className="quicktype-hint" title="Type (x+1)/2 to get a fraction">a/b = fraction</span>
+            <span className="quicktype-hint" title="Type x^2 for exponents">x^2 = power</span>
+            <span className="quicktype-hint" title="Type sqrt(x) for square root">sqrt(x) = root</span>
+            <span className="quicktype-hint" title="Type alpha, beta, pi etc.">alpha = Greek</span>
+            <span className="quicktype-hint" title="Type >= for inequality">≥ ≤ ≠</span>
+          </div>
+        </div>
+      ) : (
+        <math-field
+          ref={mfRef}
+          style={{
+            width: '100%',
+            minHeight: '3rem',
+          }}
+        >
+          {value || ''}
+        </math-field>
+      )}
+    </div>
+  );
 });
 
 export default MathEditor;

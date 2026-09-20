@@ -10,6 +10,7 @@ $teacher_id = (int)$authUser['user_id'];
 try {
     ensureAssessmentRubricColumn($conn);
     ensureAssessmentDueDate($conn);
+    ensureItemRubricColumn($conn);
     ensureSubjectLookupColumns($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
@@ -162,14 +163,16 @@ try {
             "SELECT
                 ei.item_id,
                 ei.exercise_id,
+                ei.rubric_set_id,
                 ei.item_no,
                 ei.question_type,
                 ei.question_content,
-                ei.model_solution,
-                ei.max_score
+                ei.max_score,
+                rs.rubric_name
              FROM exercise_items ei
              INNER JOIN exercises_problem ep ON ei.exercise_id = ep.exercise_id
              INNER JOIN subject s ON ep.subject_id = s.subject_id
+             LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ei.rubric_set_id
              WHERE s.teacher_user_id = ?
              ORDER BY ei.exercise_id ASC, ei.item_no ASC"
         );
@@ -188,8 +191,9 @@ try {
                 "item_no" => (int)$itemRow['item_no'],
                 "question_type" => $itemRow['question_type'] ?? 'handwritten_algebra',
                 "question_content" => $itemRow['question_content'],
-                "model_solution" => $itemRow['model_solution'],
                 "max_score" => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 1.0,
+                "rubric_set_id" => isset($itemRow['rubric_set_id']) ? (int)$itemRow['rubric_set_id'] : null,
+                "rubric_name" => $itemRow['rubric_name'] ?? null,
             ];
             $assessmentsById[$exerciseId]['item_count']++;
         }

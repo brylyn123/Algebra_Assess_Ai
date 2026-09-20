@@ -459,6 +459,46 @@ try {
     }
     @ob_end_clean();
 
+    // Notify the teacher that a student submitted
+    @ob_start();
+    try {
+        require_once __DIR__ . '/notifications_helper.php';
+        $teacherStmt = $conn->prepare(
+            "SELECT subj.teacher_user_id, u.email, ep.title AS exercise_title, subj.subject_name
+             FROM Exercises_Problem ep
+             INNER JOIN Subject subj ON subj.subject_id = ep.subject_id
+             INNER JOIN Users u ON u.user_id = subj.teacher_user_id
+             WHERE ep.exercise_id = ? LIMIT 1"
+        );
+        $teacherStmt->bind_param('i', $exercise_id);
+        $teacherStmt->execute();
+        $teacherRow = $teacherStmt->get_result()->fetch_assoc();
+        $teacherStmt->close();
+
+        if ($teacherRow) {
+            $teacherId = (int)$teacherRow['teacher_user_id'];
+            $teacherEmail = (string)($teacherRow['email'] ?? '');
+            $exerciseTitle = (string)($teacherRow['exercise_title'] ?? 'an assessment');
+            $subjectName = (string)($teacherRow['subject_name'] ?? '');
+
+            $studentStmt = $conn->prepare("SELECT first_name, last_name FROM Users WHERE user_id = ? LIMIT 1");
+            $studentStmt->bind_param('i', $student_id);
+            $studentStmt->execute();
+            $studentRow = $studentStmt->get_result()->fetch_assoc();
+            $studentStmt->close();
+            $studentName = trim(($studentRow['first_name'] ?? '') . ' ' . ($studentRow['last_name'] ?? ''));
+
+            $notifMsg = "{$studentName} submitted \"{$exercise_title}\" for {$subject_name}.";
+            createNotification($conn, $teacherId, $student_id, 'assessment_submitted', 'New Submission', $notifMsg, 'exercise', $exercise_id);
+            if (!empty($teacherEmail)) {
+                sendNotificationEmail($teacherEmail, 'assessment_submitted', "New Submission: {$studentName} - {$exerciseTitle}", $notifMsg);
+            }
+        }
+    } catch (Exception $e) {
+        error_log('Failed to send submission notification: ' . $e->getMessage());
+    }
+    @ob_end_clean();
+
     $conn->close();
     exit();
 } catch (Exception $e) {
