@@ -7,6 +7,7 @@ require_once 'schema_utils.php';
 
 ensureRubricItemMinPoints($conn);
 ensureItemRubricColumn($conn);
+ensureAssessmentGradingCriteriaColumns($conn);
 
 function decodeSubmissionRawPayload($rawJson) {
     if (!$rawJson) {
@@ -77,6 +78,8 @@ try {
             cs.ai_raw_json,
             ep.exercise_id,
             ep.rubric_set_id,
+            ep.grading_criteria,
+            ep.custom_grading_criteria,
             ep.title AS assessment_title,
             rs.rubric_name,
             rs.criteria AS rubric_criteria,
@@ -100,8 +103,17 @@ try {
         throw new Exception('Submission not found for this teacher.');
     }
 
+    $criteriaList = [];
+    foreach (['grading_criteria', 'custom_grading_criteria'] as $criteriaColumn) {
+        $decoded = json_decode((string)($submission[$criteriaColumn] ?? ''), true);
+        foreach (normalizeGradingCriteriaPayload($decoded) as $entry) {
+            $criteriaList[] = $entry;
+        }
+    }
+    $submission['grading_criteria_list'] = $criteriaList;
+
     $itemStmt = $conn->prepare(
-        "SELECT item_id, item_no, question_content, max_score, rubric_set_id
+        "SELECT item_id, item_no, question_content, max_score, rubric_set_id, effort_minimum_guarantee
          FROM exercise_items
          WHERE exercise_id = ?
          ORDER BY item_no ASC"
@@ -119,6 +131,7 @@ try {
             'question_content' => $itemRow['question_content'],
             'max_score' => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 0.0,
             'rubric_set_id' => isset($itemRow['rubric_set_id']) ? (int)$itemRow['rubric_set_id'] : null,
+            'effort_minimum_guarantee' => isset($itemRow['effort_minimum_guarantee']) ? (float)$itemRow['effort_minimum_guarantee'] : 0.0,
         ];
     }
     $itemStmt->close();
@@ -126,46 +139,111 @@ try {
     // Fetch per-item rubric details (items fall back to assessment-level rubric)
     $assessmentRubricId = isset($submission['rubric_set_id']) ? (int)$submission['rubric_set_id'] : 0;
     $rubricCache = [];
+
+    // Helper to get default rubric data
+    $getDefaultRubric = function($id) {
+        $defaults = [
+            -1 => [
+                "rubric_set_id" => -1,
+                "rubric_name" => "Procedural Algebra",
+                "rubric_type" => "procedural_algebra",
+                "criteria" => "Review the student's complete handwritten solution. For each criterion, select the level that best describes the student's demonstrated work and assign the corresponding points. The criterion scores are added to obtain a maximum of 5 points per item.",
+                "ai_instructions" => " Focus on algebraic process, accuracy of computation, and final answer. Award points based on the rubric levels: Full Credit, Partial Credit, Minimal Credit, or No Credit for each criterion.",
+                "level_definitions" => [
+                    ["label" => "Full Credit", "points" => 5],
+                    ["label" => "Partial Credit", "points" => 3],
+                    ["label" => "Minimal Credit", "points" => 1],
+                    ["label" => "No Credit", "points" => 0],
+                ],
+                "items" => [
+                    ["description" => "Algebraic Process / Logical Steps", "points" => 60, "min_points" => 15],
+                    ["description" => "Accuracy of Computation / Algebraic Operations", "points" => 20, "min_points" => 5],
+                    ["description" => "Final Answer", "points" => 20, "min_points" => 5],
+                ],
+            ],
+            -2 => [
+                "rubric_set_id" => -2,
+                "rubric_name" => "Problem-Solving",
+                "rubric_type" => "problem_solving",
+                "criteria" => "Review the student's complete handwritten solution. For each criterion, select the level that best describes the student's demonstrated work and assign the corresponding points. The criterion scores are added to obtain a maximum of 5 points per item.",
+                "ai_instructions" => " Focus on understanding of the problem, method selection, solution process, and final answer. Award points based on the rubric levels: Full Credit, Partial Credit, Minimal Credit, or No Credit for each criterion.",
+                "level_definitions" => [
+                    ["label" => "Full Credit", "points" => 5],
+                    ["label" => "Partial Credit", "points" => 3],
+                    ["label" => "Minimal Credit", "points" => 1],
+                    ["label" => "No Credit", "points" => 0],
+                ],
+                "items" => [
+                    ["description" => "Understanding of the Problem", "points" => 20, "min_points" => 5],
+                    ["description" => "Algebraic Method / Mathematical Model", "points" => 20, "min_points" => 5],
+                    ["description" => "Solution Process, Computation and Completeness", "points" => 40, "min_points" => 10],
+                    ["description" => "Final Answer", "points" => 20, "min_points" => 5],
+                ],
+            ],
+        ];
+        return $defaults[$id] ?? null;
+    };
+
     foreach ($items as &$item) {
         $itemRubricId = $item['rubric_set_id'] ?? null;
-        $effectiveRubricId = $itemRubricId > 0 ? $itemRubricId : ($assessmentRubricId > 0 ? $assessmentRubricId : 0);
+        $effectiveRubricId = $itemRubricId !== null && $itemRubricId !== 0 ? $itemRubricId : ($assessmentRubricId !== 0 ? $assessmentRubricId : 0);
 
-        if ($effectiveRubricId > 0) {
+        if ($effectiveRubricId !== 0) {
             if (!isset($rubricCache[$effectiveRubricId])) {
-                $rStmt = $conn->prepare(
-                    "SELECT rs.rubric_name, rs.criteria AS rubric_criteria, rs.ai_instructions AS rubric_ai_instructions
-                     FROM rubric_sets rs WHERE rs.rubric_set_id = ? LIMIT 1"
-                );
-                $rStmt->bind_param('i', $effectiveRubricId);
-                $rStmt->execute();
-                $rRow = $rStmt->get_result()->fetch_assoc();
-                $rStmt->close();
+                if ($effectiveRubricId < 0) {
+                    // Default rubric (template)
+                    $defaultRubric = $getDefaultRubric($effectiveRubricId);
+                    if ($defaultRubric) {
+                        $rubricCache[$effectiveRubricId] = [
+                            'rubric_set_id' => $defaultRubric['rubric_set_id'],
+                            'rubric_name' => $defaultRubric['rubric_name'],
+                            'rubric_criteria' => $defaultRubric['criteria'],
+                            'rubric_ai_instructions' => $defaultRubric['ai_instructions'],
+                            'level_definitions' => $defaultRubric['level_definitions'],
+                            'rubric_items' => $defaultRubric['items'],
+                        ];
+                    }
+                } else {
+                    // Saved rubric from database
+                    $rStmt = $conn->prepare(
+                        "SELECT rs.rubric_name, rs.criteria AS rubric_criteria, rs.ai_instructions AS rubric_ai_instructions
+                         FROM rubric_sets rs WHERE rs.rubric_set_id = ? LIMIT 1"
+                    );
+                    $rStmt->bind_param('i', $effectiveRubricId);
+                    $rStmt->execute();
+                    $rRow = $rStmt->get_result()->fetch_assoc();
+                    $rStmt->close();
 
-                $riStmt = $conn->prepare(
-                    "SELECT description, points, min_points FROM rubric_set_items WHERE rubric_set_id = ? ORDER BY rubric_item_id ASC"
-                );
-                $riStmt->bind_param('i', $effectiveRubricId);
-                $riStmt->execute();
-                $riResult = $riStmt->get_result();
-                $riItems = [];
-                while ($ri = $riResult->fetch_assoc()) {
-                    $riItems[] = [
-                        'description' => $ri['description'],
-                        'points' => (float)$ri['points'],
-                        'min_points' => (float)($ri['min_points'] ?? 0),
+                    $riStmt = $conn->prepare(
+                        "SELECT description, points, min_points FROM rubric_set_items WHERE rubric_set_id = ? ORDER BY rubric_item_id ASC"
+                    );
+                    $riStmt->bind_param('i', $effectiveRubricId);
+                    $riStmt->execute();
+                    $riResult = $riStmt->get_result();
+                    $riItems = [];
+                    while ($ri = $riResult->fetch_assoc()) {
+                        $riItems[] = [
+                            'description' => $ri['description'],
+                            'points' => (float)$ri['points'],
+                            'min_points' => (float)($ri['min_points'] ?? 0),
+                        ];
+                    }
+                    $riStmt->close();
+
+                    $rubricCache[$effectiveRubricId] = [
+                        'rubric_set_id' => $effectiveRubricId,
+                        'rubric_name' => $rRow['rubric_name'] ?? null,
+                        'rubric_criteria' => $rRow['rubric_criteria'] ?? '',
+                        'rubric_ai_instructions' => $rRow['rubric_ai_instructions'] ?? '',
+                        'rubric_items' => $riItems,
                     ];
                 }
-                $riStmt->close();
-
-                $rubricCache[$effectiveRubricId] = [
-                    'rubric_set_id' => $effectiveRubricId,
-                    'rubric_name' => $rRow['rubric_name'] ?? null,
-                    'rubric_criteria' => $rRow['rubric_criteria'] ?? '',
-                    'rubric_ai_instructions' => $rRow['rubric_ai_instructions'] ?? '',
-                    'rubric_items' => $riItems,
-                ];
             }
-            $item['rubric'] = $rubricCache[$effectiveRubricId];
+            if (isset($rubricCache[$effectiveRubricId])) {
+                $item['rubric'] = $rubricCache[$effectiveRubricId];
+            } else {
+                $item['rubric'] = null;
+            }
         } else {
             $item['rubric'] = null;
         }

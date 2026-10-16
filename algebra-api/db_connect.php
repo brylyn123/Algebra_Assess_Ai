@@ -7,7 +7,7 @@ require_once __DIR__ . '/env.php';
 $servername = getenv('DB_HOST') ?: '127.0.0.1';
 $username = getenv('DB_USER');
 $password = getenv('DB_PASSWORD') ?? '';
-$dbname = getenv('DB_NAME') ?: 'algebraassess';
+$dbname = getenv('DB_NAME') ?: 'algebra_learning_system';
 $port = (int)(getenv('DB_PORT') ?: 3306);
 
 if ($username === null || $username === '') {

@@ -2,6 +2,9 @@
 require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'subject_photo_helper.php';
+
+class SubjectValidationException extends Exception {}
 
 function ensureArchivedColumn($conn) {
     $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
@@ -34,6 +37,7 @@ $authUser = requireAuthenticatedUser('teacher');
 validateCsrfToken();
 $teacher_id   = (int)$authUser['user_id'];
 $join_code    = trim($data['join_code'] ?? '');
+$photo_data   = trim((string)($data['photo'] ?? ''));
 
 if (empty($join_code)) {
     $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
@@ -50,11 +54,13 @@ if (empty($join_code)) {
 
 // Check if critical data is missing
 if (empty($subject_name)) {
+    http_response_code(400);
     echo json_encode(["status" => "error", "message" => "Subject name is missing."]);
     exit;
 }
 
 if (strlen($subject_name) > 255) {
+    http_response_code(400);
     echo json_encode(["status" => "error", "message" => "Subject name must be 255 characters or less."]);
     exit;
 }
@@ -62,6 +68,7 @@ if (strlen($subject_name) > 255) {
 // 3. Prepared Statement
 try {
     ensureArchivedColumn($conn);
+    ensureSubjectPhotoColumn($conn);
     ensureSubjectLookupColumns($conn);
     ensureSemesterSchema($conn);
     $school_year = trim((string)$school_year);
@@ -94,18 +101,18 @@ try {
         $courseRow = $courseResult ? $courseResult->fetch_assoc() : null;
         $courseStmt->close();
         if (!$courseRow) {
-            throw new Exception("Selected course was not found.");
+            throw new SubjectValidationException("Selected course was not found.");
         }
 
         $courseCollegeId = $courseRow['college_id'] !== null ? (int)$courseRow['college_id'] : null;
+        // Allow teachers to use courses from any college; just ensure course's college_id is set if teacher has one
         if ($teacherCollegeId !== null && $courseCollegeId === null) {
             $updateCourseCollegeStmt = $conn->prepare("UPDATE {$courseTable} SET college_id = ? WHERE course_id = ? AND college_id IS NULL");
             $updateCourseCollegeStmt->bind_param("ii", $teacherCollegeId, $courseId);
             $updateCourseCollegeStmt->execute();
             $updateCourseCollegeStmt->close();
-        } elseif ($teacherCollegeId !== null && $courseCollegeId !== null && $courseCollegeId !== $teacherCollegeId) {
-            throw new Exception("Selected course does not belong to the teacher's college.");
         }
+        // Removed strict college matching - teachers can teach any course
     }
 
     if ($sectionId > 0) {
@@ -116,7 +123,7 @@ try {
         $sectionRow = $sectionResult ? $sectionResult->fetch_assoc() : null;
         $sectionStmt->close();
         if (!$sectionRow) {
-            throw new Exception("Selected section was not found.");
+            throw new SubjectValidationException("Selected section was not found.");
         }
     }
 
@@ -128,12 +135,17 @@ try {
         $yearRow = $yearResult ? $yearResult->fetch_assoc() : null;
         $yearStmt->close();
         if (!$yearRow) {
-            throw new Exception("Selected year level was not found.");
+            throw new SubjectValidationException("Selected year level was not found.");
         }
     }
 
     if ($courseId <= 0 || $sectionId <= 0 || $yearId <= 0) {
-        throw new Exception("Please choose a course, section, and year level.");
+        throw new SubjectValidationException("Please choose a course, section, and year level.");
+    }
+
+    $photoPath = null;
+    if ($photo_data !== '') {
+        $photoPath = saveSubjectPhoto($photo_data, $teacher_id);
     }
 
     $stmt = $conn->prepare(
@@ -148,12 +160,13 @@ try {
             semester,
             teacher_user_id,
             join_code,
+            photo,
             archived
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
     );
 
     $stmt->bind_param(
-        "siiiisisis",
+        "siiiisisiss",
         $subject_name,
         $courseId,
         $sectionId,
@@ -163,7 +176,8 @@ try {
         $schoolYearId,
         $semester,
         $teacher_id,
-        $join_code
+        $join_code,
+        $photoPath
     );
     
     if ($stmt->execute()) {
@@ -175,17 +189,30 @@ try {
                 "section_id" => $sectionId,
                 "year_id" => $yearId,
                 "school_year" => $school_year,
-                "semester" => $semester
+                "semester" => $semester,
+                "photo" => $photoPath
             ]); 
     } else {
+        if ($photoPath !== null) {
+            deleteSubjectPhoto($photoPath);
+        }
         http_response_code(500);
-        echo json_encode(["status" => "error", "message" => "Unable to add subject."]);
+        echo json_encode(["status" => "error", "message" => "Unable to add subject: " . $stmt->error]);
     }
 
     $stmt->close();
+} catch (SubjectValidationException $e) {
+    if (isset($photoPath) && $photoPath !== null) {
+        deleteSubjectPhoto($photoPath);
+    }
+    http_response_code(400);
+    echo json_encode(["status" => "error", "message" => "Unable to add subject: " . $e->getMessage()]);
 } catch (Exception $e) {
+    if (isset($photoPath) && $photoPath !== null) {
+        deleteSubjectPhoto($photoPath);
+    }
     http_response_code(500);
-    echo json_encode(["status" => "error", "message" => "Unable to add subject."]);
+    echo json_encode(["status" => "error", "message" => "Unable to add subject: " . $e->getMessage()]);
 }
 
 $conn->close();

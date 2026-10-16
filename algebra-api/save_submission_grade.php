@@ -134,14 +134,28 @@ try {
     $conn->begin_transaction();
 
     $scoreId = null;
+    $previousScore = null;
+    $previousFeedback = '';
+    $wasReturned = false;
 
     if (!$ocrOnly) {
-        $existingStmt = $conn->prepare("SELECT score_id FROM Scores WHERE solution_id = ? LIMIT 1");
+        $existingStmt = $conn->prepare(
+            "SELECT score_id, total_score_earned, ai_feedback, returned_at
+             FROM Scores WHERE solution_id = ? LIMIT 1"
+        );
         $existingStmt->bind_param("i", $solution_id);
         $existingStmt->execute();
         $existingResult = $existingStmt->get_result();
         $existingScore = $existingResult ? $existingResult->fetch_assoc() : null;
         $existingStmt->close();
+
+        if ($existingScore) {
+            $previousScore = $existingScore['total_score_earned'] !== null
+                ? (float)$existingScore['total_score_earned']
+                : null;
+            $previousFeedback = trim((string)($existingScore['ai_feedback'] ?? ''));
+            $wasReturned = !empty($existingScore['returned_at']);
+        }
 
         if ($existingScore) {
             $updateStmt = $conn->prepare(
@@ -262,25 +276,20 @@ try {
 
     $conn->commit();
 
-    // Auto-return: set returned_at so the student can see the grade immediately (skip for OCR-only saves)
-    $autoReturnSuccess = false;
-    if (!$ocrOnly && $scoreId) {
-        try {
-            ensureScoreReturnColumn($conn);
-            $returnStmt = $conn->prepare(
-                "UPDATE Scores SET returned_at = COALESCE(returned_at, CURRENT_TIMESTAMP) WHERE score_id = ?"
-            );
-            $returnStmt->bind_param("i", $scoreId);
-            $returnStmt->execute();
-            $autoReturnSuccess = $returnStmt->affected_rows > 0 || $conn->info !== '';
-            $returnStmt->close();
-        } catch (Exception $e) {
-            error_log('Auto-return failed for score ' . $scoreId . ': ' . $e->getMessage());
-        }
-    }
+    // Results are returned manually from the Grade Submissions page, so saving a
+    // grade never makes it visible to the student (returned_at stays untouched).
+    $returned = $wasReturned;
 
-    // Send notification to student (skip for OCR-only saves)
-    if (!$ocrOnly && $scoreId) {
+    // Notify the student only when an already-returned grade is updated (skip for OCR-only saves).
+    // Re-saving an identical grade never spams the student, and a grade that has not
+    // been returned yet stays hidden until the teacher returns it.
+    $scoreChanged = !$ocrOnly && $score !== null && (
+        $previousScore === null || abs($previousScore - (float)$score) > 0.001
+    );
+    $feedbackChanged = !$ocrOnly && $previousFeedback !== $ai_feedback;
+    $notifyUpdated = !$ocrOnly && $wasReturned && ($scoreChanged || $feedbackChanged);
+
+    if (!$ocrOnly && $scoreId && $notifyUpdated) {
         try {
         $notifStmt = $conn->prepare(
             "SELECT cs.student_user_id, u.email, ep.exercise_id, ep.title AS exercise_title, s.subject_name,
@@ -305,20 +314,34 @@ try {
             $scoreVal = $notifRow['total_score_earned'] !== null ? round((float)$notifRow['total_score_earned'], 1) : '?';
             $maxScoreVal = $notifRow['max_score_possible'] !== null ? round((float)$notifRow['max_score_possible'], 1) : '?';
 
-            $notifMsg = "Your grade for \"{$exerciseTitle}\" in {$subjectName} has been returned. Score: {$scoreVal}/{$maxScoreVal}";
-            createNotification($conn, $studentId, $teacher_id, 'grade_returned', 'Grade Returned', $notifMsg, 'exercise', (int)$notifRow['exercise_id']);
+            if ($scoreChanged) {
+                $oldScoreVal = $previousScore !== null ? round($previousScore, 1) : '?';
+                $notifTitle = 'Grade Updated';
+                $notifType = 'grade_updated';
+                $notifMsg = "Your grade for \"{$exerciseTitle}\" in {$subjectName} was updated. Score changed from {$oldScoreVal}/{$maxScoreVal} to {$scoreVal}/{$maxScoreVal}.";
+                $emailSubject = "Grade Updated: {$exerciseTitle}";
+            } else {
+                $notifTitle = 'Grade Updated';
+                $notifType = 'grade_updated';
+                $notifMsg = "The feedback for your grade on \"{$exerciseTitle}\" in {$subjectName} was updated. Score: {$scoreVal}/{$maxScoreVal}";
+                $emailSubject = "Grade Updated: {$exerciseTitle}";
+            }
+
+            createNotification($conn, $studentId, $teacher_id, $notifType, $notifTitle, $notifMsg, 'exercise', (int)$notifRow['exercise_id']);
             if (!empty($studentEmail)) {
-                sendNotificationEmail($studentEmail, 'grade_returned', "Grade Returned: {$exerciseTitle}", $notifMsg);
+                sendNotificationEmail($studentEmail, $notifType, $emailSubject, $notifMsg);
             }
         }
     } catch (Exception $e) {
-        error_log('Failed to send grade returned notification for score ' . $scoreId . ': ' . $e->getMessage());
+        error_log('Failed to send grade notification for score ' . $scoreId . ': ' . $e->getMessage());
     }
     }
 
     echo json_encode([
         'status' => 'success',
-        'message' => $autoReturnSuccess ? 'Grade saved and returned successfully.' : 'Grade saved. Return to student may require manual action.',
+        'message' => $returned
+            ? 'Grade updated successfully.'
+            : 'Grade saved. Return the result to the student when ready.',
         'score_id' => (int)$scoreId,
         'solution_id' => $solution_id,
         'score' => round($score, 2),
@@ -328,7 +351,7 @@ try {
         'item_scores_saved' => count($item_scores),
         'ai_status' => 'completed',
         'ocr_text' => $ocrText,
-        'returned' => $autoReturnSuccess,
+        'returned' => (bool)$returned,
     ]);
 } catch (Exception $e) {
     if ($conn->in_transaction) {

@@ -110,7 +110,7 @@ class SmtpMailer
         $this->sendCommand(base64_encode($this->password), 235);
     }
 
-    public function send(string $to, string $subject, string $body, bool $isHtml = true): bool
+    private function openConnection(): void
     {
         $this->connect();
         $this->ehlo();
@@ -120,6 +120,14 @@ class SmtpMailer
         }
 
         $this->authenticate();
+    }
+
+    private function sendMessage(string $to, string $subject, string $body, bool $isHtml = true): void
+    {
+        // Encode subject only when it contains non-ASCII characters
+        if (!preg_match('/^[\x20-\x7E]*$/', $subject)) {
+            $subject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+        }
 
         $this->sendCommand("MAIL FROM:<{$this->fromEmail}>", 250);
         $this->sendCommand("RCPT TO:<{$to}>", 250);
@@ -145,12 +153,77 @@ class SmtpMailer
         if ($response['code'] !== 250) {
             throw new RuntimeException("Email send failed: {$response['message']}");
         }
+    }
 
-        $this->sendCommand('QUIT', 221);
-        fclose($this->socket);
-        $this->socket = null;
+    private function closeConnection(): void
+    {
+        if ($this->socket && is_resource($this->socket)) {
+            try {
+                $this->sendCommand('QUIT', 221);
+            } catch (Throwable $e) {
+                // Server may have closed already; fall through to fclose
+            }
+            fclose($this->socket);
+            $this->socket = null;
+        }
+    }
+
+    public function send(string $to, string $subject, string $body, bool $isHtml = true): bool
+    {
+        $this->openConnection();
+        $this->sendMessage($to, $subject, $body, $isHtml);
+        $this->closeConnection();
 
         return true;
+    }
+
+    /**
+     * Send many emails over a single SMTP connection (one handshake/auth instead of N).
+     *
+     * @param array $emails List of ['to' => string, 'subject' => string, 'body' => string, 'is_html' => bool]
+     * @return array Map of index => null on success or error message string on failure
+     */
+    public function sendBatch(array $emails): array
+    {
+        $results = array_fill_keys(array_keys($emails), null);
+
+        try {
+            $this->openConnection();
+        } catch (Throwable $e) {
+            foreach ($results as $idx => $_) {
+                $results[$idx] = $e->getMessage();
+            }
+            return $results;
+        }
+
+        foreach ($emails as $idx => $email) {
+            try {
+                $this->sendMessage(
+                    (string)($email['to'] ?? ''),
+                    (string)($email['subject'] ?? ''),
+                    (string)($email['body'] ?? ''),
+                    (bool)($email['is_html'] ?? true)
+                );
+            } catch (Throwable $e) {
+                $results[$idx] = $e->getMessage();
+
+                // The connection may be in a broken state; re-establish it for the rest
+                $this->closeConnection();
+                try {
+                    $this->openConnection();
+                } catch (Throwable $reconnectError) {
+                    foreach ($emails as $remainingIdx => $_) {
+                        if ($remainingIdx !== $idx && $results[$remainingIdx] === null && $remainingIdx > $idx) {
+                            $results[$remainingIdx] = 'Skipped after connection failure: ' . $reconnectError->getMessage();
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        $this->closeConnection();
+        return $results;
     }
 
     public function __destruct()

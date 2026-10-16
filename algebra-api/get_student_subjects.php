@@ -11,6 +11,7 @@ $student_id = (int)$authUser['user_id'];
 try {
     $enrollmentCol = getEnrollmentSubjectColumn($conn);
     ensureSubjectLookupColumns($conn);
+    ensureSubjectPhotoColumn($conn);
     $userTable = resolveExistingTableName($conn, ['Users', 'users']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
@@ -23,6 +24,7 @@ try {
             s.join_code,
             s.archived AS status,
             s.subject_name,
+            s.photo,
             CONCAT(t.first_name, ' ', t.last_name) AS teacher_name,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
@@ -58,6 +60,7 @@ try {
             'status' => (int)$row['status'],
             'archived' => (bool)$row['status'],
             'subject_name' => $row['subject_name'],
+            'photo' => $row['photo'] ?? null,
             'subject_code' => $row['join_code'],
             'teacher_name' => trim((string)$row['teacher_name']),
             'course' => $row['course'] ?? '',

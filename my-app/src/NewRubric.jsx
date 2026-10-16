@@ -490,8 +490,8 @@ const NewRubric = () => {
                                             onChange={(e) => setRubricType(e.target.value)}
                                         >
                                             <option value="general">General</option>
-                                            <option value="procedural_algebra">Procedural Algebra (Items 1-4)</option>
-                                            <option value="problem_solving">Problem-Solving (Items 5-6)</option>
+                                            <option value="procedural_algebra">Procedural Algebra</option>
+                                            <option value="problem_solving">Problem-Solving</option>
                                         </Select>
                                         <p className="mt-1 text-[10px] text-slate-400">Select the type of rubric to help organize and filter rubrics.</p>
                                     </div>
@@ -629,7 +629,7 @@ const NewRubric = () => {
                                             </div>
                                         </div>
                                         <div className="mt-2">
-                                            <label className="mb-1 block text-[10px] font-semibold text-slate-500">Effort Minimum (pts)</label>
+                                            <label className="mb-1 block text-[10px] font-semibold text-slate-500">Effort Minimum ({selectedTemplatePreview?.is_default ? '%' : 'pts'})</label>
                                             <input
                                                 type="number"
                                                 min="0"
@@ -645,7 +645,7 @@ const NewRubric = () => {
 
                                     <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2">
                                         <span className="text-xs text-slate-600">Total points</span>
-                                        <span className="text-sm font-bold text-slate-900">{totalPoints} pts</span>
+                                        <span className="text-sm font-bold text-slate-900">{totalPoints} {selectedTemplatePreview?.is_default ? '%' : 'pts'}</span>
                                     </div>
 
                                     {rubricItems.length > 0 && (
@@ -661,7 +661,7 @@ const NewRubric = () => {
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <p className="truncate text-sm font-medium text-slate-700">{item.description}</p>
-                                                        <p className="text-[10px] text-slate-400">{item.points} pts{Number(item.min_points ?? 0) > 0 ? ` · Effort min: ${item.min_points} pts` : ''}</p>
+                                                        <p className="text-[10px] text-slate-400">{item.points} {selectedTemplatePreview?.is_default ? '%' : 'pts'}{Number(item.min_points ?? 0) > 0 && selectedTemplatePreview?.is_default && item.points > 0 ? ` · Effort min: ${Math.round((item.min_points / item.points) * 100)}% of criterion` : Number(item.min_points ?? 0) > 0 ? ` · Effort min: ${item.min_points} {selectedTemplatePreview?.is_default ? '%' : 'pts'}` : ''}</p>
                                                     </div>
                                                     <button
                                                         type="button"

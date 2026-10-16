@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from './axiosClient';
-import { getSubjectCardTheme } from './subjectCardThemes';
+import { getSubjectCardTheme, subjectPhotoSrc } from './subjectCardThemes';
 
 const SubjectDetails = () => {
     const { id } = useParams(); // Grabs the ID from the URL
@@ -24,16 +24,31 @@ const SubjectDetails = () => {
     if (!subjectData) return <p>Loading subject details...</p>;
 
     const theme = getSubjectCardTheme(subjectData);
+    const photoSrc = subjectPhotoSrc(subjectData.photo);
 
     return (
         <div className="h-full overflow-y-auto teacher-scrollbar p-8">
             <div className={`relative overflow-hidden rounded-[1.8rem] border p-6 shadow-sm ${theme.surfaceClass}`}>
                 <div className={`absolute left-0 right-0 top-0 h-1.5 bg-gradient-to-r ${theme.accentClass}`} />
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.35em] text-slate-400">Subject</p>
-                        <h1 className="mt-2 text-3xl font-black text-slate-900">{subjectData.subject_name}</h1>
-                        <p className="mt-2 text-sm text-slate-600">{subjectData.course}</p>
+                    <div className="flex items-start gap-4">
+                        <div className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br ${theme.accentClass}`}>
+                            <div className="absolute -right-5 -top-5 h-14 w-14 rounded-full bg-white/20" />
+                            {photoSrc ? (
+                                <img src={photoSrc} alt={subjectData.subject_name} className="h-full w-full object-cover" />
+                            ) : (
+                                <div className="flex h-full w-full items-center justify-center">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-white/85">
+                                        <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm2 0v10.5l3.5-3.5 3 3L16 11l4 4V5H6z" />
+                                    </svg>
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.35em] text-slate-400">Subject</p>
+                            <h1 className="mt-2 text-3xl font-black text-slate-900">{subjectData.subject_name}</h1>
+                            <p className="mt-2 text-sm text-slate-600">{subjectData.course}</p>
+                        </div>
                     </div>
                     <div className={`rounded-2xl border px-3 py-2 text-xs font-semibold shadow-sm ${theme.chipClass}`}>
                         <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Enrollment Code</p>

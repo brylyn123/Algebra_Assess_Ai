@@ -27,7 +27,9 @@ const ProgressBar = () => {
 
       timerRef.current = setTimeout(() => {
         clearInterval(incrementRef.current);
-        timerRef.current = null;
+        incrementRef.current = null;
+        // Safety: never leave the bar hanging if no route-change-end ever arrives
+        done();
       }, 20000);
     };
 
@@ -49,9 +51,12 @@ const ProgressBar = () => {
     const onClick = (e) => {
       if (isInitialLoad.current) return;
       const a = e.target.closest && e.target.closest('a');
-      if (a && a.href && a.target !== '_blank' && a.href.indexOf(window.location.origin) === 0) {
-        window.dispatchEvent(new Event('route-change-start'));
-      }
+      if (!a || !a.href || a.target === '_blank') return;
+      if (a.href.indexOf(window.location.origin) !== 0) return;
+      // In-page anchors (#about, #, ...) never change routes — don't start the bar
+      const rawHref = a.getAttribute('href') || '';
+      if (rawHref.startsWith('#')) return;
+      window.dispatchEvent(new Event('route-change-start'));
     };
 
     const origPush = window.history.pushState;

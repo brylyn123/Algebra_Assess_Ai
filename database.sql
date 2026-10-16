@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS algebraassess;
-USE algebraassess;
+CREATE DATABASE IF NOT EXISTS algebra_learning_system;
+USE algebra_learning_system;
 
 -- Disable checks to allow clean wiping of tables
 SET FOREIGN_KEY_CHECKS = 0;
@@ -157,9 +157,18 @@ CREATE TABLE Exercises_Problem (
     topic VARCHAR(100),
     difficulty ENUM('Easy', 'Medium', 'Hard') DEFAULT 'Medium',
     due_date DATETIME NULL,
-    is_published TINYINT(1) DEFAULT 1,
+    is_published TINYINT(1) NOT NULL DEFAULT 0,
+    school_year_id INT NULL,
+    archived TINYINT(1) NOT NULL DEFAULT 0,
+    publish_at DATETIME NULL,
+    publish_notified TINYINT(1) NOT NULL DEFAULT 0,
+    submit_mode ENUM('student', 'teacher') NOT NULL DEFAULT 'student',
+    grading_criteria TEXT NULL,
+    custom_grading_criteria TEXT NULL,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_exercises_school_year_id (school_year_id),
+    INDEX idx_exercises_archived (archived),
     CONSTRAINT fk_exercises_problem_subject FOREIGN KEY (subject_id) REFERENCES Subject(subject_id)
 ) ENGINE=InnoDB;
 
@@ -170,6 +179,7 @@ CREATE TABLE Exercise_Items (
     question_type ENUM('handwritten_algebra') DEFAULT 'handwritten_algebra',
     question_content TEXT NOT NULL,
     max_score DECIMAL(5,2) DEFAULT 0.00,
+    effort_minimum_guarantee DECIMAL(5,2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (exercise_id) REFERENCES Exercises_Problem(exercise_id) ON DELETE CASCADE
@@ -212,6 +222,9 @@ CREATE TABLE Captured_Solution (
     ocr_text TEXT,
     ai_status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
     ai_raw_json JSON,
+    reset_count INT NOT NULL DEFAULT 0,
+    last_reset_at DATETIME NULL,
+    last_reset_by INT NULL,
     date_uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (exercise_id) REFERENCES Exercises_Problem(exercise_id),

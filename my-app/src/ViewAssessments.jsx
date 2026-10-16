@@ -26,14 +26,14 @@ const ViewAssessments = ({ compact = false }) => {
 
     const formatLevelLabel = (level) => {
         const label = String(level?.label ?? '').trim();
-        const points = Number(level?.points ?? 0);
-        return label ? `${label} - ${points} pts` : `${points} pts`;
+        return label || '';
     };
 
     const getStatusClasses = (statusValue) => {
         const lower = String(statusValue).toLowerCase();
         if (lower === 'graded') return { badge: 'bg-emerald-50 text-emerald-700' };
         if (lower === 'pending') return { badge: 'bg-amber-50 text-amber-700' };
+        if (lower === 'scheduled') return { badge: 'bg-violet-50 text-violet-700' };
         return { badge: 'bg-blue-50 text-blue-700' };
     };
 
@@ -211,8 +211,8 @@ const ViewAssessments = ({ compact = false }) => {
                             ) : (
                                 <div className="space-y-5">
                                     {[
-                                        { type: 'procedural_algebra', label: 'Procedural Algebra', sublabel: 'Items 1-4', color: 'blue' },
-                                        { type: 'problem_solving', label: 'Problem-Solving', sublabel: 'Items 5-6', color: 'purple' },
+                                        { type: 'procedural_algebra', label: 'Procedural Algebra', sublabel: null, color: 'blue' },
+                                        { type: 'problem_solving', label: 'Problem-Solving', sublabel: null, color: 'purple' },
                                         { type: 'general', label: 'General', sublabel: null, color: 'emerald' },
                                     ].map((group) => {
                                         const groupRubrics = rubrics.filter((r) => r.rubric_type === group.type || (!r.rubric_type && group.type === 'general'));

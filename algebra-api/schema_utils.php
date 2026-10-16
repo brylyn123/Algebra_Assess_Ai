@@ -33,10 +33,39 @@ function schemaIndexExists(mysqli $conn, string $table, string $indexName): bool
     return $exists;
 }
 
+function ensureCapturedSolutionResetColumns(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    if (!schemaColumnExists($conn, 'Captured_Solution', 'reset_count')) {
+        $conn->query("ALTER TABLE Captured_Solution ADD COLUMN reset_count INT NOT NULL DEFAULT 0 AFTER date_updated");
+    }
+    if (!schemaColumnExists($conn, 'Captured_Solution', 'last_reset_at')) {
+        $conn->query("ALTER TABLE Captured_Solution ADD COLUMN last_reset_at DATETIME NULL AFTER reset_count");
+    }
+    if (!schemaColumnExists($conn, 'Captured_Solution', 'last_reset_by')) {
+        $conn->query("ALTER TABLE Captured_Solution ADD COLUMN last_reset_by INT NULL AFTER last_reset_at");
+    }
+}
+
+function ensureSubjectPhotoColumn(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
+    if (!schemaColumnExists($conn, $subjectTable, 'photo')) {
+        $conn->query("ALTER TABLE {$subjectTable} ADD COLUMN photo VARCHAR(512) NULL");
+    }
+}
+
 function migrationsAlreadyRan(mysqli $conn): bool {
     static $cached = null;
     if ($cached !== null) return $cached;
     $cached = false;
+    // Ensure the migration log table exists before querying
+    ensureMigrationFlagTable($conn);
     $result = $conn->query("SELECT 1 FROM schema_migration_log WHERE migration_key = 'live_schema_v1' LIMIT 1");
     if ($result && $result->num_rows > 0) {
         $cached = true;
@@ -45,14 +74,17 @@ function migrationsAlreadyRan(mysqli $conn): bool {
 }
 
 function markMigrationsRan(mysqli $conn): void {
+    ensureMigrationFlagTable($conn);
     $conn->query("INSERT IGNORE INTO schema_migration_log (migration_key, ran_at) VALUES ('live_schema_v1', NOW())");
 }
 
 function ensureMigrationFlagTable(mysqli $conn): void {
-    $conn->query("CREATE TABLE IF NOT EXISTS schema_migration_log (
+    if (!$conn->query("CREATE TABLE IF NOT EXISTS schema_migration_log (
         migration_key VARCHAR(100) PRIMARY KEY,
         ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )");
+    )")) {
+        error_log("Failed to create schema_migration_log table: " . $conn->error);
+    }
 }
 
 function ensureUserAccountStatusSchema(mysqli $conn): void {
@@ -1496,6 +1528,82 @@ function ensureAssessmentDueDate(mysqli $conn): void {
     ");
 }
 
+function ensureAssessmentPublishSchedule(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    if (!schemaColumnExists($conn, 'Exercises_Problem', 'publish_at')) {
+        $conn->query("ALTER TABLE Exercises_Problem ADD COLUMN publish_at DATETIME NULL AFTER is_published");
+    }
+
+    if (!schemaColumnExists($conn, 'Exercises_Problem', 'publish_notified')) {
+        $conn->query("ALTER TABLE Exercises_Problem ADD COLUMN publish_notified TINYINT(1) NOT NULL DEFAULT 0 AFTER publish_at");
+        // Assessments that already exist were announced when they were published.
+        // Mark them so the scheduled-publish flush never re-notifies students.
+        $conn->query("UPDATE exercises_problem SET publish_notified = 1 WHERE publish_notified = 0");
+    }
+
+    // Early installs defaulted is_published to 1, so any insert that forgot to set it
+    // would silently go live. Align the default with create/save_draft behaviour.
+    $defaultStmt = $conn->prepare(
+        "SELECT COLUMN_DEFAULT
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND LOWER(TABLE_NAME) = 'exercises_problem'
+           AND LOWER(COLUMN_NAME) = 'is_published'
+         LIMIT 1"
+    );
+    if ($defaultStmt && $defaultStmt->execute()) {
+        $defaultRow = $defaultStmt->get_result()->fetch_assoc();
+        $defaultStmt->close();
+        $currentDefault = $defaultRow ? trim((string)$defaultRow['COLUMN_DEFAULT'], "'") : null;
+        if ($defaultRow && $currentDefault !== '0') {
+            $conn->query("ALTER TABLE Exercises_Problem ALTER COLUMN is_published SET DEFAULT 0");
+        }
+    }
+}
+
+function ensureAssessmentArchiveColumns(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    if (!schemaColumnExists($conn, 'exercises_problem', 'school_year_id')) {
+        $conn->query("ALTER TABLE exercises_problem ADD COLUMN school_year_id INT NULL AFTER subject_id");
+    }
+
+    if (!schemaColumnExists($conn, 'exercises_problem', 'archived')) {
+        $conn->query("ALTER TABLE exercises_problem ADD COLUMN archived TINYINT(1) NOT NULL DEFAULT 0 AFTER is_published");
+    }
+
+    if (!schemaIndexExists($conn, 'exercises_problem', 'idx_exercises_school_year_id')) {
+        $conn->query("ALTER TABLE exercises_problem ADD INDEX idx_exercises_school_year_id (school_year_id)");
+    }
+
+    if (!schemaIndexExists($conn, 'exercises_problem', 'idx_exercises_archived')) {
+        $conn->query("ALTER TABLE exercises_problem ADD INDEX idx_exercises_archived (archived)");
+    }
+
+    // Historical assessments inherit the school year of their subject so they stay
+    // grouped correctly even after the subject itself is archived or corrected.
+    $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
+    $conn->query(
+        "UPDATE exercises_problem ep
+         INNER JOIN {$subjectTable} s ON s.subject_id = ep.subject_id
+         SET ep.school_year_id = s.school_year_id
+         WHERE ep.school_year_id IS NULL
+           AND s.school_year_id IS NOT NULL"
+    );
+}
+
+function getCurrentSchoolYearLabel(): string {
+    $currentYear = (int)date('Y');
+    $currentMonth = (int)date('n');
+    $academicStartYear = $currentMonth >= 6 ? $currentYear : ($currentYear - 1);
+    return $academicStartYear . '-' . ($academicStartYear + 1);
+}
+
 function ensureRubricItemMinPoints(mysqli $conn): void {
     static $checked = false;
     if ($checked) { return; }
@@ -1536,26 +1644,55 @@ function ensureNotificationsTable(mysqli $conn): void {
     $checked = true;
 
     $result = $conn->query("SHOW TABLES LIKE 'Notifications'");
-    if ($result && $result->num_rows > 0) {
-        $result->free();
-        return;
-    }
+    $tableExists = $result && $result->num_rows > 0;
     if ($result) { $result->free(); }
 
-    $conn->query("CREATE TABLE IF NOT EXISTS Notifications (
-        notification_id INT PRIMARY KEY AUTO_INCREMENT,
-        user_id INT NOT NULL,
-        sender_user_id INT,
-        type ENUM('assessment_created', 'assessment_submitted', 'grade_returned') NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        message TEXT NOT NULL,
-        reference_type VARCHAR(50),
-        reference_id INT,
-        is_read TINYINT(1) DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_notifications_user_unread (user_id, is_read),
-        INDEX idx_notifications_created_at (created_at)
-    ) ENGINE=InnoDB");
+    if (!$tableExists) {
+        $conn->query("CREATE TABLE IF NOT EXISTS Notifications (
+            notification_id INT PRIMARY KEY AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            sender_user_id INT,
+            type VARCHAR(50) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            reference_type VARCHAR(50),
+            reference_id INT,
+            is_read TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_notifications_user_unread (user_id, is_read),
+            INDEX idx_notifications_created_at (created_at)
+        ) ENGINE=InnoDB");
+    } else {
+        // Repair older installs: the code writes sender_user_id, but legacy tables used sender_id.
+        $col = $conn->query("SHOW COLUMNS FROM Notifications LIKE 'sender_user_id'");
+        if ($col) {
+            $missingSender = $col->num_rows === 0;
+            $col->free();
+            if ($missingSender) {
+                $legacy = $conn->query("SHOW COLUMNS FROM Notifications LIKE 'sender_id'");
+                if ($legacy && $legacy->num_rows > 0) {
+                    $conn->query("ALTER TABLE Notifications CHANGE COLUMN sender_id sender_user_id INT NULL");
+                } else {
+                    $conn->query("ALTER TABLE Notifications ADD COLUMN sender_user_id INT NULL AFTER user_id");
+                }
+                if ($legacy) { $legacy->free(); }
+            }
+        }
+
+        // Repair legacy ENUM that only allowed 3 of the 5 notification types used in code.
+        $typeCol = $conn->query("SHOW COLUMNS FROM Notifications LIKE 'type'");
+        if ($typeCol && $typeCol->num_rows > 0) {
+            $row = $typeCol->fetch_assoc();
+            $colType = strtoupper((string)($row['Type'] ?? ''));
+            if (str_starts_with($colType, 'ENUM(')) {
+                $conn->query("ALTER TABLE Notifications MODIFY type VARCHAR(50) NOT NULL");
+            }
+        }
+        if ($typeCol) { $typeCol->free(); }
+
+        $conn->query("CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON Notifications (user_id, is_read)");
+        $conn->query("CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON Notifications (created_at)");
+    }
 
     $fkUser = $conn->query("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'Notifications' AND CONSTRAINT_NAME = 'fk_notifications_user' LIMIT 1");
     if ($fkUser && $fkUser->num_rows === 0) {
@@ -1568,4 +1705,85 @@ function ensureNotificationsTable(mysqli $conn): void {
         $conn->query("ALTER TABLE Notifications ADD CONSTRAINT fk_notifications_sender FOREIGN KEY (sender_user_id) REFERENCES Users(user_id)");
     }
     if ($fkSender) { $fkSender->free(); }
+}
+
+function ensureAssessmentSubmitMode(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    if (!schemaColumnExists($conn, 'exercises_problem', 'submit_mode')) {
+        $conn->query("ALTER TABLE exercises_problem ADD COLUMN submit_mode ENUM('student', 'teacher') NOT NULL DEFAULT 'student' AFTER publish_notified");
+    }
+}
+
+function ensureAssessmentGradingCriteriaColumns(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    if (!schemaColumnExists($conn, 'exercises_problem', 'grading_criteria')) {
+        $conn->query("ALTER TABLE exercises_problem ADD COLUMN grading_criteria TEXT NULL AFTER submit_mode");
+    }
+    if (!schemaColumnExists($conn, 'exercises_problem', 'custom_grading_criteria')) {
+        $conn->query("ALTER TABLE exercises_problem ADD COLUMN custom_grading_criteria TEXT NULL AFTER grading_criteria");
+    }
+}
+
+/**
+ * Normalize a grading criteria payload from the client into a safe list of
+ * {key, title, weight} entries. Returns [] for anything unusable.
+ */
+function normalizeGradingCriteriaPayload($value): array {
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($value as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $title = trim((string)($entry['title'] ?? $entry['name'] ?? ''));
+        $weight = round((float)($entry['weight'] ?? 0), 2);
+        if ($title === '' || $weight <= 0) {
+            continue;
+        }
+        if (count($out) >= 20) {
+            break;
+        }
+        $out[] = [
+            'key' => trim((string)($entry['key'] ?? '')),
+            'title' => mb_substr($title, 0, 120),
+            'weight' => min($weight, 100.0),
+        ];
+    }
+    return $out;
+}
+
+function ensureEmailQueueTable(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) { return; }
+    $checked = true;
+
+    $result = $conn->query("SHOW TABLES LIKE 'email_queue'");
+    $tableExists = $result && $result->num_rows > 0;
+    if ($result) { $result->free(); }
+
+    if (!$tableExists) {
+        $conn->query("CREATE TABLE IF NOT EXISTS email_queue (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            to_email VARCHAR(255) NOT NULL,
+            type VARCHAR(50) NOT NULL DEFAULT 'notification',
+            subject VARCHAR(255) NOT NULL,
+            html_body MEDIUMTEXT NOT NULL,
+            status ENUM('pending', 'sending', 'sent', 'failed') NOT NULL DEFAULT 'pending',
+            attempts INT NOT NULL DEFAULT 0,
+            last_error VARCHAR(500) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            sent_at TIMESTAMP NULL,
+            INDEX idx_email_queue_status (status, id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
 }

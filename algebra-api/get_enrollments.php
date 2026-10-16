@@ -30,7 +30,15 @@ try {
             e.student_user_id,
             e.enrollment_status,
             e.date_enrolled,
-            CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name) AS student_name
+            CASE
+                WHEN COALESCE(st.last_name, '') <> '' AND COALESCE(CONCAT_WS(' ', st.first_name, st.middle_name), '') <> ''
+                    THEN CONCAT(st.last_name, ', ', CONCAT_WS(' ', st.first_name, st.middle_name))
+                WHEN COALESCE(st.last_name, '') <> '' THEN st.last_name
+                ELSE CONCAT_WS(' ', st.first_name, st.middle_name)
+            END AS student_name,
+            st.first_name,
+            st.middle_name,
+            st.last_name
          FROM Enrollment e
          JOIN Subject s ON s.subject_id = e.{$enrollmentCol}
          LEFT JOIN {$courseTable} c ON c.course_id = s.course_id
@@ -39,7 +47,7 @@ try {
          LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
          JOIN {$userTable} st ON st.user_id = e.student_user_id
          WHERE s.teacher_user_id = ?
-         ORDER BY s.subject_name ASC, e.date_enrolled DESC"
+         ORDER BY s.subject_name ASC, COALESCE(st.last_name, ''), COALESCE(st.first_name, ''), COALESCE(st.middle_name, ''), e.date_enrolled DESC"
     );
     $stmt->bind_param("i", $teacher_id);
     $stmt->execute();
@@ -66,6 +74,9 @@ try {
             'student_id' => $row['student_id'],
             'student_user_id' => isset($row['student_user_id']) ? (int)$row['student_user_id'] : null,
             'student_name' => trim((string)$row['student_name'] ?? ''),
+            'first_name' => (string)($row['first_name'] ?? ''),
+            'middle_name' => (string)($row['middle_name'] ?? ''),
+            'last_name' => (string)($row['last_name'] ?? ''),
             'enrollment_status' => $row['enrollment_status'] ?? 'enrolled',
             'date_enrolled' => $row['date_enrolled'],
         ];

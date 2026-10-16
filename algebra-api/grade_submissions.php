@@ -17,6 +17,7 @@ ensureAssessmentRubricColumn($conn);
 ensureRubricItemMinPoints($conn);
 ensureSubjectLookupColumns($conn);
 ensureScoreReturnColumn($conn);
+ensureScoreMetricsColumns($conn);
 $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
 $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
 $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
@@ -35,7 +36,15 @@ $query = "
 SELECT
     cs.solution_id AS id,
     ep.exercise_id,
-    CONCAT_WS(' ', s.first_name, s.middle_name, s.last_name) AS student_name,
+    CASE
+        WHEN COALESCE(s.last_name, '') <> '' AND COALESCE(CONCAT_WS(' ', s.first_name, s.middle_name), '') <> ''
+            THEN CONCAT(s.last_name, ', ', CONCAT_WS(' ', s.first_name, s.middle_name))
+        WHEN COALESCE(s.last_name, '') <> '' THEN s.last_name
+        ELSE CONCAT_WS(' ', s.first_name, s.middle_name)
+    END AS student_name,
+    s.first_name,
+    s.middle_name,
+    s.last_name,
     s.institutional_id AS student_id,
     ep.title AS assessment_title,
     ep.rubric_set_id,
@@ -55,6 +64,8 @@ SELECT
     cs.ocr_text,
     sc.score_id,
     sc.total_score_earned,
+    sc.raw_score_earned,
+    sc.max_score_possible,
     sc.ai_feedback,
     sc.returned_at,
     DATE_FORMAT(cs.date_uploaded, '%b %e, %Y') AS submission_date,
@@ -127,7 +138,7 @@ $totalPages = max(1, (int)ceil($totalCount / $perPage));
 $page = min($page, $totalPages);
 $offset = ($page - 1) * $perPage;
 
-$query .= ' ORDER BY cs.date_uploaded DESC, cs.solution_id DESC';
+$query .= ' ORDER BY COALESCE(s.last_name, \'\'), COALESCE(s.first_name, \'\'), COALESCE(s.middle_name, \'\'), cs.date_uploaded DESC, cs.solution_id DESC';
 $query .= " LIMIT {$perPage} OFFSET {$offset}";
 
 $stmt = $conn->prepare($query);
@@ -230,6 +241,9 @@ while ($row = $result->fetch_assoc()) {
         'id' => (int)$row['id'],
         'exercise_id' => $row['exercise_id'] !== null ? (int)$row['exercise_id'] : null,
         'student_name' => $row['student_name'],
+        'first_name' => (string)($row['first_name'] ?? ''),
+        'middle_name' => (string)($row['middle_name'] ?? ''),
+        'last_name' => (string)($row['last_name'] ?? ''),
         'student_id' => $row['student_id'],
         'assessment_title' => $row['assessment_title'],
         'rubric_set_id' => $row['rubric_set_id'] !== null ? (int)$row['rubric_set_id'] : null,
@@ -245,6 +259,8 @@ while ($row = $result->fetch_assoc()) {
         'files' => $files,
         'score_id' => $row['score_id'] !== null ? (int)$row['score_id'] : null,
         'score' => $row['total_score_earned'] !== null ? round((float)$row['total_score_earned'], 2) : null,
+        'raw_score' => $row['raw_score_earned'] !== null && $row['raw_score_earned'] !== '' ? round((float)$row['raw_score_earned'], 2) : null,
+        'max_score' => $row['max_score_possible'] !== null && $row['max_score_possible'] !== '' ? round((float)$row['max_score_possible'], 2) : null,
         'ai_feedback' => $row['ai_feedback'] ?? '',
         'ocr_text' => $row['ocr_text'] ?? null,
         'returned_at' => $row['returned_at'] ?? null,

@@ -72,7 +72,7 @@ try {
          LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
          WHERE subj.teacher_user_id = ?
          GROUP BY ep.exercise_id, ep.title, ep.difficulty, subj.subject_name
-         ORDER BY ep.created_at DESC, ep.exercise_id DESC"
+         ORDER BY ep.date_created DESC, ep.exercise_id DESC"
     );
     $assessmentStmt->bind_param("i", $teacher_id);
     $assessmentStmt->execute();

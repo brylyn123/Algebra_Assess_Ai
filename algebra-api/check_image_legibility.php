@@ -50,7 +50,7 @@ if ($apiKey === '') {
     exit();
 }
 
-$model = trim((string)($config['gemini_model'] ?? 'gemini-2.0-flash'));
+$model = trim((string)($config['gemini_model'] ?? 'gemini-3.8-flash'));
 $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
 $imageData = file_get_contents($file['tmp_name']);
@@ -72,7 +72,8 @@ $payload = [
     ],
     'generationConfig' => [
         'temperature' => 0.1,
-        'maxOutputTokens' => 128,
+        'maxOutputTokens' => 512,
+        'thinkingConfig' => ['thinkingBudget' => 0],
     ],
 ];
 

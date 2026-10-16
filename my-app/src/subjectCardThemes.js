@@ -1,3 +1,5 @@
+import { API_BASE_URL } from './apiBase';
+
 const SUBJECT_CARD_THEMES = [
   {
     surfaceClass: 'bg-[linear-gradient(135deg,rgba(239,246,255,1),rgba(224,231,255,0.95))] border-blue-100',
@@ -87,5 +89,11 @@ export const getSubjectCardTheme = (subject) => {
 export const getSubjectThemeByName = (subjectName) => {
   const key = String(subjectName || 'subject');
   return SUBJECT_CARD_THEMES[hashString(key) % SUBJECT_CARD_THEMES.length];
+};
+
+export const subjectPhotoSrc = (photo) => {
+  if (!photo) return null;
+  if (/^(https?:|data:|blob:)/i.test(photo)) return photo;
+  return `${API_BASE_URL}/${String(photo).replace(/^\/+/, '')}`;
 };
 

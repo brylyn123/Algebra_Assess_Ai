@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -9,11 +9,12 @@ import {
   getCurrentLocalUserEmail,
 } from './localAuthStore';
 import { Skeleton, SkeletonWelcome, SkeletonStatRow, SkeletonSection } from './components/Skeleton';
-import { getSubjectCardTheme } from './subjectCardThemes';
+import { getSubjectCardTheme, subjectPhotoSrc } from './subjectCardThemes';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import MobileNav from './components/MobileNav';
 import NotificationBell from './components/NotificationBell';
+import { LogoMark } from './components/Logo';
 import { useToast } from './components/Toast';
 import MathText from './MathText';
 
@@ -260,6 +261,7 @@ const StudentDashboard = () => {
   const [loadingAssessments, setLoadingAssessments] = useState(false);
   const [assessmentsError, setAssessmentsError] = useState('');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const contentRef = useRef(null);
 
   useEffect(() => {
     const syncCurrentUser = () => {
@@ -282,6 +284,7 @@ const StudentDashboard = () => {
     setCollapsed(true);
     setHovering(false);
     setShowJoinCard(false);
+    if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [location.pathname]);
 
   const fetchSubjects = useCallback(async () => {
@@ -549,7 +552,7 @@ const StudentDashboard = () => {
                 label="Navigation"
               />
               <div className="flex cursor-pointer items-center gap-1.5" onClick={() => navigate('/student')}>
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/20 text-xs font-bold">A</div>
+                <LogoMark size={32} ink="light" />
                 <div>
                   <p className="text-[8px] uppercase tracking-[0.2em] text-white/70">AlgebraAssess</p>
                   <p className="text-[11px] font-bold sm:text-xs">Student Home</p>
@@ -651,7 +654,7 @@ const StudentDashboard = () => {
                 {/* Content area - inside the same panel */}
                 <div className="min-w-0 flex-1 overflow-hidden rounded-r-[2rem] bg-slate-100/80">
                   <div className="flex h-full min-h-0 flex-col overflow-hidden">
-                    <div className="flex-1 overflow-y-auto teacher-scrollbar space-y-4 px-4 py-4 md:space-y-6 md:px-6 md:py-6">
+                    <div ref={contentRef} className="flex-1 overflow-y-auto teacher-scrollbar space-y-4 px-4 py-4 md:space-y-6 md:px-6 md:py-6">
                       <Outlet context={outletContext} />
                     </div>
                   </div>
@@ -704,10 +707,10 @@ export const StudentOverview = () => {
                 onClick={() => navigate('/student/subjects')}
                 className="mt-2 rounded-full bg-white px-3 py-1.5 text-[10px] font-semibold text-purple-600 shadow-md transition hover:shadow-lg"
               >
-                View My Subjects →
+                View My Subjects â†’
               </button>
             </div>
-            <div className="absolute right-4 top-4 text-5xl opacity-20">🎓</div>
+            <div className="absolute right-4 top-4 text-5xl opacity-20">ðŸŽ“</div>
           </div>
 
           {/* Stats Row */}
@@ -766,7 +769,7 @@ export const StudentOverview = () => {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold text-slate-900">{assessment.title}</p>
                       <p className="text-[10px] text-slate-500">
-                        {assessment.difficulty || 'Medium'} · {assessment.item_count ?? 0} items
+                        {assessment.difficulty || 'Medium'} Â· {assessment.item_count ?? 0} items
                       </p>
                     </div>
                     {assessment.due_date && (() => {
@@ -825,6 +828,7 @@ export const StudentSubjects = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
   const [showArchivedSubjects, setShowArchivedSubjects] = useState(false);
+  const [brokenPhotos, setBrokenPhotos] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -978,9 +982,15 @@ export const StudentSubjects = () => {
       return;
     }
 
+    if (selectedAssessment?.submit_mode === 'teacher') {
+      setSubmitMessage('This assessment is administered by your teacher. Your work will be uploaded by the teacher.');
+      toast.warning('Your teacher uploads the work for this assessment.');
+      return;
+    }
+
     if (selectedAssessment.already_submitted) {
       setSubmitMessage('This assessment was already submitted. Your teacher can grade it now.');
-      try { toast?.info('Already submitted — waiting for teacher to grade.'); } catch (_) {}
+      try { toast?.info('Already submitted â€” waiting for teacher to grade.'); } catch (_) {}
       setTimeout(() => {
         setSelectedAssessmentId('');
         setSubmitMessage('');
@@ -1184,7 +1194,7 @@ export const StudentSubjects = () => {
       <section className="flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
         {!isSubjectAssessmentPage && (
           <>
-            <div className="teacher-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto pr-2 pb-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="teacher-scrollbar grid min-h-0 flex-1 grid-cols-1 content-start items-start gap-2 overflow-y-auto pr-2 pb-4 sm:grid-cols-2 lg:grid-cols-3">
               {loadingSubjects ? (
                 <p className="text-sm text-slate-500">Loading subjects...</p>
               ) : subjectsError ? (
@@ -1200,6 +1210,8 @@ export const StudentSubjects = () => {
                 visibleSubjects.map((subject) => {
                   const assessmentCount = assessmentCountBySubject.get(String(subject.subject_id)) ?? 0;
                   const subjectTheme = getSubjectCardTheme(subject);
+                  const photoSrc = subjectPhotoSrc(subject.photo);
+                  const subjectBroken = brokenPhotos[String(subject.subject_id)];
                   return (
                     <button
                       key={subject.subject_id}
@@ -1207,24 +1219,55 @@ export const StudentSubjects = () => {
                       onClick={() => {
                         navigate(`/student/subjects/${subject.subject_id}`);
                       }}
-                      className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/60 p-6 text-left shadow-[0_2px_4px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)] transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_4px_8px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.06)] min-h-[10rem] ${subjectTheme.surfaceClass}`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
-                              {subject.subject_code || 'Subject'}
-                            </p>
-                            <p className="mt-2 text-lg font-bold text-slate-900">{subject.subject_name}</p>
-                            <p className="mt-2 text-sm leading-snug text-slate-500">
-                              {subject.course || 'Course'} • {subject.year || 'Year'} • {subject.section_name || subject.section || 'Section'}
-                            </p>
+                      className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                    >
+                      <div className={`relative h-32 w-full overflow-hidden bg-gradient-to-br ${subjectTheme.accentClass}`}>
+                        <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/20" />
+                        <div className="absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-white/15" />
+                        {photoSrc && !subjectBroken ? (
+                          <img
+                            src={photoSrc}
+                            alt={subject.subject_name}
+                            onError={() => setBrokenPhotos(prev => ({ ...prev, [String(subject.subject_id)]: true }))}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm">
+                              <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-white/90">
+                                <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm2 0v10.5l3.5-3.5 3 3L16 11l4 4V5H6zm3 2.75a1.75 1.75 0 100 3.5 1.75 1.75 0 000-3.5z" />
+                              </svg>
+                            </div>
                           </div>
-
-                          <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-semibold text-emerald-700">
-                            Active
+                        )}
+                        <span className={`absolute right-3 top-3 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${subjectTheme.cardBadgeClass}`}>
+                          {subject.archived ? 'Archived' : 'Active'}
+                        </span>
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1 p-4">
+                        <h3 className={`truncate text-sm font-bold ${subjectTheme.cardTextClass}`}>{subject.subject_name}</h3>
+                        <p className="truncate text-xs text-slate-500">
+                          {subject.course || 'Course'} Â· {subject.year_level || 'Year'} Â· {subject.section_name || 'Section'}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-400">
+                          SY {subject.school_year || 'â€”'} Â· {subject.semester || 'Semester not set'}
+                        </p>
+                        <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${subjectTheme.cardSubtextClass}`}>
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                              <path d="M1 3.5A1.5 1.5 0 012.5 2h5A1.5 1.5 0 019 3.5v9a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 011 12.5v-9zM10 5.5A1.5 1.5 0 0111.5 4h2A1.5 1.5 0 0115 5.5v7a1.5 1.5 0 01-1.5 1.5h-2A1.5 1.5 0 0110 12.5v-7z" />
+                            </svg>
+                            {assessmentCount} assessment{assessmentCount === 1 ? '' : 's'}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] ${subjectTheme.cardSubtextClass}`}>
+                            Open
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5">
+                              <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.19L10.72 5.53a.75.75 0 111.06-1.06l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06l4.22-4.22H3.75A.75.75 0 013 10z" clipRule="evenodd" />
+                            </svg>
                           </span>
                         </div>
-                      </button>
+                      </div>
+                    </button>
                   );
                 })
               )}
@@ -1240,7 +1283,7 @@ export const StudentSubjects = () => {
                 onClick={() => navigate('/student/subjects')}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100"
               >
-                ← Back to Subjects
+                â† Back to Subjects
               </button>
               {selectedSubject && (
                 <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -1248,6 +1291,48 @@ export const StudentSubjects = () => {
                 </span>
               )}
             </div>
+
+            {selectedSubject && (() => {
+              const heroTheme = getSubjectCardTheme(selectedSubject);
+              const heroPhoto = subjectPhotoSrc(selectedSubject.photo);
+              const heroBroken = brokenPhotos[String(selectedSubject.subject_id)];
+              return (
+                <div className="flex items-stretch gap-4 overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                  <div className={`relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br ${heroTheme.accentClass}`}>
+                    <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-white/20" />
+                    {heroPhoto && !heroBroken ? (
+                      <img
+                        src={heroPhoto}
+                        alt={selectedSubject.subject_name}
+                        onError={() => setBrokenPhotos(prev => ({ ...prev, [String(selectedSubject.subject_id)]: true }))}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7 text-white/85">
+                          <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm2 0v10.5l3.5-3.5 3 3L16 11l4 4V5H6zm3 2.75a1.75 1.75 0 100 3.5 1.75 1.75 0 000-3.5z" />
+                        </svg>
+                      </div>
+                    )}
+                    <span className={`absolute left-2 top-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${heroTheme.cardBadgeClass}`}>
+                      {selectedSubject.archived ? 'Archived' : 'Active'}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1 py-1">
+                    <p className={`truncate text-sm font-bold ${heroTheme.cardTextClass}`}>{selectedSubject.subject_name}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {selectedSubject.course || 'Course'} Â· {selectedSubject.year_level || 'Year'} Â· {selectedSubject.section_name || 'Section'}
+                    </p>
+                    <p className="truncate text-[11px] text-slate-400">
+                      SY {selectedSubject.school_year || 'â€”'} Â· {selectedSubject.semester || 'Semester not set'}
+                    </p>
+                    {selectedSubject.teacher_name && (
+                      <p className="mt-1 truncate text-[11px] font-semibold text-slate-500">Prof. {selectedSubject.teacher_name}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {!selectedSubject ? (
               <div className="rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
@@ -1343,15 +1428,17 @@ export const StudentSubjects = () => {
                                 setSelectedAssessmentId(String(assessment.exercise_id));
                               }}
                               className={`shrink-0 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition ${
-                                isOverdue && !assessment.already_submitted
+                                isOverdue && !assessment.already_submitted && assessment.submit_mode !== 'teacher'
                                   ? 'bg-red-50 text-red-600 hover:bg-red-100'
                                   : assessment.already_submitted
                                     ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                              }`}
-                            >
-                              {assessment.already_submitted ? 'View' : isOverdue ? 'Closed' : 'Submit'}
-                            </button>
+                                    : assessment.submit_mode === 'teacher'
+                                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                            }`}
+                          >
+                            {assessment.already_submitted || assessment.submit_mode === 'teacher' ? 'View' : isOverdue ? 'Closed' : 'Submit'}
+                          </button>
                           </div>
                         </div>
                       );
@@ -1448,7 +1535,7 @@ export const StudentSubjects = () => {
                                 <svg className="h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                                 </svg>
-                                <p className="text-xs font-semibold text-emerald-700">Already Submitted — your teacher can now grade this.</p>
+                                <p className="text-xs font-semibold text-emerald-700">Already Submitted â€” your teacher can now grade this.</p>
                               </div>
                               <div>
                                 <p className="text-sm font-semibold text-slate-900">Submitted Solution</p>
@@ -1493,12 +1580,26 @@ export const StudentSubjects = () => {
                                   })}
                                 </div>
                               ) : (
-                                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
-                                  <p className="text-xs text-slate-500">No files were uploaded for this submission.</p>
+                                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                                      <p className="text-xs text-slate-500">No files were uploaded for this submission.</p>
+                                    </div>
+                                  )}
+                                </>
+                              ) : selectedAssessment.submit_mode === 'teacher' ? (
+                                <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-blue-600">
+                                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-blue-900">Uploaded by your teacher</p>
+                                    <p className="mt-1 text-xs text-blue-700">
+                                      This assessment is administered by your teacher. Complete your work on paper as instructed â€” your teacher will upload it for you. No action is needed here.
+                                    </p>
+                                  </div>
                                 </div>
-                              )}
-                            </>
-                          ) : (
+                              ) : (
                             <>
                               <div>
                                 <p className="text-sm font-semibold text-slate-900">Upload Scanned Answer Photos</p>
@@ -1599,14 +1700,14 @@ export const StudentSubjects = () => {
                                             if (quality.pass) {
                                               return (
                                                 <div className="px-2 pb-1.5">
-                                                  <span className="text-[10px] font-medium text-emerald-600">✓ Clear</span>
+                                                  <span className="text-[10px] font-medium text-emerald-600">âœ“ Clear</span>
                                                 </div>
                                               );
                                             }
                                             return (
                                               <div className="px-2 pb-1.5">
                                                 <span className="text-[10px] font-medium text-rose-500">
-                                                  ⚠ {quality.reason || 'Not a handwritten math solution'}
+                                                  âš  {quality.reason || 'Not a handwritten math solution'}
                                                 </span>
                                               </div>
                                             );
@@ -1629,7 +1730,7 @@ export const StudentSubjects = () => {
                           )}
 
                           <div className="flex flex-wrap items-center gap-2">
-                            {!selectedAssessment.already_submitted && (() => {
+                            {!selectedAssessment.already_submitted && selectedAssessment.submit_mode !== 'teacher' && (() => {
                               const isOverdue = (() => {
                                 if (!selectedAssessment.due_date) return false;
                                 const due = new Date(selectedAssessment.due_date);
@@ -1640,7 +1741,7 @@ export const StudentSubjects = () => {
                                 <>
                                   {isOverdue && (
                                     <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-medium text-red-700">
-                                      <span className="font-semibold">Past due date</span> — Submission closed
+                                      <span className="font-semibold">Past due date</span> â€” Submission closed
                                     </div>
                                   )}
                                   <button

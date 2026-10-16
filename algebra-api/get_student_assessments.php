@@ -4,6 +4,7 @@ require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 require_once 'cache_headers.php';
+require_once 'publish_scheduler.php';
 
 $authUser = requireAuthenticatedUser('student');
 $student_id = (int)$authUser['user_id'];
@@ -14,6 +15,11 @@ try {
     ensureSubjectLookupColumns($conn);
     ensureScoreReturnColumn($conn);
     ensureAssessmentDueDate($conn);
+    ensureAssessmentPublishSchedule($conn);
+    ensureAssessmentSubmitMode($conn);
+    ensureAssessmentArchiveColumns($conn);
+    // Publish any assessment whose scheduled time has passed (and notify its students).
+    flushScheduledAssessments($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
@@ -27,7 +33,9 @@ try {
             ep.topic,
             ep.difficulty,
             ep.due_date,
-            ep.created_at AS date_created,
+            ep.publish_at,
+            ep.submit_mode,
+            ep.date_created AS date_created,
             s.subject_name,
             s.join_code,
             COALESCE(c.course_code, c.course_name) AS course,
@@ -56,7 +64,8 @@ try {
         LEFT JOIN exercise_items ei ON ei.exercise_id = ep.exercise_id
         LEFT JOIN Captured_Solution cs ON cs.exercise_id = ep.exercise_id AND cs.student_user_id = ?
         LEFT JOIN Scores sc ON sc.solution_id = cs.solution_id
-        WHERE s.archived = 0 AND ep.is_published = 1
+        WHERE s.archived = 0 AND ep.is_published = 1 AND ep.archived = 0
+          AND (ep.publish_at IS NULL OR ep.publish_at <= NOW())
     ";
 
     $types = 'ii';
@@ -77,7 +86,9 @@ try {
             ep.topic,
             ep.difficulty,
             ep.due_date,
-            ep.created_at,
+            ep.publish_at,
+            ep.submit_mode,
+            ep.date_created,
             s.subject_name,
             s.join_code,
             c.course_code,
@@ -85,7 +96,7 @@ try {
             sec.section_name,
             COALESCE(sem.semester_name, s.semester),
             sy.label
-        ORDER BY ep.created_at DESC, ep.exercise_id DESC
+        ORDER BY ep.date_created DESC, ep.exercise_id DESC
     ";
 
     $stmt = $conn->prepare($query);
@@ -110,6 +121,8 @@ try {
             'topic' => $row['topic'],
             'difficulty' => $row['difficulty'] ?? 'Medium',
             'due_date' => $row['due_date'] ?? null,
+            'publish_at' => $row['publish_at'] ?? null,
+            'submit_mode' => $row['submit_mode'] === 'teacher' ? 'teacher' : 'student',
             'date_created' => $row['date_created'],
             'subject_name' => $row['subject_name'],
             'subject_code' => $row['join_code'],

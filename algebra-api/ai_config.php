@@ -28,14 +28,14 @@ function getAiConfig(): array
     $config = array_filter(array_merge([
         'api_key' => null,
         'base_url' => 'https://api.deepseek.com',
-        'model' => 'deepseek-v4-flash',
-        'ocr_model' => 'deepseek-v4-flash',
+        'model' => 'deepseek-chat',
+        'ocr_model' => 'deepseek-flash',
         'ocr_provider' => 'gemini',
         'gemini_api_key' => null,
-        'gemini_model' => 'gemini-3-flash-preview',
+        'gemini_model' => 'gemini-3.8-flash',
         'tesseract_path' => null,
         'timeout_seconds' => 60,
-    ], $localConfig, $envConfig), static fn($value) => $value !== null && $value !== '');
+    ], $envConfig, $localConfig), static fn($value) => $value !== null && $value !== '');
 
     $config['timeout_seconds'] = isset($config['timeout_seconds']) ? (int)$config['timeout_seconds'] : 60;
 

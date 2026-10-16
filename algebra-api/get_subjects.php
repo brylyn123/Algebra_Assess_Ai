@@ -17,6 +17,7 @@ $teacher_id = (int)$authUser['user_id'];
 
 try {
     ensureArchivedColumn($conn);
+    ensureSubjectPhotoColumn($conn);
     ensureSubjectLookupColumns($conn);
     $subjectTable = resolveExistingTableName($conn, ['Subject', 'subject']);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);

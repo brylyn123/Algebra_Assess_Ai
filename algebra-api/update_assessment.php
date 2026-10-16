@@ -28,12 +28,46 @@ $description = trim($data['description'] ?? '');
 $topic = trim($data['topic'] ?? '');
 $difficulty = trim($data['difficulty'] ?? 'Medium');
 $due_date = !empty($data['due_date']) ? trim($data['due_date']) : null;
+$publish_at = !empty($data['publish_at']) ? trim($data['publish_at']) : null;
+$submit_mode = trim($data['submit_mode'] ?? 'student');
 $items = is_array($data['items']) ? $data['items'] : [];
 $startedTransaction = false;
+
+if (isset($data['grading_criteria']) && !is_array($data['grading_criteria'])) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "grading_criteria must be an array."]);
+    exit;
+}
+if (isset($data['custom_grading_criteria']) && !is_array($data['custom_grading_criteria'])) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "custom_grading_criteria must be an array."]);
+    exit;
+}
+$gradingCriteria = normalizeGradingCriteriaPayload($data['grading_criteria'] ?? []);
+$customGradingCriteria = normalizeGradingCriteriaPayload($data['custom_grading_criteria'] ?? []);
 
 $allowedDifficulties = ['Easy', 'Medium', 'Hard'];
 if (!in_array($difficulty, $allowedDifficulties, true)) {
     $difficulty = 'Medium';
+}
+
+if (!in_array($submit_mode, ['student', 'teacher'], true)) {
+    $submit_mode = 'student';
+}
+
+if ($publish_at !== null && strtotime($publish_at) === false) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "Publish date is invalid."]);
+    exit;
+}
+
+$publishTimestamp = $publish_at !== null ? strtotime($publish_at) : false;
+$dueTimestamp = $due_date !== null ? strtotime($due_date) : false;
+if ($publishTimestamp !== false && $publishTimestamp > time()
+    && $dueTimestamp !== false && $dueTimestamp <= $publishTimestamp) {
+    http_response_code(422);
+    echo json_encode(["status" => "error", "message" => "Due date must be later than the publish date."]);
+    exit;
 }
 
 if (!$exercise_id || empty($subject_ids) || $title === '') {
@@ -67,9 +101,14 @@ if (count($items) === 0) {
 }
 
 try {
+    ensureAssessmentDueDate($conn);
+    ensureAssessmentPublishSchedule($conn);
+    ensureAssessmentSubmitMode($conn);
+    ensureAssessmentGradingCriteriaColumns($conn);
+
     // Verify the assessment exists and belongs to this teacher
     $checkStmt = $conn->prepare(
-        "SELECT exercise_id, subject_id FROM exercises_problem WHERE exercise_id = ? LIMIT 1"
+        "SELECT exercise_id, subject_id, is_published, publish_notified FROM exercises_problem WHERE exercise_id = ? LIMIT 1"
     );
     $checkStmt->bind_param("i", $exercise_id);
     $checkStmt->execute();
@@ -155,14 +194,20 @@ try {
     $conn->begin_transaction();
     $startedTransaction = true;
 
-    // Update exercises_problem
+    // Update exercises_problem. Students that were already notified keep a live
+    // assessment live: their schedule is cleared instead of re-applied.
+    $isLive = (int)($checkRow['publish_notified'] ?? 0) === 1;
+    $publishAtParam = ($publish_at !== null && !$isLive) ? $publish_at : null;
+
     $updateStmt = $conn->prepare(
         "UPDATE exercises_problem
-         SET subject_id = ?, rubric_set_id = ?, title = ?, description = ?, topic = ?, difficulty = ?, due_date = ?
+         SET subject_id = ?, rubric_set_id = ?, title = ?, description = ?, topic = ?, difficulty = ?, due_date = ?, publish_at = ?, submit_mode = ?, grading_criteria = ?, custom_grading_criteria = ?
          WHERE exercise_id = ?"
     );
     $dueDateParam = $due_date !== null ? $due_date : null;
-    $updateStmt->bind_param("iisssssi", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty, $dueDateParam, $exercise_id);
+    $gradingCriteriaJson = json_encode($gradingCriteria, JSON_UNESCAPED_UNICODE);
+    $customGradingCriteriaJson = json_encode($customGradingCriteria, JSON_UNESCAPED_UNICODE);
+    $updateStmt->bind_param("iisssssssssi", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty, $dueDateParam, $publishAtParam, $submit_mode, $gradingCriteriaJson, $customGradingCriteriaJson, $exercise_id);
     $updateStmt->execute();
     $updateStmt->close();
 
@@ -174,8 +219,8 @@ try {
 
     // Insert new items
     $itemStmt = $conn->prepare(
-        "INSERT INTO exercise_items (exercise_id, rubric_set_id, item_no, question_type, question_content, max_score)
-         VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO exercise_items (exercise_id, rubric_set_id, item_no, question_type, question_content, max_score, effort_minimum_guarantee)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
 
     foreach ($items as $idx => $item) {
@@ -184,6 +229,7 @@ try {
         $content = trim($item['question_content'] ?? '');
         $maxScore = isset($item['max_score']) ? (float)$item['max_score'] : 1.0;
         $itemRubricId = $itemRubricIds[$idx] ?? null;
+        $itemEffortMin = isset($item['effort_minimum_guarantee']) ? max(0, floatval($item['effort_minimum_guarantee'])) : 0.0;
 
         if ($questionType !== 'handwritten_algebra') {
             $questionType = 'handwritten_algebra';
@@ -192,7 +238,7 @@ try {
             throw new Exception('Each item must include question_content.');
         }
 
-        $itemStmt->bind_param("iiissd", $exercise_id, $itemRubricId, $itemNo, $questionType, $content, $maxScore);
+        $itemStmt->bind_param("iiissdd", $exercise_id, $itemRubricId, $itemNo, $questionType, $content, $maxScore, $itemEffortMin);
         $itemStmt->execute();
     }
     $itemStmt->close();

@@ -3,6 +3,7 @@ require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
 require_once 'notifications_helper.php';
+require_once 'publish_scheduler.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -23,18 +24,59 @@ if (empty($subject_ids) && !empty($data['subject_id'])) {
 $subject_id = $subject_ids[0] ?? null; // Primary subject for backward compat
 
 $rubric_set_id = isset($data['rubric_set_id']) ? intval($data['rubric_set_id']) : null;
-$title = trim($data['title'] ?? '');
-$description = trim($data['description'] ?? '');
-$topic = trim($data['topic'] ?? '');
-$difficulty = trim($data['difficulty'] ?? 'Medium');
-$due_date = !empty($data['due_date']) ? trim($data['due_date']) : null;
-$items = is_array($data['items']) ? $data['items'] : [];
-$startedTransaction = false;
+    $title = trim($data['title'] ?? '');
+    $description = trim($data['description'] ?? '');
+    $topic = trim($data['topic'] ?? '');
+    $difficulty = trim($data['difficulty'] ?? 'Medium');
+    $due_date = !empty($data['due_date']) ? trim($data['due_date']) : null;
+    $publish_at = !empty($data['publish_at']) ? trim($data['publish_at']) : null;
+    $submit_mode = trim($data['submit_mode'] ?? 'student');
+    $items = is_array($data['items']) ? $data['items'] : [];
+    $startedTransaction = false;
+
+    if (isset($data['grading_criteria']) && !is_array($data['grading_criteria'])) {
+        http_response_code(422);
+        echo json_encode(["status" => "error", "message" => "grading_criteria must be an array."]);
+        exit;
+    }
+    if (isset($data['custom_grading_criteria']) && !is_array($data['custom_grading_criteria'])) {
+        http_response_code(422);
+        echo json_encode(["status" => "error", "message" => "custom_grading_criteria must be an array."]);
+        exit;
+    }
+    $gradingCriteria = normalizeGradingCriteriaPayload($data['grading_criteria'] ?? []);
+    $customGradingCriteria = normalizeGradingCriteriaPayload($data['custom_grading_criteria'] ?? []);
 
 $allowedDifficulties = ['Easy', 'Medium', 'Hard'];
 if (!in_array($difficulty, $allowedDifficulties, true)) {
     $difficulty = 'Medium';
 }
+
+if (!in_array($submit_mode, ['student', 'teacher'], true)) {
+    $submit_mode = 'student';
+}
+
+$publishTimestamp = null;
+if ($publish_at !== null) {
+    $publishTimestamp = strtotime($publish_at);
+    if ($publishTimestamp === false) {
+        http_response_code(422);
+        echo json_encode(["status" => "error", "message" => "Publish date is invalid."]);
+        exit;
+    }
+    if ($publishTimestamp <= time()) {
+        http_response_code(422);
+        echo json_encode(["status" => "error", "message" => "Publish date must be in the future. Clear it to publish immediately."]);
+        exit;
+    }
+    $dueTimestamp = $due_date !== null ? strtotime($due_date) : false;
+    if ($dueTimestamp !== false && $dueTimestamp <= $publishTimestamp) {
+        http_response_code(422);
+        echo json_encode(["status" => "error", "message" => "Due date must be later than the publish date."]);
+        exit;
+    }
+}
+
 
 if (empty($subject_ids) || $title === '') {
     http_response_code(422);
@@ -67,11 +109,21 @@ if (count($items) === 0) {
 }
 
 try {
+    ensureAssessmentRubricColumn($conn);
+    ensureAssessmentDueDate($conn);
+    ensureAssessmentPublishSchedule($conn);
+    ensureAssessmentSubmitMode($conn);
+    ensureAssessmentGradingCriteriaColumns($conn);
+    ensureItemRubricColumn($conn);
+    ensureAssessmentArchiveColumns($conn);
+    ensureSchoolYearSchema($conn);
+
     // Validate all subjects exist and belong to this teacher
     $validSubjectIds = [];
+    $schoolYearId = null;
     foreach ($subject_ids as $sid) {
         $subjectStmt = $conn->prepare(
-            "SELECT subject_id, teacher_user_id FROM subject WHERE subject_id = ? LIMIT 1"
+            "SELECT subject_id, teacher_user_id, school_year_id FROM subject WHERE subject_id = ? LIMIT 1"
         );
         $subjectStmt->bind_param("i", $sid);
         $subjectStmt->execute();
@@ -86,28 +138,30 @@ try {
             throw new Exception("Teacher is not assigned to subject ID {$sid}.");
         }
         $validSubjectIds[] = $sid;
+        if ($schoolYearId === null && !empty($subjectRow['school_year_id'])) {
+            $schoolYearId = (int)$subjectRow['school_year_id'];
+        }
     }
     $subject_id = $validSubjectIds[0]; // Primary for backward compat
 
-    ensureAssessmentRubricColumn($conn);
-    ensureAssessmentDueDate($conn);
-    ensureItemRubricColumn($conn);
-
     if ($rubric_set_id) {
-        $rubricStmt = $conn->prepare(
-            "SELECT rubric_set_id
-             FROM rubric_sets
-             WHERE rubric_set_id = ? AND teacher_user_id = ?
-             LIMIT 1"
-        );
-        $rubricStmt->bind_param("ii", $rubric_set_id, $teacher_id);
-        $rubricStmt->execute();
-        $rubricResult = $rubricStmt->get_result();
-        $rubricRow = $rubricResult ? $rubricResult->fetch_assoc() : null;
-        $rubricStmt->close();
+        // Allow default rubrics (-1, -2) which are templates
+        if ($rubric_set_id > 0) {
+            $rubricStmt = $conn->prepare(
+                "SELECT rubric_set_id
+                 FROM rubric_sets
+                 WHERE rubric_set_id = ? AND teacher_user_id = ?
+                 LIMIT 1"
+            );
+            $rubricStmt->bind_param("ii", $rubric_set_id, $teacher_id);
+            $rubricStmt->execute();
+            $rubricResult = $rubricStmt->get_result();
+            $rubricRow = $rubricResult ? $rubricResult->fetch_assoc() : null;
+            $rubricStmt->close();
 
-        if (!$rubricRow) {
-            throw new Exception("Rubric not found or does not belong to this teacher.");
+            if (!$rubricRow) {
+                throw new Exception("Rubric not found or does not belong to this teacher.");
+            }
         }
     } else {
         $rubric_set_id = null;
@@ -125,6 +179,9 @@ try {
             $vrRow = $vrResult ? $vrResult->fetch_assoc() : null;
             $vrStmt->close();
             $itemRubricIds[] = $vrRow ? $itemRubricId : null;
+        } elseif ($itemRubricId < 0) {
+            // Allow default rubrics (-1, -2) as templates
+            $itemRubricIds[] = $itemRubricId;
         } else {
             $itemRubricIds[] = null;
         }
@@ -133,12 +190,17 @@ try {
     $conn->begin_transaction();
     $startedTransaction = true;
 
+    $isScheduled = $publishTimestamp !== null;
+    $gradingCriteriaJson = json_encode($gradingCriteria, JSON_UNESCAPED_UNICODE);
+    $customGradingCriteriaJson = json_encode($customGradingCriteria, JSON_UNESCAPED_UNICODE);
     $exerciseStmt = $conn->prepare(
-        "INSERT INTO exercises_problem (subject_id, rubric_set_id, title, description, topic, difficulty, due_date, is_published)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)"
+        "INSERT INTO exercises_problem (subject_id, rubric_set_id, title, description, topic, difficulty, due_date, publish_at, is_published, publish_notified, submit_mode, school_year_id, grading_criteria, custom_grading_criteria)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)"
     );
     $dueDateParam = $due_date !== null ? $due_date : null;
-    $exerciseStmt->bind_param("iisssss", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty, $dueDateParam);
+    $publishAtParam = $publish_at !== null ? $publish_at : null;
+    $publishNotifiedParam = $isScheduled ? 0 : 1;
+    $exerciseStmt->bind_param("iissssssisiss", $subject_id, $rubric_set_id, $title, $description, $topic, $difficulty, $dueDateParam, $publishAtParam, $publishNotifiedParam, $submit_mode, $schoolYearId, $gradingCriteriaJson, $customGradingCriteriaJson);
     $exerciseStmt->execute();
     $exerciseId = $conn->insert_id;
     $exerciseStmt->close();
@@ -150,8 +212,9 @@ try {
             item_no,
             question_type,
             question_content,
-            max_score
-         ) VALUES (?, ?, ?, ?, ?, ?)"
+            max_score,
+            effort_minimum_guarantee
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
 
     foreach ($items as $idx => $item) {
@@ -162,6 +225,7 @@ try {
             ? (float)$item['max_score']
             : (isset($item['max_score_per_item']) ? (float)$item['max_score_per_item'] : 1.0);
         $itemRubricId = $itemRubricIds[$idx] ?? null;
+        $itemEffortMin = isset($item['effort_minimum_guarantee']) ? max(0, floatval($item['effort_minimum_guarantee'])) : 0.0;
 
         if ($questionType !== 'handwritten_algebra') {
             $questionType = 'handwritten_algebra';
@@ -180,13 +244,14 @@ try {
         }
 
         $itemStmt->bind_param(
-            "iiissd",
+            "iiissdd",
             $exerciseId,
             $itemRubricId,
             $itemNo,
             $questionType,
             $content,
-            $maxScore
+            $maxScore,
+            $itemEffortMin
         );
         $itemStmt->execute();
     }
@@ -206,43 +271,21 @@ try {
 
     $conn->commit();
 
-    // Notify all enrolled students in each subject
-    $enrollmentCol = getEnrollmentSubjectColumn($conn);
-    $notifStmt = $conn->prepare(
-        "SELECT DISTINCT e.student_user_id, u.email, u.first_name
-         FROM Enrollment e
-         INNER JOIN Users u ON u.user_id = e.student_user_id
-         WHERE e.$enrollmentCol = ? AND e.enrollment_status = 'enrolled'"
-    );
-    $subjNameStmt = $conn->prepare("SELECT subject_name FROM Subject WHERE subject_id = ? LIMIT 1");
-    foreach ($validSubjectIds as $sid) {
-        $subjNameStmt->bind_param('i', $sid);
-        $subjNameStmt->execute();
-        $subjNameRow = $subjNameStmt->get_result()->fetch_assoc();
-        $subject_name = $subjNameRow['subject_name'] ?? 'your subject';
-
-        $notifStmt->bind_param('i', $sid);
-        $notifStmt->execute();
-        $notifResult = $notifStmt->get_result();
-        while ($student = $notifResult->fetch_assoc()) {
-            $studentId = (int)$student['student_user_id'];
-            $studentEmail = (string)($student['email'] ?? '');
-            $dueMsg = $due_date ? " Due: {$due_date}." : '';
-            $notifMsg = "A new assessment \"{$title}\" has been added to {$subject_name}.{$dueMsg}";
-            createNotification($conn, $studentId, $teacher_id, 'assessment_created', 'New Assessment', $notifMsg, 'exercise', $exerciseId);
-            if (!empty($studentEmail)) {
-                sendNotificationEmail($studentEmail, 'assessment_created', 'New Assessment: ' . $title, $notifMsg);
-            }
-        }
+    if ($isScheduled) {
+        // Students are notified by flushScheduledAssessments() when publish_at is reached.
+        $message = "Assessment created. It will be published automatically on "
+            . date('M d, Y h:i A', $publishTimestamp) . ".";
+    } else {
+        notifyStudentsOfNewAssessment($conn, $exerciseId, $validSubjectIds, $title, $due_date, $teacher_id);
+        $message = "Assessment created and published.";
     }
-    $subjNameStmt->close();
-    $notifStmt->close();
 
     echo json_encode([
         "status" => "success",
-        "message" => "Assessment created and published.",
+        "message" => $message,
         "exercise_id" => $exerciseId,
         "rubric_set_id" => $rubric_set_id,
+        "publish_at" => $publish_at,
     ]);
 } catch (Exception $e) {
     if ($startedTransaction || $conn->in_transaction) {

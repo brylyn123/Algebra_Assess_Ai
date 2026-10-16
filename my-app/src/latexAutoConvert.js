@@ -54,12 +54,9 @@ const SYMBOL_MAP = {
   '!=': '\\neq',
   '<>': '\\neq',
   '==': '=',
-  '!=': '\\neq',
   '=>': '\\Rightarrow',
-  '<=': '\\Leftarrow',
   '<=>': '\\Leftrightarrow',
   '...': '\\ldots',
-  '...': '\\cdots',
   '+/-': '\\pm',
   '+-': '\\pm',
   'xx': '\\times',
@@ -70,9 +67,10 @@ const SYMBOL_MAP = {
   '|=': '\\models',
   '|-': '\\vdash',
   '->_': '\\rightarrow',
-  '->_': '\\longrightarrow',
   '<-_': '\\leftarrow',
   '<--_': '\\longleftarrow',
+  '->': '\\to',
+  '<-': '\\gets',
 };
 
 function convertGreekWords(text) {

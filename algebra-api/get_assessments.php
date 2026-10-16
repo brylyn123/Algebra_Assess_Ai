@@ -3,6 +3,7 @@ require_once 'auth.php';
 include 'db_connect.php';
 require_once 'schema_utils.php';
 require_once 'cache_headers.php';
+require_once 'publish_scheduler.php';
 
 $authUser = requireAuthenticatedUser('teacher');
 $teacher_id = (int)$authUser['user_id'];
@@ -10,8 +11,15 @@ $teacher_id = (int)$authUser['user_id'];
 try {
     ensureAssessmentRubricColumn($conn);
     ensureAssessmentDueDate($conn);
+    ensureAssessmentPublishSchedule($conn);
+    ensureAssessmentSubmitMode($conn);
+    ensureAssessmentGradingCriteriaColumns($conn);
     ensureItemRubricColumn($conn);
     ensureSubjectLookupColumns($conn);
+    ensureAssessmentArchiveColumns($conn);
+    ensureSchoolYearSchema($conn);
+    // Make sure scheduled assessments flip live (and notify) even if no student is browsing.
+    flushScheduledAssessments($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $semesterTable = resolveExistingTableName($conn, ['Semester', 'semester']);
@@ -26,17 +34,25 @@ try {
             ep.topic,
             ep.difficulty,
             ep.due_date,
+            ep.publish_at,
             ep.is_published,
             ep.last_draft_save,
-            ep.created_at AS date_created,
+            ep.submit_mode,
+            ep.grading_criteria,
+            ep.custom_grading_criteria,
+            ep.date_created AS date_created,
             rs.rubric_name,
             COALESCE(s.subject_name, 'Unassigned Subject') AS subject_name,
             COALESCE(c.course_code, c.course_name) AS course,
             sec.section_name AS section,
             COALESCE(sem.semester_name, s.semester) AS semester,
-            COALESCE(sy.label, '') AS school_year,
+            ep.school_year_id,
+            COALESCE(syOwn.label, sy.label, '') AS school_year,
+            ep.archived AS assessment_archived,
+            COALESCE(s.archived, 0) AS subject_archived,
             CASE
                 WHEN ep.is_published = 0 THEN 'Draft'
+                WHEN ep.publish_at IS NOT NULL AND ep.publish_at > NOW() THEN 'Scheduled'
                 WHEN EXISTS (
                     SELECT 1
                     FROM Scores sc
@@ -56,13 +72,25 @@ try {
          LEFT JOIN {$sectionTable} sec ON sec.section_id = s.section_id
          LEFT JOIN {$semesterTable} sem ON sem.semester_id = s.semester_id
          LEFT JOIN school_year sy ON sy.school_year_id = s.school_year_id
+         LEFT JOIN school_year syOwn ON syOwn.school_year_id = ep.school_year_id
          LEFT JOIN rubric_sets rs ON rs.rubric_set_id = ep.rubric_set_id
          WHERE s.teacher_user_id = ?
-         ORDER BY ep.created_at DESC"
+         ORDER BY ep.date_created DESC"
     );
     $stmt->bind_param("i", $teacher_id);
     $stmt->execute();
     $result = $stmt->get_result();
+
+    // The active school year can be pinned by an admin (school_year.is_active);
+    // otherwise fall back to the academic year the server clock is in.
+    $activeLabel = '';
+    $activeStmt = $conn->query("SELECT label FROM school_year WHERE is_active = 1 ORDER BY school_year_id DESC LIMIT 1");
+    if ($activeStmt && ($activeRow = $activeStmt->fetch_assoc())) {
+        $activeLabel = trim((string)($activeRow['label'] ?? ''));
+    }
+    if ($activeStmt) { $activeStmt->free(); }
+    $currentYearLabel = $activeLabel !== '' ? $activeLabel : getCurrentSchoolYearLabel();
+    $currentYearStart = (int)substr($currentYearLabel, 0, 4);
 
     $assessmentsById = [];
     while ($row = $result->fetch_assoc()) {
@@ -72,6 +100,14 @@ try {
                 $subjectMeta[] = $row[$field];
             }
         }
+
+        $schoolYearLabel = trim((string)($row['school_year'] ?? ''));
+        $labelStart = (int)substr($schoolYearLabel, 0, 4);
+        $isCurrentYear = $schoolYearLabel !== '' && $schoolYearLabel === $currentYearLabel;
+        $isPastYear = $schoolYearLabel !== ''
+            && $labelStart > 0
+            && $currentYearStart > 0
+            && $labelStart < $currentYearStart;
 
         $exerciseId = (int)$row["exercise_id"];
         $assessmentsById[$exerciseId] = [
@@ -84,12 +120,27 @@ try {
             "topic" => $row["topic"],
             "difficulty" => $row["difficulty"] ?? 'Medium',
             "due_date" => $row["due_date"] ?? null,
+            "publish_at" => $row["publish_at"] ?? null,
             "is_published" => (int)($row["is_published"] ?? 0),
             "last_draft_save" => $row["last_draft_save"] ?? null,
+            "submit_mode" => $row["submit_mode"] === 'teacher' ? 'teacher' : 'student',
+            "grading_criteria" => (static function () use ($row) {
+                $decoded = json_decode((string)($row["grading_criteria"] ?? ''), true);
+                return is_array($decoded) ? $decoded : [];
+            })(),
+            "custom_grading_criteria" => (static function () use ($row) {
+                $decoded = json_decode((string)($row["custom_grading_criteria"] ?? ''), true);
+                return is_array($decoded) ? $decoded : [];
+            })(),
             "subject" => $row["subject_name"],
             "subject_meta" => implode(" - ", $subjectMeta),
             "subjects" => [], // Will be populated below
             "date_created" => $row["date_created"],
+            "school_year_id" => isset($row["school_year_id"]) && $row["school_year_id"] !== null ? (int)$row["school_year_id"] : null,
+            "school_year" => $schoolYearLabel,
+            "is_current_year" => $isCurrentYear,
+            "is_past_year" => $isPastYear,
+            "archived" => (int)($row["assessment_archived"] ?? 0) === 1 || (int)($row["subject_archived"] ?? 0) === 1,
             "assessment_status" => $row["assessment_status"],
             "status" => $row["assessment_status"],
             "item_count" => 0,
@@ -97,6 +148,9 @@ try {
         ];
     }
     $stmt->close();
+
+    // Expose the resolved current school year so the UI can label groups consistently.
+    $currentSchoolYear = $currentYearLabel;
 
     // Load all linked subjects from assessment_subjects
     if (count($assessmentsById) > 0) {
@@ -168,6 +222,7 @@ try {
                 ei.question_type,
                 ei.question_content,
                 ei.max_score,
+                ei.effort_minimum_guarantee,
                 rs.rubric_name
              FROM exercise_items ei
              INNER JOIN exercises_problem ep ON ei.exercise_id = ep.exercise_id
@@ -194,6 +249,7 @@ try {
                 "max_score" => isset($itemRow['max_score']) ? (float)$itemRow['max_score'] : 1.0,
                 "rubric_set_id" => isset($itemRow['rubric_set_id']) ? (int)$itemRow['rubric_set_id'] : null,
                 "rubric_name" => $itemRow['rubric_name'] ?? null,
+                "effort_minimum_guarantee" => isset($itemRow['effort_minimum_guarantee']) ? (float)$itemRow['effort_minimum_guarantee'] : 0.0,
             ];
             $assessmentsById[$exerciseId]['item_count']++;
         }
@@ -201,7 +257,11 @@ try {
     }
 
     setCacheHeaders(60);
-    echo json_encode(["status" => "success", "assessments" => array_values($assessmentsById)]);
+    echo json_encode([
+        "status" => "success",
+        "current_school_year" => $currentSchoolYear,
+        "assessments" => array_values($assessmentsById),
+    ]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(["status" => "error", "message" => "Unable to load assessments."]);

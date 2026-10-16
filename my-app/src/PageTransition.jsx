@@ -4,10 +4,11 @@ import { motion, useReducedMotion } from 'framer-motion';
 const PageTransition = ({ children }) => {
   const prefersReducedMotion = useReducedMotion();
 
-  if (prefersReducedMotion) return <div>{children}</div>;
+  if (prefersReducedMotion) return <div className="h-full">{children}</div>;
 
   return (
     <motion.div
+      className="h-full"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}

@@ -10,6 +10,7 @@ $teacher_id = (int)$authUser['user_id'];
 
 try {
     ensureSubjectLookupColumns($conn);
+    ensureSubjectPhotoColumn($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
@@ -28,6 +29,7 @@ try {
             COALESCE(sem.semester_name, s.semester) AS semester,
             s.join_code,
             s.archived,
+            s.photo,
             COALESCE(c.course_code, c.course_name) AS course,
             yl.year_level AS year,
             sec.section_name AS section

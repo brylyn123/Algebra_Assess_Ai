@@ -18,6 +18,12 @@ module.exports = {
         },
     },
     plugins: ['react', 'react-hooks'],
+    overrides: [
+        {
+            files: ['src/**/*.test.{js,jsx}', 'src/setupTests.js', 'src/**/__mocks__/**'],
+            env: { jest: true },
+        },
+    ],
     settings: {
         react: {
             version: 'detect',
@@ -26,5 +32,6 @@ module.exports = {
     rules: {
         'react/react-in-jsx-scope': 'off',
         'react/jsx-uses-react': 'off',
+        'no-unused-vars': ['error', { ignoreRestSiblings: true }],
     },
 };

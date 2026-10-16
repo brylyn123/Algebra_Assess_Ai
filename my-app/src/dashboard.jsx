@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
 import { clearCurrentLocalUserEmail } from './localAuthStore';
@@ -6,6 +6,7 @@ import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import MobileNav from './components/MobileNav';
 import NotificationBell from './components/NotificationBell';
+import { LogoMark } from './components/Logo';
 
 const iconClassName = 'h-4 w-4';
 
@@ -99,6 +100,7 @@ const Dashboard = () => {
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const contentRef = useRef(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -112,6 +114,7 @@ const Dashboard = () => {
   useEffect(() => {
     setCollapsed(true);
     setHovering(false);
+    if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [location.pathname]);
 
   const performLogout = async () => {
@@ -291,8 +294,8 @@ const Dashboard = () => {
                 className="flex cursor-pointer items-center gap-2"
                 onClick={() => navigate('/dashboard')}
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
-                  {navIcons.home}
+                <div className="flex items-center justify-center">
+                  <LogoMark size={40} ink="light" />
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">AlgebraAssess</p>
@@ -374,6 +377,7 @@ const Dashboard = () => {
             {/* Content area - inside the same panel */}
             <div className="min-w-0 flex-1 overflow-hidden rounded-r-[2rem] bg-slate-100/80">
               <div
+                ref={contentRef}
                 className="h-full teacher-scrollbar overflow-y-auto"
                 style={{ scrollbarGutter: 'stable' }}
               >

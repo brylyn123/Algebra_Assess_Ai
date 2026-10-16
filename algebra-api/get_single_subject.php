@@ -16,6 +16,7 @@ if ($subjectId <= 0) {
 
 try {
     ensureSubjectLookupColumns($conn);
+    ensureSubjectPhotoColumn($conn);
     $courseTable = resolveExistingTableName($conn, ['Course', 'course']);
     $sectionTable = resolveExistingTableName($conn, ['Section', 'section']);
     $yearTable = resolveExistingTableName($conn, ['Year_Level', 'year']);
@@ -29,6 +30,7 @@ try {
         "SELECT
             s.subject_id,
             s.subject_name,
+            s.photo,
             {$selectJoinCode},
             COALESCE(c.course_code, c.course_name) AS course,
             yl.year_level AS year,

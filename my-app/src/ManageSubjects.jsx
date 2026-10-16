@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axios from './axiosClient';
 import { API_BASE_URL } from './apiBase';
 import { loadSubjects, saveSubjects } from './subjectsStore';
 import { findLocalUser, getCurrentLocalUserEmail, storeLocalUser } from './localAuthStore';
-import { getSubjectCardTheme } from './subjectCardThemes';
+import { getSubjectCardTheme, subjectPhotoSrc } from './subjectCardThemes';
 import { useTeacherRecords } from './hooks/useTeacherRecords';
 import Select from './components/Select';
 
@@ -24,6 +24,43 @@ const buildLocalSchoolYearFallbacks = () => {
         `${startYear + 1}-${startYear + 2}`,
     ];
 };
+
+const readImageAsDataUrl = (file, maxDimension = 1400) => new Promise((resolve, reject) => {
+    if (!file) {
+        reject(new Error('No image selected.'));
+        return;
+    }
+    if (!file.type.startsWith('image/')) {
+        reject(new Error('Please choose an image file (JPG, PNG, or WebP).'));
+        return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+        reject(new Error('Image is too large (max 8MB).'));
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.onload = () => {
+        const image = new Image();
+        image.onerror = () => reject(new Error('That file is not a valid image.'));
+        image.onload = () => {
+            try {
+                const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(image.width * scale));
+                canvas.height = Math.max(1, Math.round(image.height * scale));
+                const context = canvas.getContext('2d');
+                context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.85));
+            } catch (error) {
+                resolve(reader.result);
+            }
+        };
+        image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+});
 
 const ManageSubjects = () => {
     const [subjects, setSubjects] = useState([]);
@@ -60,6 +97,11 @@ const ManageSubjects = () => {
     });
     const [showArchivedSubjects, setShowArchivedSubjects] = useState(false);
     const [showAddSubjectForm, setShowAddSubjectForm] = useState(false);
+    const [newSubjectPhoto, setNewSubjectPhoto] = useState(null);
+    const [photoBusy, setPhotoBusy] = useState(false);
+    const addPhotoInputRef = useRef(null);
+    const detailPhotoInputRef = useRef(null);
+    const [brokenPhotos, setBrokenPhotos] = useState({});
     const { assessments } = useTeacherRecords();
 
     const showToast = (message, variant = 'default', details = null) => {
@@ -102,6 +144,67 @@ const ManageSubjects = () => {
             ...prevState,
             [name]: value
         }));
+    };
+
+    const handleAddPhotoChange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+            const dataUrl = await readImageAsDataUrl(file);
+            setNewSubjectPhoto(dataUrl);
+        } catch (error) {
+            showToast(error.message || 'Could not read that image.', 'error');
+        }
+    };
+
+    const applySubjectPhoto = (subjectId, photo) => {
+        setSubjects(prev => prev.map(item => (item.id === subjectId ? { ...item, photo } : item)));
+        setArchivedSubjects(prev => prev.map(item => (item.id === subjectId ? { ...item, photo } : item)));
+        setSelectedSubject(prev => (prev && prev.id === subjectId ? { ...prev, photo } : prev));
+        setBrokenPhotos((prev) => {
+            if (!prev[subjectId]) return prev;
+            const next = { ...prev };
+            delete next[subjectId];
+            return next;
+        });
+    };
+
+    const saveDetailPhoto = async (photo) => {
+        if (!selectedSubjectRecord) return;
+        setPhotoBusy(true);
+        try {
+            const response = await axios.post('/update_subject_photo.php', {
+                subject_id: selectedSubjectRecord.id,
+                photo
+            });
+            const data = response.data || {};
+            if (data.status === 'success') {
+                applySubjectPhoto(selectedSubjectRecord.id, data.photo ?? null);
+                showToast(photo === null ? 'Subject photo removed.' : 'Subject photo updated.', 'success');
+            } else {
+                showToast(data.message || 'Could not update the photo.', 'error');
+            }
+        } catch (error) {
+            const message = error?.response?.data?.message || error.message || 'Could not update the photo.';
+            showToast(message, 'error');
+        } finally {
+            setPhotoBusy(false);
+        }
+    };
+
+    const handleDetailPhotoChange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        setPhotoBusy(true);
+        try {
+            const dataUrl = await readImageAsDataUrl(file);
+            await saveDetailPhoto(dataUrl);
+        } catch (error) {
+            setPhotoBusy(false);
+            showToast(error.message || 'Could not read that image.', 'error');
+        }
     };
 
     const handleAddSubject = async (e) => {
@@ -148,7 +251,8 @@ const ManageSubjects = () => {
             section_id: Number(newSubject.sectionId),
             school_year: newSubject.schoolYear,
             semester: newSubject.semester,
-            teacher_id: resolvedTeacherId
+            teacher_id: resolvedTeacherId,
+            ...(newSubjectPhoto ? { photo: newSubjectPhoto } : {})
         };
 
         console.log('Adding subject payload:', payload);
@@ -164,6 +268,7 @@ const ManageSubjects = () => {
                     joinCode: responseData.join_code ?? 'Not Set'
                 });
                 setNewSubject({ name: '', courseId: '', yearId: '', sectionId: '', schoolYear: '', semester: '' });
+                setNewSubjectPhoto(null);
                 setShowAddSubjectForm(false);
                 fetchSubjects();
             } else {
@@ -203,6 +308,7 @@ const ManageSubjects = () => {
         semester: raw.semester ?? '',
         joinCode: raw.join_code ?? 'Not Set', // Handles NULL and makes the field visible
         archived: Boolean(raw.archived),
+        photo: raw.photo ?? null,
         studentCount: 0,
         activeAssessments: 0
     });
@@ -592,8 +698,8 @@ const ManageSubjects = () => {
                                 <div className="mt-5 grid grid-cols-2 gap-3">
                                     <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
                                         <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Course</p>
-                                        <p className="mt-1 text-sm font-semibold text-slate-800">{archiveConfirmSubject.course || '—'}</p>
-                                        <p className="text-xs text-slate-500">{archiveConfirmSubject.section || '—'}</p>
+                                        <p className="mt-1 text-sm font-semibold text-slate-800">{archiveConfirmSubject.course || 'â€”'}</p>
+                                        <p className="text-xs text-slate-500">{archiveConfirmSubject.section || 'â€”'}</p>
                                     </div>
                                     <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
                                         <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-slate-400">Students</p>
@@ -604,7 +710,7 @@ const ManageSubjects = () => {
 
                                 <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
                                     <span className="text-xs text-slate-500">Join Code</span>
-                                    <span className="font-mono text-sm font-bold tracking-wider text-slate-700">{archiveConfirmSubject.joinCode || '—'}</span>
+                                    <span className="font-mono text-sm font-bold tracking-wider text-slate-700">{archiveConfirmSubject.joinCode || 'â€”'}</span>
                                 </div>
                             </div>
 
@@ -687,7 +793,7 @@ const ManageSubjects = () => {
                                     {toast.details.course && (
                                         <div className="flex items-center justify-between text-sm">
                                             <span className="text-slate-500">Course</span>
-                                            <span className="font-medium text-slate-700">{toast.details.course} {toast.details.section ? `• ${toast.details.section}` : ''}</span>
+                                            <span className="font-medium text-slate-700">{toast.details.course} {toast.details.section ? `â€¢ ${toast.details.section}` : ''}</span>
                                         </div>
                                     )}
                                     <div className="flex items-center justify-between text-sm">
@@ -701,7 +807,17 @@ const ManageSubjects = () => {
                     </div>
                 </div>
             )}
-            <div className="h-full overflow-hidden px-3 py-3 sm:px-4 sm:py-4">
+            <div className="relative h-full overflow-hidden px-3 py-3 sm:px-4 sm:py-4">
+                <button
+                    type="button"
+                    onClick={() => setShowAddSubjectForm(true)}
+                    className="absolute bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-white shadow-lg shadow-blue-500/30 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl sm:px-5"
+                >
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                    </svg>
+                    <span className="text-xs font-bold tracking-wide">Add Subject</span>
+                </button>
                 <div className="flex h-full flex-col overflow-hidden">
 
                     <div className="shrink-0 rounded-xl bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 px-4 py-3 mb-3">
@@ -725,32 +841,26 @@ const ManageSubjects = () => {
 
                     <div className="shrink-0 border-b border-slate-100 bg-slate-50/50 px-6 py-3">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="inline-flex w-full max-w-[320px] rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                            <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-0.5 shadow-sm">
                                 <button
                                     type="button"
                                     onClick={() => setShowArchivedSubjects(false)}
-                                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 ${!showArchivedSubjects
-                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200/60'
-                                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                    className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${!showArchivedSubjects
+                                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                        : 'text-slate-500 hover:text-slate-900'
                                         }`}
                                 >
-                                    <span className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full text-[10px] font-bold ${!showArchivedSubjects ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        {activeSubjects.length}
-                                    </span>
-                                    Active
+                                    Active ({activeSubjects.length})
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setShowArchivedSubjects(true)}
-                                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 ${showArchivedSubjects
-                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200/60'
-                                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                    className={`rounded-full px-3 py-1 text-[10px] font-semibold transition ${showArchivedSubjects
+                                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                        : 'text-slate-500 hover:text-slate-900'
                                         }`}
                                 >
-                                    <span className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full text-[10px] font-bold ${showArchivedSubjects ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        {archivedSubjects.length}
-                                    </span>
-                                    Archived
+                                    Archived ({archivedSubjects.length})
                                 </button>
                             </div>
                             <p className="text-xs text-slate-400">
@@ -767,66 +877,66 @@ const ManageSubjects = () => {
                                 .subject-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 9999px; }
                                 .subject-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
                             `}</style>
-                            <div className="subject-scroll grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+<div className="subject-scroll grid content-start items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
                                 {visibleSubjectList.length > 0 ? (
                                     visibleSubjectList.map((subject, index) => {
                                         const theme = getSubjectCardTheme(subject);
+                                        const photoSrc = subjectPhotoSrc(subject.photo || subject.image);
 
                                         return (
                                             <div
                                                 key={subject.id}
-                                                className={`group relative overflow-hidden rounded-[1.05rem] border border-l-[3px] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${theme.cardClass}`}
+                                                className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
                                                 style={{ animationDelay: `${index * 50}ms` }}
+                                                onClick={() => {
+                                                    fetchEnrollments();
+                                                    setSelectedSubject(subject);
+                                                }}
                                             >
-                                                <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${theme.accentClass}`} />
-                                                <div className="flex flex-col gap-3 p-4 pl-5">
-                                                    <div className="flex items-center gap-3 min-w-0">
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <h3 className={`text-sm font-bold truncate ${theme.cardTextClass}`}>{subject.name}</h3>
-                                                                <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.cardBadgeClass}`}>
-                                                                    {subject.archived ? 'Archived' : 'Active'}
-                                                                </span>
+                                                <div className={`relative h-32 w-full overflow-hidden bg-gradient-to-br ${theme.accentClass}`}>
+                                                    <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/20" />
+                                                    <div className="absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-white/15" />
+                                                    {photoSrc && !brokenPhotos[subject.id] ? (
+                                                        <img
+                                                            src={photoSrc}
+                                                            alt={subject.name}
+                                                            onError={() => setBrokenPhotos(prev => ({ ...prev, [subject.id]: true }))}
+                                                            className="h-full w-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="flex h-full w-full items-center justify-center">
+                                                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm">
+                                                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-white/90">
+                                                                    <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm2 0v10.5l3.5-3.5 3 3L16 11l4 4V5H6zm3 2.75a1.75 1.75 0 100 3.5 1.75 1.75 0 000-3.5z" />
+                                                                </svg>
                                                             </div>
-                                                            <p className={`mt-0.5 text-xs truncate ${theme.cardSubtextClass}`}>
-                                                                {subject.course} · {subject.year} · {subject.section}
-                                                            </p>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${theme.chipClass}`}>
-                                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 opacity-60">
-                                                                <path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" />
-                                                            </svg>
-                                                            SY {subject.schoolYear}
-                                                        </span>
-                                                        <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium ${theme.chipClass}`}>
-                                                            {subject.semester}
-                                                        </span>
-                                                        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${theme.cardBadgeClass}`}>
-                                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                                                    )}
+                                                    <span className={`absolute right-3 top-3 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${theme.cardBadgeClass}`}>
+                                                        {subject.archived ? 'Archived' : 'Active'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-1 flex-col gap-1 p-4">
+                                                    <h3 className={`text-sm font-bold truncate ${theme.cardTextClass}`}>{subject.name}</h3>
+                                                    <p className="truncate text-xs text-slate-500">
+                                                        {subject.course} Â· {subject.year} Â· {subject.section}
+                                                    </p>
+                                                    <p className="truncate text-[11px] text-slate-400">
+                                                        SY {subject.schoolYear} Â· {subject.semester}
+                                                    </p>
+                                                    <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                                                        <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${theme.cardSubtextClass}`}>
+                                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                                                                 <path d="M8 8a3 3 0 100-6 3 3 0 000 6zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                                                             </svg>
-                                                            {subject.studentCount ?? 0}
+                                                            {subject.studentCount ?? 0} {Number(subject.studentCount ?? 0) === 1 ? 'student' : 'students'}
                                                         </span>
-                                                    </div>
-                                                    <div className={`flex items-center gap-2 pt-1 border-t ${theme.chipClass}`}>
-                                                        <span className={`rounded-lg border px-2 py-1 text-[10px] font-mono font-semibold ${theme.chipClass}`}>
-                                                            {subject.joinCode}
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                fetchEnrollments();
-                                                                setSelectedSubject(subject);
-                                                            }}
-                                                            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:scale-[0.97] ${theme.chipClass}`}
-                                                        >
-                                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                                                                <path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" />
+                                                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] ${theme.cardSubtextClass}`}>
+                                                            Open
+                                                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5">
+                                                                <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.19L10.72 5.53a.75.75 0 111.06-1.06l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06l4.22-4.22H3.75A.75.75 0 013 10z" clipRule="evenodd" />
                                                             </svg>
-                                                            View
-                                                        </button>
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -836,42 +946,18 @@ const ManageSubjects = () => {
                                     <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-16 text-center">
                                         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
                                             <svg viewBox="0 0 20 20" fill="currentColor" className="h-7 w-7 text-blue-400">
-                                                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                                             </svg>
                                         </div>
                                         <h4 className="text-sm font-bold text-slate-700">No subjects yet</h4>
                                         <p className="mt-1 max-w-xs text-xs text-slate-400">
                                             {showArchivedSubjects
                                                 ? 'No archived subjects match your search.'
-                                                : 'Get started by adding your first class using the button above.'}
+                                                : 'Get started by adding your first class with the Add Subject button.'}
                                         </p>
-                                        {!showArchivedSubjects && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowAddSubjectForm(true)}
-                                                className="mt-4 flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.97]"
-                                            >
-                                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                                                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                                                </svg>
-                                                Add your first subject
-                                            </button>
-                                        )}
                                     </div>
                                 )}
                             </div>
-                        </div>
-                        <div className="shrink-0 border-t border-slate-100 bg-slate-50/50 px-6 py-3 flex items-center justify-end">
-                            <button
-                                type="button"
-                                onClick={() => setShowAddSubjectForm(true)}
-                                className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-300/50 active:scale-[0.97]"
-                            >
-                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                                </svg>
-                                <span>Add Subject</span>
-                            </button>
                         </div>
                     </div>
 
@@ -1005,6 +1091,55 @@ const ManageSubjects = () => {
                                 </div>
                             </div>
 
+                            <div className="mb-4 sm:mb-6">
+                                <p className="mb-2 sm:mb-3 flex items-center gap-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                                    <span className="inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-blue-50 text-[9px] sm:text-[10px] font-bold text-blue-600">3</span>
+                                    Cover Photo
+                                </p>
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                                    <div className="relative h-28 w-full shrink-0 overflow-hidden rounded-xl border border-dashed border-slate-200 bg-slate-50 sm:w-48">
+                                        {newSubjectPhoto ? (
+                                            <img src={newSubjectPhoto} alt="Subject cover preview" className="h-full w-full object-cover" />
+                                        ) : (
+                                            <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-400">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+                                                    <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm2 0v10.5l3.5-3.5 3 3L16 11l4 4V5H6zm3 2.75a1.75 1.75 0 100 3.5 1.75 1.75 0 000-3.5z" />
+                                                </svg>
+                                                <span className="text-[10px] font-semibold uppercase tracking-wider">No photo</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col items-start gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => addPhotoInputRef.current && addPhotoInputRef.current.click()}
+                                                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
+                                            >
+                                                {newSubjectPhoto ? 'Change photo' : 'Upload photo'}
+                                            </button>
+                                            {newSubjectPhoto && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNewSubjectPhoto(null)}
+                                                    className="rounded-full px-3 py-2 text-xs font-semibold text-slate-400 transition hover:text-rose-500"
+                                                >
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">Optional. JPG, PNG, or WebP up to 8MB — shown as the top of the subject card.</p>
+                                        <input
+                                            ref={addPhotoInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleAddPhotoChange}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl border border-blue-100 bg-blue-50/50 px-3 sm:px-4 py-2.5 sm:py-3 mb-4 sm:mb-6">
                                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-blue-500">
                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
@@ -1015,7 +1150,10 @@ const ManageSubjects = () => {
                             <div className="flex items-center justify-end gap-2 sm:gap-3 border-t border-slate-100 pt-3 sm:pt-5">
                                 <button
                                     type="button"
-                                    onClick={() => setShowAddSubjectForm(false)}
+                                    onClick={() => {
+                                        setNewSubjectPhoto(null);
+                                        setShowAddSubjectForm(false);
+                                    }}
                                     className="rounded-full border border-slate-200 bg-white px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
                                 >
                                     Cancel
@@ -1054,13 +1192,53 @@ const ManageSubjects = () => {
                     <div className="flex w-full max-w-4xl max-h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-3xl bg-white shadow-[0_32px_80px_-12px_rgba(15,23,42,0.28)]">
 
                         <div className="bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 px-8 pb-6 pt-7">
-                            <div className="flex items-start justify-between">
-                                <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex min-w-0 items-start gap-4">
+                                    <div className="shrink-0">
+                                        <div className="group relative h-24 w-32 overflow-hidden rounded-xl border border-white/20 bg-white/10">
+                                            {subjectPhotoSrc(selectedSubjectRecord.photo) && !brokenPhotos[selectedSubjectRecord.id] ? (
+                                                <img
+                                                    src={subjectPhotoSrc(selectedSubjectRecord.photo)}
+                                                    alt={selectedSubjectRecord.name}
+                                                    onError={() => setBrokenPhotos(prev => ({ ...prev, [selectedSubjectRecord.id]: true }))}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-full w-full items-center justify-center text-white/50">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7">
+                                                        <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm2 0v10.5l3.5-3.5 3 3L16 11l4 4V5H6zm3 2.75a1.75 1.75 0 100 3.5 1.75 1.75 0 000-3.5z" />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={photoBusy}
+                                                onClick={() => detailPhotoInputRef.current && detailPhotoInputRef.current.click()}
+                                                className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-slate-900/55 text-[9px] font-bold uppercase tracking-[0.16em] text-white opacity-0 transition hover:opacity-100 focus:opacity-100 disabled:cursor-wait group-hover:opacity-100"
+                                            >
+                                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                                                    <path d="M9 3a1.5 1.5 0 00-1.41 1H5a2 2 0 00-2 2v11a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2.59A1.5 1.5 0 0015 3H9zm3 5a4.5 4.5 0 110 9 4.5 4.5 0 010-9z" />
+                                                </svg>
+                                                {photoBusy ? 'Uploading…' : 'Change'}
+                                            </button>
+                                        </div>
+                                        {selectedSubjectRecord.photo && (
+                                            <button
+                                                type="button"
+                                                disabled={photoBusy}
+                                                onClick={() => saveDetailPhoto(null)}
+                                                className="mt-1.5 w-32 text-[9px] font-bold uppercase tracking-[0.14em] text-white/60 transition hover:text-white disabled:cursor-wait disabled:opacity-60"
+                                            >
+                                                {photoBusy ? 'Saving…' : 'Remove photo'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="min-w-0 space-y-2">
                                     <div className="flex items-center gap-2">
                                         <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/90">Enrollment</span>
                                     </div>
                                     <h3 className="text-2xl font-bold text-white">{selectedSubjectRecord.name}</h3>
-                                    <p className="text-sm text-blue-100/80">{selectedSubjectRecord.course} · {selectedSubjectRecord.year} · {selectedSubjectRecord.section}</p>
+                                    <p className="text-sm text-blue-100/80">{selectedSubjectRecord.course} Â· {selectedSubjectRecord.year} Â· {selectedSubjectRecord.section}</p>
                                     <div className="flex flex-wrap items-center gap-3 text-xs text-blue-100/70">
                                         <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1">
                                             <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3"><path d="M2 4.5A2.5 2.5 0 014.5 2h7A2.5 2.5 0 0114 4.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 11.5v-7z" /></svg>
@@ -1078,6 +1256,7 @@ const ManageSubjects = () => {
                                             </button>
                                         </span>
                                     </div>
+                                    </div>
                                 </div>
                                 <button
                                     type="button"
@@ -1089,6 +1268,13 @@ const ManageSubjects = () => {
                                     </svg>
                                 </button>
                             </div>
+                            <input
+                                ref={detailPhotoInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleDetailPhotoChange}
+                            />
                         </div>
 
                         <div className="flex flex-1 min-h-0 flex-col overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
@@ -1127,24 +1313,30 @@ const ManageSubjects = () => {
 
                                 {enrolledList.length > 0 ? (
                                     <div className="max-h-[35vh] space-y-2 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
-                                        {enrolledList.map((student, index) => (
+                                        {enrolledList.map((student, index) => {
+                                            const displayName = student.student_name || String(student.student_id ?? 'S');
+                                            const givenName = (student.first_name || '').trim()
+                                                || (displayName.includes(',') ? (displayName.split(',')[1] || '').trim() : displayName);
+                                            const initial = (givenName || displayName || 'S').charAt(0).toUpperCase() || 'S';
+                                            return (
                                             <div
                                                 key={student.enrollment_id ?? student.student_id}
                                                 className="group flex items-center gap-4 rounded-lg border border-slate-100 bg-white px-4 py-3 transition-all duration-200 hover:border-slate-200 hover:shadow-sm"
                                                 style={{ animationDelay: `${index * 40}ms` }}
                                             >
                                                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-500 text-xs font-bold text-white">
-                                                    {(student.student_name || 'S').charAt(0).toUpperCase()}
+                                                    {initial}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="truncate text-sm font-semibold text-slate-900">{student.student_name || student.student_id}</p>
-                                                    <p className="text-[11px] text-slate-400">ID {student.student_id} · Enrolled {student.date_enrolled ?? '—'}</p>
+                                                    <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
+                                                    <p className="text-[11px] text-slate-400">ID {student.student_id} Â· Enrolled {student.date_enrolled ?? 'â€”'}</p>
                                                 </div>
                                                 <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
                                                     {student.enrollment_status || 'enrolled'}
                                                 </span>
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-6 py-12 text-center">

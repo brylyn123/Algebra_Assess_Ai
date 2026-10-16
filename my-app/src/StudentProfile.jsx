@@ -7,6 +7,7 @@ import {
   storeLocalUser,
 } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
+import { subjectPhotoSrc } from './subjectCardThemes';
 
 const getNormalizedStudentProfile = (stored) => {
   const firstName = stored?.firstName ?? stored?.first_Name ?? '';
@@ -42,6 +43,7 @@ const StudentProfile = () => {
   const [saveMessage, setSaveMessage] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const [enrolledSubjects, setEnrolledSubjects] = useState([]);
+  const [brokenPhotos, setBrokenPhotos] = useState({});
   const [archivedSubjects, setArchivedSubjects] = useState([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [formValues, setFormValues] = useState({
@@ -237,25 +239,47 @@ const StudentProfile = () => {
                     {showArchived ? 'No archived subjects yet.' : 'No active subjects yet.'}
                   </p>
                 ) : (
-                  (showArchived ? archivedSubjects : enrolledSubjects).map((subject) => (
-                    <div
-                      key={subject.subject_id}
-                      className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 transition hover:bg-slate-100"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                          {subject.subject_code || 'Subject'}
-                        </p>
-                        <p className="truncate text-xs font-semibold text-slate-900">{subject.subject_name}</p>
+                  (showArchived ? archivedSubjects : enrolledSubjects).map((subject) => {
+                    const rowPhoto = subjectPhotoSrc(subject.photo);
+                    const rowBroken = brokenPhotos[String(subject.subject_id)];
+                    return (
+                      <div
+                        key={subject.subject_id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 transition hover:bg-slate-100"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-blue-400 to-indigo-500">
+                            {rowPhoto && !rowBroken ? (
+                              <img
+                                src={rowPhoto}
+                                alt={subject.subject_name}
+                                onError={() => setBrokenPhotos(prev => ({ ...prev, [String(subject.subject_id)]: true }))}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 text-white/85">
+                                  <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm2 0v10.5l3.5-3.5 3 3L16 11l4 4V5H6z" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-slate-900">{subject.subject_name}</p>
+                            <p className="truncate text-[10px] text-slate-400">
+                              {subject.course || 'Course'} · {subject.section_name || 'Section'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${showArchived
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                          {showArchived ? 'Archived' : 'Active'}
+                        </span>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${showArchived
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-emerald-100 text-emerald-700'
-                        }`}>
-                        {showArchived ? 'Archived' : 'Active'}
-                      </span>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}

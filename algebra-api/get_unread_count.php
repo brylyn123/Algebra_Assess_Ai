@@ -2,6 +2,7 @@
 require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'notifications_helper.php';
 
 $authUser = requireAuthenticatedUser();
 $user_id = (int)$authUser['user_id'];
@@ -19,6 +20,12 @@ try {
         'status' => 'success',
         'unread_count' => (int)($row['unread'] ?? 0),
     ]);
+
+    // This endpoint is polled every 30s by the notification bell, so it is a
+    // safe place to deliver queued notification emails in the background.
+    if (ob_get_level() > 0) { @ob_flush(); }
+    @flush();
+    processEmailQueue(30);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => 'Unable to get unread count.']);

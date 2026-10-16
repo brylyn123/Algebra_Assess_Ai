@@ -646,6 +646,33 @@ function ensureExerciseSchema(mysqli $conn): void
     runSql($conn, "ALTER TABLE exercise_items MODIFY item_no INT DEFAULT 1", 'Normalized exercise_items.item_no');
     runSql($conn, "ALTER TABLE exercise_items MODIFY question_type ENUM('handwritten_algebra') DEFAULT 'handwritten_algebra'", 'Normalized exercise_items.question_type');
     runSql($conn, "ALTER TABLE exercise_items MODIFY max_score DECIMAL(5,2) DEFAULT 0.00", 'Normalized exercise_items.max_score');
+
+    addColumnIfMissing($conn, 'exercises_problem', 'school_year_id', 'INT NULL AFTER subject_id', 'Added exercises_problem.school_year_id');
+    addColumnIfMissing($conn, 'exercises_problem', 'archived', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_published', 'Added exercises_problem.archived');
+    addColumnIfMissing($conn, 'exercises_problem', 'grading_criteria', 'TEXT NULL', 'Added exercises_problem.grading_criteria');
+    addColumnIfMissing($conn, 'exercises_problem', 'custom_grading_criteria', 'TEXT NULL', 'Added exercises_problem.custom_grading_criteria');
+
+    if (!indexExists($conn, 'exercises_problem', 'idx_exercises_school_year_id')) {
+        runSql($conn, "ALTER TABLE exercises_problem ADD INDEX idx_exercises_school_year_id (school_year_id)", 'Added exercises_problem.school_year_id index');
+    } else {
+        out('[skip] exercises_problem.school_year_id index');
+    }
+
+    if (!indexExists($conn, 'exercises_problem', 'idx_exercises_archived')) {
+        runSql($conn, "ALTER TABLE exercises_problem ADD INDEX idx_exercises_archived (archived)", 'Added exercises_problem.archived index');
+    } else {
+        out('[skip] exercises_problem.archived index');
+    }
+
+    runSql(
+        $conn,
+        "UPDATE exercises_problem ep
+         INNER JOIN subject s ON s.subject_id = ep.subject_id
+         SET ep.school_year_id = s.school_year_id
+         WHERE ep.school_year_id IS NULL
+           AND s.school_year_id IS NOT NULL",
+        'Backfilled exercises_problem.school_year_id from subject'
+    );
 }
 
 function ensureScoreSchema(mysqli $conn): void

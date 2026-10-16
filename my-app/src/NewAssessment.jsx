@@ -53,6 +53,14 @@ const ASSESSMENT_STEPS = [
     { id: 'items', label: 'Questions', description: 'Add items' },
 ];
 
+const toDatetimeLocalValue = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const pad = (num) => String(num).padStart(2, '0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+};
+
 const initialState = {
   teacherId: null,
   subjects: [],
@@ -68,6 +76,8 @@ const initialState = {
     description: '',
     difficulty: 'Medium',
     dueDate: '',
+    publishAt: '',
+    submitMode: 'student',
   },
   testItems: [],
   previewValue: '',
@@ -155,7 +165,7 @@ const DEFAULT_GRADING_CRITERIA = [
   },
 ];
 
-function SortableQuestion({ id, item, index, rubrics, onEdit, onRemove, onRubricChange }) {
+function SortableQuestion({ id, item, index, rubrics, onEdit, onRemove, onRubricChange, onModifyCriteriaClick }) {
   const {
     attributes,
     listeners,
@@ -225,6 +235,27 @@ function SortableQuestion({ id, item, index, rubrics, onEdit, onRemove, onRubric
             </option>
           ))}
         </select>
+        {onModifyCriteriaClick ? (
+          <>
+            {item.rubric_id ? (
+              <button
+                type="button"
+                onClick={onModifyCriteriaClick}
+                className="shrink-0 rounded-lg border border-amber-300 bg-white px-1.5 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
+              >
+                Modify
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onModifyCriteriaClick}
+                className="shrink-0 rounded-lg border border-amber-300 bg-white px-1.5 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
+              >
+                Modify
+              </button>
+            )}
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -273,14 +304,16 @@ const NewAssessment = () => {
   const mathEditorRef = useRef(null);
   const [showMathKeyboard, setShowMathKeyboard] = useState(false);
   const [showModifyCriteriaModal, setShowModifyCriteriaModal] = useState(false);
+  const [modifyCriteriaItemIndex, setModifyCriteriaItemIndex] = useState(null);
   const [enabledCriteria, setEnabledCriteria] = useState(
     DEFAULT_GRADING_CRITERIA.map((c) => ({ ...c, enabled: true }))
   );
   const [customCriteria, setCustomCriteria] = useState([]);
   const [newCriterionName, setNewCriterionName] = useState('');
   const [newCriterionDesc, setNewCriterionDesc] = useState('');
-  const [effortMinimumGuarantee, setEffortMinimumGuarantee] = useState(1);
+  const [effortMinimumGuarantee, setEffortMinimumGuarantee] = useState(0);
   const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+  const [publishLocked, setPublishLocked] = useState(false);
 
   // File upload state
   const [uploadFiles, setUploadFiles] = useState([]);
@@ -883,7 +916,13 @@ const NewAssessment = () => {
         dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'description', value: assessment.description || '' });
         dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'topic', value: assessment.topic || '' });
         dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'difficulty', value: assessment.difficulty || 'Medium' });
-        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'dueDate', value: assessment.due_date || '' });
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'dueDate', value: toDatetimeLocalValue(assessment.due_date) });
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'publishAt', value: toDatetimeLocalValue(assessment.publish_at) });
+        dispatch({ type: 'UPDATE_ASSESSMENT_FIELD', field: 'submitMode', value: assessment.submit_mode === 'teacher' ? 'teacher' : 'student' });
+
+        // Once students have been notified the assessment is live, its schedule is fixed.
+        const loadedStatus = String(assessment.assessment_status || assessment.status || '').toLowerCase();
+        setPublishLocked(!['draft', 'scheduled'].includes(loadedStatus));
 
         // Set subject IDs
         const subjectIds = (assessment.subjects || []).map((s) => s.subject_id);
@@ -905,6 +944,7 @@ const NewAssessment = () => {
           question_label: item.question_label || '',
           max_score: item.max_score || 1.0,
           rubric_id: item.rubric_set_id || item.rubric_id || null,
+          effort_minimum_guarantee: item.effort_minimum_guarantee || 0.0,
         }));
         dispatch({ type: 'SET_TEST_ITEMS', payload: items });
 
@@ -1082,6 +1122,7 @@ const NewAssessment = () => {
         question_content: mathValue,
 
         max_score: 1.0,
+        effort_minimum_guarantee: 0,
       }
     });
 
@@ -1130,6 +1171,24 @@ const NewAssessment = () => {
       toast.warning('Each item must include question content.');
       return false;
     }
+    if (newAssessment.publishAt && !publishLocked) {
+      const publishTime = new Date(newAssessment.publishAt).getTime();
+      if (Number.isNaN(publishTime)) {
+        toast.warning('Publish date is invalid.');
+        return false;
+      }
+      if (publishTime <= Date.now()) {
+        toast.warning('Publish date must be in the future. Clear it to publish immediately.');
+        return false;
+      }
+      if (newAssessment.dueDate) {
+        const dueTime = new Date(newAssessment.dueDate).getTime();
+        if (!Number.isNaN(dueTime) && dueTime <= publishTime) {
+          toast.warning('Due date must be later than the publish date.');
+          return false;
+        }
+      }
+    }
     return true;
   };
 
@@ -1151,12 +1210,16 @@ const NewAssessment = () => {
         description: newAssessment.description,
         difficulty: newAssessment.difficulty,
         due_date: newAssessment.dueDate || null,
+        publish_at: publishLocked ? null : (newAssessment.publishAt || null),
+        submit_mode: newAssessment.submitMode === 'teacher' ? 'teacher' : 'student',
+        rubric_set_id: selectedRubric ? Number(selectedRubric) : null,
         items: testItems.map((item, index) => ({
           item_no: index + 1,
           question_type: item.question_type,
           question_content: item.question_content,
           max_score: item.max_score || 1.0,
           rubric_set_id: item.rubric_id || null,
+          effort_minimum_guarantee: item.effort_minimum_guarantee || 0,
         })),
         effort_minimum_guarantee: effortMinimumGuarantee,
         grading_criteria: enabledCriteria.filter((c) => c.enabled).map((c) => ({
@@ -1189,7 +1252,7 @@ const NewAssessment = () => {
       navigate('/teacher/assessments');
     } catch (error) {
       console.error('Failed to save assessment', error);
-      toast.error('We could not save the assessment. Please try again.');
+      toast.error(error?.response?.data?.message || 'We could not save the assessment. Please try again.');
     }
   };
 
@@ -1213,6 +1276,8 @@ const NewAssessment = () => {
         description: newAssessment.description,
         difficulty: newAssessment.difficulty,
         due_date: newAssessment.dueDate || null,
+        publish_at: publishLocked ? null : (newAssessment.publishAt || null),
+        submit_mode: newAssessment.submitMode === 'teacher' ? 'teacher' : 'student',
         rubric_set_id: selectedRubric ? Number(selectedRubric) : null,
         items: testItems.map((item, index) => ({
           item_no: index + 1,
@@ -1220,6 +1285,7 @@ const NewAssessment = () => {
           question_content: item.question_content,
           max_score: item.max_score || 1.0,
           rubric_set_id: item.rubric_id || null,
+          effort_minimum_guarantee: item.effort_minimum_guarantee || 0,
         })),
         effort_minimum_guarantee: effortMinimumGuarantee,
         grading_criteria: enabledCriteria.filter((c) => c.enabled).map((c) => ({
@@ -1245,7 +1311,7 @@ const NewAssessment = () => {
       navigate('/teacher/assessments');
     } catch (error) {
       console.error('Failed to save draft', error);
-      toast.error('Could not save draft. Please try again.');
+      toast.error(error?.response?.data?.message || 'Could not save draft. Please try again.');
     }
   };
 
@@ -1370,7 +1436,7 @@ const NewAssessment = () => {
                             {subjects.map((subject) => {
                               const isChecked = newAssessment.subjectIds?.includes(subject.id);
                               const disabled = isSubjectDisabled(subject);
-                              const meta = [subject.course, subject.year].filter(Boolean).join(' · ');
+                              const meta = [subject.course, subject.year, subject.section].filter(Boolean).join(' · ');
                               return (
                                 <label
                                   key={subject.id}
@@ -1437,16 +1503,34 @@ const NewAssessment = () => {
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Schedule & Description</p>
                     <div className="space-y-4">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">Due Date (Optional)</label>
-                        <input
-                          type="datetime-local"
-                          name="dueDate"
-                          value={newAssessment.dueDate}
-                          onChange={handleAssessmentChange}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                        />
-                        <p className="mt-1 text-[10px] text-slate-400">Students will see this deadline.</p>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold text-slate-600">Due Date (Optional)</label>
+                          <input
+                            type="datetime-local"
+                            name="dueDate"
+                            value={newAssessment.dueDate}
+                            onChange={handleAssessmentChange}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                          />
+                          <p className="mt-1 text-[10px] text-slate-400">Students will see this deadline.</p>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold text-slate-600">Publish Date (Optional)</label>
+                          <input
+                            type="datetime-local"
+                            name="publishAt"
+                            value={newAssessment.publishAt}
+                            onChange={handleAssessmentChange}
+                            disabled={publishLocked}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                          />
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            {publishLocked
+                              ? 'Already live — schedule locked.'
+                              : 'Hidden from students until this time. Empty = publish now.'}
+                          </p>
+                        </div>
                       </div>
                       <div>
                         <label className="mb-1.5 block text-xs font-semibold text-slate-600">Description</label>
@@ -1459,6 +1543,53 @@ const NewAssessment = () => {
                           className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Submission</p>
+                    <p className="mb-3 text-[11px] text-slate-500">Choose who uploads the handwritten work for this assessment.</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                          newAssessment.submitMode === 'student'
+                            ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100'
+                            : 'border-slate-200 bg-white hover:border-blue-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="submitMode"
+                          value="student"
+                          checked={newAssessment.submitMode === 'student'}
+                          onChange={handleAssessmentChange}
+                          className="mt-0.5 h-4 w-4 accent-blue-600"
+                        />
+                        <span>
+                          <span className="block text-xs font-semibold text-slate-700">Students upload their work</span>
+                          <span className="mt-0.5 block text-[10px] text-slate-500">Students photograph their solutions and submit through the portal.</span>
+                        </span>
+                      </label>
+                      <label
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                          newAssessment.submitMode === 'teacher'
+                            ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100'
+                            : 'border-slate-200 bg-white hover:border-blue-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="submitMode"
+                          value="teacher"
+                          checked={newAssessment.submitMode === 'teacher'}
+                          onChange={handleAssessmentChange}
+                          className="mt-0.5 h-4 w-4 accent-blue-600"
+                        />
+                        <span>
+                          <span className="block text-xs font-semibold text-slate-700">Teacher uploads student work</span>
+                          <span className="mt-0.5 block text-[10px] text-slate-500">Administer on paper in class, then upload each student's photos. Students see the questions but cannot upload.</span>
+                        </span>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -1661,7 +1792,7 @@ const NewAssessment = () => {
                                     onBlur={(e) => { if (e.target.value === '' || parseFloat(e.target.value) <= 0) { const prev = e.target.dataset.prevValue || '5'; e.target.value = prev; handleExtractedItemChange(idx, 'max_score', parseFloat(prev) || 5.0); } else { handleExtractedItemChange(idx, 'max_score', parseFloat(e.target.value) || 5.0); }}}
                                     className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-[11px] font-semibold text-slate-700 outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-100"
                                   />
-                                  <span className="text-[10px] text-slate-400">pts</span>
+<span className="text-[10px] text-slate-400">pts</span>
                                 </div>
                                 <div className="mt-1.5 flex items-center gap-1.5">
                                   <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 shrink-0 text-slate-400">
@@ -1690,13 +1821,22 @@ const NewAssessment = () => {
                                     + New
                                   </button>
                                   {item.rubric_id ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleViewRubricDetails(item.rubric_id)}
-                                      className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
-                                    >
-                                      Details
-                                    </button>
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleViewRubricDetails(item.rubric_id)}
+                                        className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                                      >
+                                        Details
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setModifyCriteriaItemIndex(idx); setShowModifyCriteriaModal(true); }}
+                                        className="shrink-0 rounded-lg border border-amber-300 bg-white px-1.5 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
+                                      >
+                                        Modify
+                                      </button>
+                                    </>
                                   ) : (
                                     <>
                                       <button
@@ -1708,7 +1848,7 @@ const NewAssessment = () => {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => setShowModifyCriteriaModal(true)}
+                                        onClick={() => { setModifyCriteriaItemIndex(idx); setShowModifyCriteriaModal(true); }}
                                         className="shrink-0 rounded-lg border border-amber-300 bg-white px-1.5 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
                                       >
                                         Modify
@@ -1851,9 +1991,9 @@ const NewAssessment = () => {
                           View Details
                         </button>
                       )}
-                      <button
+<button
                         type="button"
-                        onClick={() => setShowModifyCriteriaModal(true)}
+                        onClick={() => { setModifyCriteriaItemIndex(null); setShowModifyCriteriaModal(true); }}
                         className="shrink-0 rounded-full border border-amber-300 bg-white px-2 py-1.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
                       >
                         Modify Criteria
@@ -1899,6 +2039,7 @@ const NewAssessment = () => {
                                 onEdit={handleEditQuestion}
                                 onRemove={handleRemoveQuestion}
                                 onRubricChange={handleRubricChange}
+                                onModifyCriteriaClick={() => { setModifyCriteriaItemIndex(index); setShowModifyCriteriaModal(true); }}
                               />
                             ))}
                           </SortableContext>
@@ -1969,16 +2110,16 @@ const NewAssessment = () => {
             </form>
           </div>
         </div>
-      </div>
-    </div>,
-    modalRoot
-  )}
+</div>
+        </div>,
+        document.body
+      )}
       <DefaultRubricModal
         isOpen={showDefaultRubricModal}
         onClose={() => setShowDefaultRubricModal(false)}
         totalScore={testItems.reduce((s, it) => s + (it.max_score || 0), 0)}
       />
-      <ModifyCriteriaModal
+<ModifyCriteriaModal
         isOpen={showModifyCriteriaModal}
         onClose={() => setShowModifyCriteriaModal(false)}
         enabledCriteria={enabledCriteria}
@@ -2005,8 +2146,9 @@ const NewAssessment = () => {
         setEffortMinimumGuarantee={setEffortMinimumGuarantee}
         rubrics={rubrics}
         selectedRubricObj={rubrics.find((r) => String(r.rubric_set_id) === String(selectedRubric)) || null}
-        setEnabledCriteria={setEnabledCriteria}
-        setCustomCriteria={setCustomCriteria}
+        modifyCriteriaItemIndex={modifyCriteriaItemIndex}
+        extractedItems={extractedItems}
+        testItems={testItems}
       />
       <RubricDetailModal
         isOpen={showRubricDetailModal}
@@ -2067,6 +2209,46 @@ const NewAssessment = () => {
                 </span>
               </div>
 
+              {/* Max Score & Effort Minimum Guarantee */}
+              <div className="mb-4 flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Max Score</label>
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 outline-none focus:ring-2 focus:ring-slate-100">
+                    <input
+                      type="number"
+                      min="0.5"
+                      max="100"
+                      step="0.5"
+                      value={questionScore}
+                      onChange={(e) => setQuestionScore(e.target.value)}
+                      className="w-10 bg-transparent text-center text-[11px] font-bold text-slate-600 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    pts
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Effort Min</label>
+                  <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-600 outline-none focus:ring-2 focus:ring-amber-100">
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.5"
+                      value={testItems[editingIndex]?.effort_minimum_guarantee || 0}
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.min(5, parseFloat(e.target.value) || 0));
+                        dispatch({
+                          type: 'SET_TEST_ITEMS',
+                          payload: testItems.map((it, i) => i === editingIndex ? { ...it, effort_minimum_guarantee: val } : it),
+                        });
+                      }}
+                      className="w-10 bg-transparent text-center text-[11px] font-bold text-amber-600 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-auto [&::-webkit-outer-spin-button]:appearance-auto"
+                    />
+                    pts
+                  </span>
+                </div>
+              </div>
+
               {/* Per-item rubric selector */}
               <div className="mb-4">
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Rubric for this question</label>
@@ -2092,6 +2274,13 @@ const NewAssessment = () => {
                     className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-600 transition hover:bg-blue-100"
                   >
                     + New
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setModifyCriteriaItemIndex(editingIndex); setShowModifyCriteriaModal(true); }}
+                    className="shrink-0 rounded-lg border border-amber-300 bg-white px-1.5 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100"
+                  >
+                    Modify
                   </button>
                 </div>
               </div>
@@ -2204,7 +2393,7 @@ const NewAssessment = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white">{isEditMode ? 'Update Assessment' : 'Create Assessment'}</h3>
-                  <p className="text-sm text-white/70">{isEditMode ? 'Save changes to this assessment?' : 'Ready to publish this assessment?'}</p>
+                  <p className="text-sm text-white/70">{isEditMode ? 'Save changes to this assessment?' : (newAssessment.publishAt && !publishLocked) ? 'Ready to schedule this assessment?' : 'Ready to publish this assessment?'}</p>
                 </div>
               </div>
             </div>
@@ -2214,7 +2403,9 @@ const NewAssessment = () => {
               <p className="text-sm text-slate-600 leading-relaxed">
                 {isEditMode
                   ? 'This will update the assessment with your latest changes. Students will see the updated version.'
-                  : 'This will create and publish the assessment. Students enrolled in the selected subjects will be able to view and attempt it.'}
+                  : newAssessment.publishAt && !publishLocked
+                    ? `This will create the assessment and publish it automatically on ${new Date(newAssessment.publishAt).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}. Students will see it then.`
+                    : 'This will create and publish the assessment. Students enrolled in the selected subjects will be able to view and attempt it.'}
               </p>
 
               {/* Summary */}
@@ -2234,7 +2425,7 @@ const NewAssessment = () => {
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-500">Subjects</span>
                   <span className="font-semibold text-slate-800">
-                    {subjects.filter((s) => newAssessment.subjectIds?.includes(s.id)).map((s) => s.name).join(', ') || 'None'}
+                    {subjects.filter((s) => newAssessment.subjectIds?.includes(s.id)).map((s) => [s.name, s.section].filter(Boolean).join(' - ')).join(', ') || 'None'}
                   </span>
                 </div>
                 {newAssessment.difficulty && (
@@ -2247,6 +2438,12 @@ const NewAssessment = () => {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-500">Due Date</span>
                     <span className="font-semibold text-slate-800">{new Date(newAssessment.dueDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
+                {newAssessment.publishAt && !publishLocked && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Publish Date</span>
+                    <span className="font-semibold text-violet-600">{new Date(newAssessment.publishAt).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 )}
               </div>
@@ -2639,10 +2836,9 @@ const DefaultRubricModal = ({ isOpen, onClose, totalScore = 0 }) => {
                 </div>
               </div>
             </div>
-          </div>
+</div>
 
-          {/* Footer - fixed */}
-          <div className="flex shrink-0 items-center justify-end border-t border-slate-100 px-6 py-3">
+        <div className="flex shrink-0 items-center justify-end border-t border-slate-100 px-6 py-3">
             <button
               type="button"
               onClick={onClose}
@@ -2678,19 +2874,53 @@ const ModifyCriteriaModal = ({
   selectedRubricObj,
   setEnabledCriteria,
   setCustomCriteria,
+  rubrics,
+  modifyCriteriaItemIndex,
+  extractedItems,
+  testItems,
 }) => {
   if (!isOpen) return null;
 
   const modalRoot = typeof document !== 'undefined' ? document.body : null;
   if (!modalRoot) return null;
 
-  const isUsingSavedRubric = selectedRubricObj && Array.isArray(selectedRubricObj.items) && selectedRubricObj.items.length > 0;
-  const rubricItems = isUsingSavedRubric ? selectedRubricObj.items : [];
+  // Determine which rubric to show
+  let currentRubricObj = null;
+  let isExtractedItemRubric = false;
+  let isTestItemRubric = false;
+
+  if (modifyCriteriaItemIndex !== null && extractedItems[modifyCriteriaItemIndex]) {
+    // Show the rubric for the specific extracted item
+    const itemRubricId = extractedItems[modifyCriteriaItemIndex].rubric_id;
+    if (itemRubricId) {
+      currentRubricObj = rubrics.find((r) => String(r.rubric_set_id) === String(itemRubricId)) || null;
+      isExtractedItemRubric = true;
+    } else {
+      // Extracted item has no rubric, fall back to assessment-level rubric
+      currentRubricObj = selectedRubricObj;
+    }
+  } else if (modifyCriteriaItemIndex !== null && testItems[modifyCriteriaItemIndex]) {
+    // Show the rubric for the specific test item (from questions list or edit card)
+    const itemRubricId = testItems[modifyCriteriaItemIndex].rubric_id;
+    if (itemRubricId) {
+      currentRubricObj = rubrics.find((r) => String(r.rubric_set_id) === String(itemRubricId)) || null;
+      isTestItemRubric = true;
+    } else {
+      // Test item has no rubric, fall back to assessment-level rubric
+      currentRubricObj = selectedRubricObj;
+    }
+  } else {
+    // Show the assessment-level rubric
+    currentRubricObj = selectedRubricObj;
+  }
+
+  const isUsingSavedRubric = currentRubricObj && Array.isArray(currentRubricObj.items) && currentRubricObj.items.length > 0;
+  const rubricItems = isUsingSavedRubric ? currentRubricObj.items : [];
 
   const rubricTotal = rubricItems.reduce((s, it) => s + (it.points || 0), 0);
 
   const rubricWeights = isUsingSavedRubric ? rubricItems.map((item, idx) => {
-    const criterion = enabledCriteria.find((c) => c.key === `rubric-${selectedRubricObj.rubric_set_id}-${idx}`);
+    const criterion = enabledCriteria.find((c) => c.key === `rubric-${currentRubricObj.rubric_set_id}-${idx}`);
     return criterion?.weight ?? (rubricTotal > 0 ? Math.round((item.points / rubricTotal) * 100) : 0);
   }) : [];
 
@@ -2721,7 +2951,7 @@ const ModifyCriteriaModal = ({
                 <h3 className="text-base font-bold text-slate-800">Modify AI Grading Criteria</h3>
                 <p className="text-[11px] text-slate-400">
                   {isUsingSavedRubric
-                    ? `Editing: ${selectedRubricObj.rubric_name}`
+                    ? `Editing: ${currentRubricObj.rubric_name}`
                     : 'Toggle default criteria, adjust weights, and add your own'}
                 </p>
               </div>
@@ -2737,7 +2967,7 @@ const ModifyCriteriaModal = ({
             </button>
           </div>
 
-          {/* Body - scrollable */}
+{/* Body - scrollable */}
           <div className="teacher-scrollbar flex-1 overflow-y-auto px-6 py-4 space-y-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
 
             {/* Saved Rubric Breakdown */}
@@ -2746,24 +2976,24 @@ const ModifyCriteriaModal = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    {selectedRubricObj.rubric_name} — Breakdown
+                    {currentRubricObj.rubric_name} — Breakdown
                   </p>
                   <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                     {rubricItems.length} criteria
                   </span>
                 </div>
-                {selectedRubricObj.criteria && (
-                  <p className="mb-2 text-[11px] text-slate-500 leading-4">{selectedRubricObj.criteria}</p>
+                {currentRubricObj.criteria && (
+                  <p className="mb-2 text-[11px] text-slate-500 leading-4">{currentRubricObj.criteria}</p>
                 )}
-                {selectedRubricObj.ai_instructions && (
+                {currentRubricObj.ai_instructions && (
                   <div className="mb-2 rounded-lg border border-blue-100 bg-blue-50/70 px-2.5 py-2">
                     <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-blue-600">AI Instructions</p>
-                    <p className="mt-0.5 text-[10px] text-slate-600">{selectedRubricObj.ai_instructions}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-600">{currentRubricObj.ai_instructions}</p>
                   </div>
                 )}
                 <div className="space-y-1.5">
                   {rubricItems.map((item, idx) => {
-                    const criterion = enabledCriteria.find((c) => c.key === `rubric-${selectedRubricObj.rubric_set_id}-${idx}`);
+                    const criterion = enabledCriteria.find((c) => c.key === `rubric-${currentRubricObj.rubric_set_id}-${idx}`);
                     const isEnabled = criterion?.enabled ?? true;
                     const weight = criterion?.weight ?? (rubricTotal > 0 ? Math.round((item.points / rubricTotal) * 100) : 0);
                     return (
@@ -2778,13 +3008,15 @@ const ModifyCriteriaModal = ({
                         <input
                           type="checkbox"
                           checked={isEnabled}
-                          onChange={() => onToggleDefault(`rubric-${selectedRubricObj.rubric_set_id}-${idx}`)}
+                          onChange={() => onToggleDefault(`rubric-${currentRubricObj.rubric_set_id}-${idx}`)}
                           className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         />
                         <div className="flex-1 min-w-0">
                           <span className="text-xs text-slate-700 block truncate">{item.description || `Criterion ${idx + 1}`}</span>
-                          {item.min_points > 0 && (
-                            <span className="text-[9px] text-amber-600">Min: {item.min_points} pts</span>
+                          {item.min_points > 0 && rubricTotal > 0 && item.points > 0 && (
+                            <span className="text-[9px] text-amber-600">
+                              Min: {Math.round((item.min_points / item.points) * 100)}% of criterion
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -2797,7 +3029,7 @@ const ModifyCriteriaModal = ({
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
-                              onUpdateDefaultWeight(`rubric-${selectedRubricObj.rubric_set_id}-${idx}`, val);
+                              onUpdateDefaultWeight(`rubric-${currentRubricObj.rubric_set_id}-${idx}`, val);
                             }}
                             className={`w-14 rounded-lg border px-1.5 py-0.5 text-center text-[10px] font-bold outline-none focus:ring-1 ${totalWeight > 100 ? 'border-red-300 text-red-600 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 text-blue-600 focus:border-blue-400 focus:ring-blue-100'}`}
                           />
@@ -2851,39 +3083,6 @@ const ModifyCriteriaModal = ({
                 </div>
               </div>
             )}
-
-            {/* Effort Minimum Guarantee */}
-            <div>
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Effort Minimum Guarantee</p>
-              <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2.5">
-                <p className="text-[11px] text-slate-600 mb-3">
-                  Guarantee a minimum score for students who show a meaningful attempt, even if other criteria score low.
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-center">
-                    <input
-                      type="number"
-                      min="0"
-                      max="5"
-                      step="0.5"
-                      value={effortMinimumGuarantee}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => {
-                        const val = Math.max(0, Math.min(5, parseFloat(e.target.value) || 0));
-                        setEffortMinimumGuarantee(val);
-                      }}
-                      className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm font-bold text-slate-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-auto [&::-webkit-outer-spin-button]:appearance-auto"
-                    />
-                    <span className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">PTS</span>
-                  </div>
-                  <p className="text-[10px] text-amber-600/80 flex-1">
-                    {effortMinimumGuarantee > 0
-                      ? `Students with a relevant attempt will receive at least ${effortMinimumGuarantee} point${effortMinimumGuarantee !== 1 ? 's' : ''} regardless of other scores.`
-                      : 'No minimum guarantee — scores are based purely on criteria weights.'}
-                  </p>
-                </div>
-              </div>
-            </div>
 
             {/* Custom criteria list */}
             {customCriteria.length > 0 && (
@@ -2979,15 +3178,16 @@ const ModifyCriteriaModal = ({
                 Total: {totalWeight}%
               </span>
             </div>
-            {totalWeight > 100 && (
+{totalWeight > 100 && (
+            <>
               <p className="mt-1.5 text-[11px] font-semibold text-red-500">
                 Total cannot exceed 100%. Please adjust the weights.
               </p>
-            )}
-          </div>
+            </>
+          )}
+        </div>
 
-          {/* Footer - fixed */}
-          <div className="flex shrink-0 items-center justify-end border-t border-slate-100 px-6 py-3">
+        <div className="flex shrink-0 items-center justify-end border-t border-slate-100 px-6 py-3">
             <button
               type="button"
               onClick={onClose}
@@ -3147,7 +3347,7 @@ const RubricDetailModal = ({ isOpen, onClose, rubric, teacherId, onSaved }) => {
                       className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5"
                     >
                       <span className="text-xs font-semibold text-emerald-700">{level.label}</span>
-                      <span className="text-[10px] text-emerald-600">{level.points} pts</span>
+                      <span className="text-[10px] text-emerald-600">{level.points} {rubric?.is_default ? '%' : 'pts'}</span>
                     </div>
                   ))}
                 </div>
@@ -3224,7 +3424,7 @@ const RubricDetailModal = ({ isOpen, onClose, rubric, teacherId, onSaved }) => {
                           <p className="text-sm text-slate-700">{item.description}</p>
                         </div>
                         <span className="shrink-0 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                          {item.points} pts
+                          {item.points} {rubric?.is_default ? '%' : 'pts'}
                         </span>
                       </>
                     )}

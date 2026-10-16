@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import Logo, { LogoMark } from './components/Logo';
 
 const featureCards = [
     {
@@ -79,7 +80,7 @@ const testimonials = [
         name: 'Emily Chen',
         role: 'Math Teacher',
         school: 'Oakridge Middle School',
-        quote: 'The OCR extraction is incredible. Even messy handwritten work gets parsed accurately. I just review and approve — no more retyping student answers.',
+        quote: 'The OCR extraction is incredible. Even messy handwritten work gets parsed accurately. I just review and approve â€” no more retyping student answers.',
         rating: 5,
     },
 ];
@@ -154,6 +155,84 @@ const faqItems = [
     },
 ];
 
+const infoSections = [
+    {
+        id: 'about',
+        eyebrow: 'About us',
+        title: 'Built for teachers whoâ€™d rather be teaching',
+        intro: 'AlgebraAssess started with a simple observation: teachers spend hours every week grading handwritten algebra work that could be reviewed in minutes. We combine handwriting OCR with rubric-driven AI to give educators that time back â€” without taking away their control over how work is scored.',
+        bg: 'bg-white',
+        items: [
+            {
+                heading: 'Our mission',
+                text: 'Make grading faster and more consistent while keeping teachers firmly in charge of every scoring decision.',
+            },
+            {
+                heading: 'Rubric-first design',
+                text: 'AI follows the rubric you write, including partial credit and per-item rules, instead of applying a black-box score.',
+            },
+            {
+                heading: 'Built with educators',
+                text: 'Every feature is shaped by feedback from algebra teachers who use AlgebraAssess in real classrooms.',
+            },
+            {
+                heading: 'Responsible AI',
+                text: 'AI suggests; teachers decide. Every score can be reviewed and adjusted before results are returned to students.',
+            },
+        ],
+    },
+    {
+        id: 'privacy',
+        eyebrow: 'Privacy policy',
+        title: 'Your data stays yours',
+        intro: 'This summary explains how AlgebraAssess handles the information you and your students provide. We collect only what is needed to run the platform, and we never sell student data.',
+        bg: 'bg-slate-50',
+        items: [
+            {
+                heading: 'Information we collect',
+                text: 'Account details, assessment content, uploaded student work, and grading results needed to provide the service.',
+            },
+            {
+                heading: 'How we use it',
+                text: 'To extract answers, grade against your rubrics, generate feedback, and keep the platform reliable.',
+            },
+            {
+                heading: 'Security',
+                text: 'Data is encrypted in transit and at rest, and access is restricted to authenticated users on your account.',
+            },
+            {
+                heading: 'Sharing',
+                text: 'We never sell or share student information with third parties for advertising or marketing purposes.',
+            },
+        ],
+    },
+    {
+        id: 'terms',
+        eyebrow: 'Terms of service',
+        title: 'Fair use of AlgebraAssess',
+        intro: 'By creating an account you agree to use AlgebraAssess responsibly and only for lawful educational purposes.',
+        bg: 'bg-white',
+        items: [
+            {
+                heading: 'Your account',
+                text: 'You are responsible for keeping your login credentials secure and for activity that happens under your account.',
+            },
+            {
+                heading: 'Acceptable use',
+                text: 'Do not misuse the service, attempt to disrupt it, or upload content you do not have the right to share.',
+            },
+            {
+                heading: 'Student data',
+                text: 'Teachers and institutions remain responsible for the student work they upload and for obtaining any required consent.',
+            },
+            {
+                heading: 'Availability',
+                text: 'We work to keep AlgebraAssess reliable, but the service is provided "as is" without guarantees of uninterrupted access.',
+            },
+        ],
+    },
+];
+
 const containerVariant = {
     hidden: {},
     show: {
@@ -182,13 +261,17 @@ const Landing = () => {
     const navigate = useNavigate();
     const [openFaq, setOpenFaq] = useState(null);
 
-    const scrollToFeatures = () => {
-        const section = document.getElementById('features');
+    const scrollToSection = (id) => {
+        const section = document.getElementById(id);
+        // scroll-margin-top on the section offsets the sticky navbar
         section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Adjust for sticky navbar height
-        setTimeout(() => {
-            window.scrollBy(0, -80);
-        }, 500);
+    };
+
+    const scrollToFeatures = () => scrollToSection('features');
+
+    const handleSectionNav = (event, id) => {
+        event.preventDefault();
+        scrollToSection(id);
     };
 
     return (
@@ -199,15 +282,12 @@ const Landing = () => {
                 <nav className="sticky top-0 z-50 bg-blue-600 text-white shadow-md">
                     <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-10">
                         <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="rounded-xl sm:rounded-2xl bg-white/20 p-2 sm:p-2.5 text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className="text-sm sm:text-lg font-black tracking-tight text-white">AlgebraAssess</p>
-                                <p className="text-[8px] sm:text-xs font-semibold uppercase tracking-[0.2em] sm:tracking-[0.24em] text-white/80">AI Classroom Grading</p>
-                            </div>
+                            <Logo size={48} ink="light" />
+                        </div>
+                        <div className="hidden md:flex items-center gap-6 text-sm font-medium text-white/80 hover:text-white transition-colors">
+                            <a href="#about" onClick={(e) => handleSectionNav(e, 'about')} className="hover:text-white">About Us</a>
+                            <a href="#privacy" onClick={(e) => handleSectionNav(e, 'privacy')} className="hover:text-white">Privacy Policy</a>
+                            <a href="#terms" onClick={(e) => handleSectionNav(e, 'terms')} className="hover:text-white">Terms</a>
                         </div>
                         <div className="flex items-center gap-2 sm:gap-5">
                             <button onClick={() => navigate('/login')} className="rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-white/85 transition hover:bg-white/10 hover:text-white">
@@ -666,17 +746,64 @@ const Landing = () => {
                 </motion.div>
             </section>
 
+            {/* About / Privacy / Terms */}
+            {infoSections.map((section) => (
+                <section
+                    key={section.id}
+                    id={section.id}
+                    className={`relative overflow-hidden py-16 sm:py-24 ${section.bg}`}
+                    style={{ scrollMarginTop: '5rem' }}
+                >
+                    <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-10">
+                        <motion.div
+                            className="max-w-3xl"
+                            initial="hidden"
+                            whileInView="show"
+                            viewport={{ once: true, amount: 0.3 }}
+                            variants={containerVariant}
+                        >
+                            <motion.p variants={itemVariant} className="text-xs sm:text-sm font-bold uppercase tracking-[0.25em] sm:tracking-[0.3em] text-indigo-500">
+                                {section.eyebrow}
+                            </motion.p>
+                            <motion.h2 variants={itemVariant} className="mt-3 sm:mt-4 text-2xl sm:text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+                                {section.title}
+                            </motion.h2>
+                            <motion.p variants={itemVariant} className="mt-3 sm:mt-5 text-sm sm:text-lg leading-6 sm:leading-8 text-slate-500">
+                                {section.intro}
+                            </motion.p>
+                        </motion.div>
+
+                        <motion.div
+                            className="mt-8 sm:mt-12 grid gap-4 sm:gap-6 sm:grid-cols-2"
+                            initial="hidden"
+                            whileInView="show"
+                            viewport={{ once: true, amount: 0.15 }}
+                            variants={containerVariant}
+                        >
+                            {section.items.map((item) => (
+                                <motion.div
+                                    key={item.heading}
+                                    variants={itemVariant}
+                                    whileHover={cardHover}
+                                    className="group relative overflow-hidden rounded-2xl sm:rounded-[2rem] border border-slate-200 bg-white p-5 sm:p-8 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
+                                >
+                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(99,102,241,0.14),_transparent_34%)] opacity-0 transition duration-300 group-hover:opacity-100" />
+                                    <h3 className="relative text-base sm:text-xl font-bold text-slate-950">{item.heading}</h3>
+                                    <p className="relative mt-2 text-sm sm:text-base leading-6 sm:leading-7 text-slate-500">{item.text}</p>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+                    </div>
+                </section>
+            ))}
+
             {/* Footer */}
             <footer className="border-t border-slate-200 bg-white">
                 <div className="mx-auto grid max-w-6xl gap-6 sm:gap-10 px-4 sm:px-6 py-8 sm:py-12 md:grid-cols-3 lg:px-10">
                     <div>
                         <div className="flex items-center gap-2.5 sm:gap-3">
-                            <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 p-2 sm:p-2.5 text-white shadow-lg shadow-indigo-200">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
-                            <span className="text-lg sm:text-xl font-black text-slate-950">AlgebraAssess</span>
+                            <LogoMark size={44} ink="dark" />
+                            <span className="text-lg sm:text-xl font-black text-slate-950">Algebra<span className="text-blue-600">Assess</span></span>
                         </div>
                         <p className="mt-3 sm:mt-4 max-w-sm text-sm sm:text-slate-500">
                             Modern assessment support for teachers who want consistent grading and better student feedback.
@@ -702,9 +829,9 @@ const Landing = () => {
                     <div>
                         <h3 className="text-base sm:text-lg font-bold text-slate-900">Resources</h3>
                         <ul className="mt-3 sm:mt-4 space-y-1.5 sm:space-y-2 text-sm sm:text-slate-500">
-                            <li className="cursor-pointer transition hover:text-slate-900">About Us</li>
-                            <li className="cursor-pointer transition hover:text-slate-900">Privacy Policy</li>
-                            <li className="cursor-pointer transition hover:text-slate-900">Terms of Service</li>
+                            <li onClick={() => scrollToSection('about')} className="cursor-pointer transition hover:text-slate-900">About Us</li>
+                            <li onClick={() => scrollToSection('privacy')} className="cursor-pointer transition hover:text-slate-900">Privacy Policy</li>
+                            <li onClick={() => scrollToSection('terms')} className="cursor-pointer transition hover:text-slate-900">Terms of Service</li>
                         </ul>
                     </div>
                     <div>
@@ -719,7 +846,7 @@ const Landing = () => {
                 </div>
                 <div className="bg-slate-950">
                     <p className="mx-auto max-w-6xl px-4 sm:px-6 py-4 sm:py-5 text-center text-xs sm:text-sm text-slate-300 lg:px-10">
-                        © 2026 AlgebraAssess. All rights reserved.
+                        Â© 2026 AlgebraAssess. All rights reserved.
                     </p>
                 </div>
             </footer>

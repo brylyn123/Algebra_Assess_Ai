@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storeLocalUser } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import Select from './components/Select';
+import Logo from './components/Logo';
 
 const shakeVariants = {
     idle: { x: 0 },
@@ -339,14 +340,7 @@ const Signup = () => {
                             role="button"
                             aria-label="Go back to landing page"
                         >
-                            <div className="rounded-lg bg-white/20 p-2 text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className="text-sm font-black tracking-tight text-white">AlgebraAssess</p>
-                            </div>
+                            <Logo size={40} ink="light" />
                         </div>
                         <Link
                             to="/"

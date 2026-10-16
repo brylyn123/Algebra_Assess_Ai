@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { storeLocalUser, findLocalUser, setCurrentLocalUserEmail } from './localAuthStore';
@@ -6,6 +6,7 @@ import { apiFetch } from './fetchClient';
 import { clearCsrfToken } from './csrf';
 import ForgotPasswordModal from './components/ForgotPasswordModal';
 import { useToast } from './components/Toast';
+import { LogoMark } from './components/Logo';
 
 const pageVariants = {
     hidden: { opacity: 0, y: 18 },
@@ -143,13 +144,9 @@ const Login = () => {
                             role="button"
                             aria-label="Go back to landing page"
                         >
-                            <div className="rounded-lg bg-white/20 p-2 text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
+                            <LogoMark size={40} ink="light" />
                             <div>
-                                <p className="text-sm font-black tracking-tight text-white">AlgebraAssess</p>
+                                <p className="text-sm font-black tracking-tight text-white">Algebra<span className="text-blue-200">Assess</span></p>
                                 <p className="text-xs font-medium text-white/70">Login to continue</p>
                             </div>
                         </div>

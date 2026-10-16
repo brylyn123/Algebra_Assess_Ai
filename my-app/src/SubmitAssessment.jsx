@@ -113,6 +113,8 @@ const SubmitAssessment = () => {
   const studentId = currentUser?.user_id ?? currentUser?.student_id ?? null;
   const { toast } = useToast();
 
+  const [nowTs, setNowTs] = useState(() => Date.now());
+
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -241,6 +243,38 @@ const SubmitAssessment = () => {
     return false;
   }, [fileQualityResults]);
 
+  useEffect(() => {
+    const timer = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatCountdown = (ms) => {
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+    return `${minutes}m ${seconds}s`;
+  };
+
+  const submissionWindow = useMemo(() => {
+    if (!selectedAssessment) return { state: 'open', opensAt: null, closesAt: null };
+    const opensAt = selectedAssessment.publish_at ? new Date(selectedAssessment.publish_at) : null;
+    const closesAt = selectedAssessment.due_date ? new Date(selectedAssessment.due_date) : null;
+
+    if (opensAt && !Number.isNaN(opensAt.getTime()) && nowTs < opensAt.getTime()) {
+      return { state: 'not_open', opensAt, closesAt };
+    }
+    if (closesAt && !Number.isNaN(closesAt.getTime()) && nowTs > closesAt.getTime()) {
+      return { state: 'closed', opensAt, closesAt };
+    }
+    return { state: 'open', opensAt, closesAt };
+  }, [selectedAssessment, nowTs]);
+
+  const isTeacherUploadMode = selectedAssessment?.submit_mode === 'teacher';
+
   const handleFiles = async (event) => {
     const fileList = Array.from(event.target.files || []);
     if (fileList.length === 0) return;
@@ -311,6 +345,12 @@ const SubmitAssessment = () => {
       return;
     }
 
+    if (selectedAssessment?.submit_mode === 'teacher') {
+      setSubmitMessage('This assessment is administered by your teacher. Your work will be uploaded by the teacher.');
+      toast.warning('Your teacher uploads the work for this assessment.');
+      return;
+    }
+
     if (selectedFiles.length === 0) {
       setSubmitMessage('Upload at least one file before submitting.');
       toast.warning('Upload at least one file before submitting.');
@@ -320,6 +360,18 @@ const SubmitAssessment = () => {
     if (hasFailingImages) {
       setSubmitMessage('Some files failed quality checks. Please remove or replace them before submitting.');
       toast.error('Some images are blurry or too dark. Please replace them before submitting.');
+      return;
+    }
+
+    if (submissionWindow.state === 'not_open') {
+      setSubmitMessage('The submission window has not opened yet. Please wait for your teacher to open it.');
+      toast.warning('Submission window is not open yet.');
+      return;
+    }
+
+    if (submissionWindow.state === 'closed') {
+      setSubmitMessage('The submission window has closed. Late uploads are not accepted.');
+      toast.error('Submission window has closed.');
       return;
     }
 
@@ -452,6 +504,36 @@ const SubmitAssessment = () => {
                   <p className="text-red-600">{assessmentsError}</p>
                 ) : selectedAssessment ? (
                   <div className="space-y-2">
+                    {submissionWindow.state !== 'open' && (
+                      <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${submissionWindow.state === 'closed' ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'}`}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${submissionWindow.state === 'closed' ? 'text-rose-500' : 'text-amber-500'}`}>
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.828a1 1 0 101.414-1.414L11 9.586V6z" clipRule="evenodd" />
+                        </svg>
+                        <div className="text-xs">
+                          <p className={`font-semibold ${submissionWindow.state === 'closed' ? 'text-rose-700' : 'text-amber-700'}`}>
+                            {submissionWindow.state === 'closed'
+                              ? 'Submission window has closed'
+                              : 'Submission window is not open yet'}
+                          </p>
+                          <p className={`mt-0.5 ${submissionWindow.state === 'closed' ? 'text-rose-600' : 'text-amber-600'}`}>
+                            {submissionWindow.state === 'closed'
+                              ? `Closed ${formatDateTime(selectedAssessment.due_date)}. Late uploads are not accepted.`
+                              : `Opens in ${formatCountdown(submissionWindow.opensAt.getTime() - nowTs)} (${formatDateTime(selectedAssessment.publish_at)}).`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {submissionWindow.state === 'open' && submissionWindow.closesAt && (
+                      <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-blue-500">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.828a1 1 0 101.414-1.414L11 9.586V6z" clipRule="evenodd" />
+                        </svg>
+                        <p className="text-xs font-semibold text-blue-700">
+                          Closes in {formatCountdown(submissionWindow.closesAt.getTime() - nowTs)}
+                          <span className="font-normal text-blue-600"> — upload before the timer ends.</span>
+                        </p>
+                      </div>
+                    )}
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Assessment</p>
@@ -533,7 +615,30 @@ const SubmitAssessment = () => {
           </section>
 
           <section className="rounded-lg border border-slate-200/60 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400 mb-3">Upload Handwritten Solutions</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400 mb-3">
+              {isTeacherUploadMode ? 'Submission' : 'Upload Handwritten Solutions'}
+            </p>
+            {isTeacherUploadMode ? (
+              <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-blue-600">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">Uploaded by your teacher</p>
+                  <p className="mt-1 text-xs text-blue-700">
+                    This assessment is administered by your teacher. Complete your work on paper as instructed — your teacher will upload it for you. No action is needed from this page.
+                  </p>
+                  {selectedAssessment.already_submitted && (
+                    <p className="mt-2 text-xs font-semibold text-emerald-700">
+                      Your work has been recorded. You'll see your score here once your teacher returns the results.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
             <p className="text-xs text-slate-500 mb-2">
               Upload clear photos of your handwritten solutions for the best OCR and AI grading results. Each file can be up to 10MB.
             </p>
@@ -593,9 +698,12 @@ const SubmitAssessment = () => {
                 {submitMessage}
               </div>
             )}
+              </>
+            )}
           </section>
         </div>
 
+        {!isTeacherUploadMode && (
         <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-white/80 px-4 py-3">
           <button
             type="button"
@@ -608,7 +716,7 @@ const SubmitAssessment = () => {
             type="button"
             onClick={handleSubmit}
             className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-300/50 active:scale-[0.97] disabled:cursor-wait disabled:opacity-60"
-            disabled={submitLoading || selectedFiles.length === 0 || !selectedAssessment || hasFailingImages}
+            disabled={submitLoading || selectedFiles.length === 0 || !selectedAssessment || hasFailingImages || submissionWindow.state !== 'open'}
           >
             {submitLoading ? (
               <>
@@ -618,6 +726,10 @@ const SubmitAssessment = () => {
                 </svg>
                 <span>Submitting...</span>
               </>
+            ) : submissionWindow.state === 'not_open' ? (
+              <span>Window not open yet</span>
+            ) : submissionWindow.state === 'closed' ? (
+              <span>Window closed</span>
             ) : (
               <>
                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
@@ -628,6 +740,7 @@ const SubmitAssessment = () => {
             )}
           </button>
         </div>
+        )}
       </div>
     </div>
   );

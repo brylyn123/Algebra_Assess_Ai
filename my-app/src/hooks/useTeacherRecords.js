@@ -14,6 +14,7 @@ export const useTeacherRecords = () => {
 
     const [assessments, setAssessments] = useState([]);
     const [rubrics, setRubrics] = useState([]);
+    const [currentSchoolYear, setCurrentSchoolYear] = useState('');
     const [loading, setLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
     const [refreshIndex, setRefreshIndex] = useState(0);
@@ -53,6 +54,7 @@ export const useTeacherRecords = () => {
 
                 if (isMounted) {
                     setAssessments(assessmentRes.data.assessments || []);
+                    setCurrentSchoolYear(assessmentRes.data.current_school_year || '');
                     setRubrics(rubricRes.data.rubrics || []);
                 }
             } catch (error) {
@@ -123,6 +125,7 @@ export const useTeacherRecords = () => {
     return {
         assessments,
         rubrics,
+        currentSchoolYear,
         loading,
         statusMessage,
         refreshRecords,

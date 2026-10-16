@@ -34,7 +34,9 @@ try {
     $affectedRows = $stmt->affected_rows;
     $stmt->close();
 
-    if ($affectedRows <= 0) {
+    $newlyReturned = $affectedRows > 0;
+
+    if (!$newlyReturned) {
         $checkStmt = $conn->prepare(
             "SELECT sc.score_id
              FROM Scores sc
@@ -59,11 +61,13 @@ try {
 
     echo json_encode([
         'status' => 'success',
-        'message' => 'Result returned successfully.',
+        'message' => $newlyReturned ? 'Result returned successfully.' : 'Result was already returned.',
         'solution_id' => $solution_id,
+        'newly_returned' => $newlyReturned,
     ]);
 
-    // Notify the student that their grade was returned
+    // Notify the student that their grade was returned (only the first time)
+    if ($newlyReturned) {
     try {
         $infoStmt = $conn->prepare(
             "SELECT cs.student_user_id, u.email, ep.exercise_id, ep.title AS exercise_title, s.subject_name,
@@ -97,6 +101,7 @@ try {
         }
     } catch (Exception $e) {
         error_log('Failed to send grade returned notification: ' . $e->getMessage());
+    }
     }
 } catch (Exception $e) {
     http_response_code(500);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { storeLocalUser, findLocalUser, setCurrentLocalUserEmail } from './localAuthStore';
@@ -6,9 +6,8 @@ import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
 import { clearCsrfToken } from './csrf';
 import ForgotPasswordModal from './components/ForgotPasswordModal';
+import Logo, { LogoMark } from './components/Logo';
 import Select from './components/Select';
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const containerVariant = {
     hidden: {},
@@ -59,105 +58,6 @@ const AuthPage = () => {
         years: [],
     });
     const [optionsLoading, setOptionsLoading] = useState(false);
-    const [googleLoading, setGoogleLoading] = useState(false);
-    const googleBtnRef = useRef(null);
-
-    const handleGoogleCredential = useCallback(async (credential) => {
-        setGoogleLoading(true);
-        setMessage('');
-        try {
-            const response = await apiFetch('/google_auth.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ credential }),
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                clearCsrfToken();
-                const userData = result.user;
-                const idToStore = userData.user_id || userData.teacher_id;
-                if (idToStore) localStorage.setItem('teacher_id', idToStore);
-                const existingLocalUser = findLocalUser(userData.email) || {};
-                storeLocalUser({ ...existingLocalUser, ...userData });
-                setCurrentLocalUserEmail(userData.email);
-                navigateByRole(userData.role);
-                return;
-            }
-            setMessage(result.message || 'Google sign-in failed.');
-        } catch (error) {
-            setMessage(error instanceof Error ? error.message : 'Error connecting to the server.');
-        } finally {
-            setGoogleLoading(false);
-        }
-    }, [navigate]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        if (!GOOGLE_CLIENT_ID) return;
-
-        const initGoogleSignIn = () => {
-            if (!window.google || !window.google.accounts) return;
-
-            window.google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: (response) => {
-                    if (response.credential) {
-                        handleGoogleCredential(response.credential);
-                    }
-                },
-                auto_select: false,
-                lang: 'en',
-            });
-
-            if (googleBtnRef.current) {
-                renderGoogleButton();
-            }
-        };
-
-        const renderGoogleButton = () => {
-            if (!googleBtnRef.current || !window.google || !window.google.accounts) return;
-            googleBtnRef.current.innerHTML = '';
-            window.google.accounts.id.renderButton(googleBtnRef.current, {
-                type: 'standard',
-                theme: 'outline',
-                size: 'large',
-                width: '100%',
-                text: 'continue_with',
-                shape: 'rectangular',
-                lang: 'en',
-            });
-        };
-
-        const loadGoogleScript = () => {
-            if (document.getElementById('google-identity-script')) {
-                initGoogleSignIn();
-                return;
-            }
-
-            const script = document.createElement('script');
-            script.id = 'google-identity-script';
-            script.src = 'https://accounts.google.com/gsi/client?hl=en';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => initGoogleSignIn();
-            document.head.appendChild(script);
-        };
-
-        if (window.google && window.google.accounts) {
-            initGoogleSignIn();
-        } else {
-            loadGoogleScript();
-        }
-
-        const retryInterval = setInterval(() => {
-            if (googleBtnRef.current && window.google && window.google.accounts && googleBtnRef.current.childElementCount === 0) {
-                renderGoogleButton();
-            }
-        }, 500);
-
-        const stopRetry = setTimeout(() => clearInterval(retryInterval), 10000);
-
-        return () => { clearInterval(retryInterval); clearTimeout(stopRetry); };
-    }, [handleGoogleCredential, mode]);
 
     useEffect(() => {
         window.history.replaceState({}, '');
@@ -244,6 +144,7 @@ const AuthPage = () => {
         if (role === 'student' && !signupData.courseId) newErrors.courseId = 'Please select a course';
         if (role === 'student' && !signupData.sectionId) newErrors.sectionId = 'Please select a section';
         if (role === 'student' && !signupData.yearId) newErrors.yearId = 'Please select a year level';
+        if (role === 'teacher' && !signupData.collegeId) newErrors.collegeId = 'Please select a college assigned by an admin';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -357,17 +258,17 @@ const AuthPage = () => {
     };
 
     const inputClasses = (hasError) =>
-        `w-full rounded-xl border bg-slate-50/80 px-3.5 py-2.5 pl-10 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 ${
+        `w-full rounded-xl border bg-white px-3.5 py-2.5 pl-10 text-sm text-slate-800 outline-none shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)] transition-all duration-200 placeholder:text-slate-500 ${
             hasError
-                ? 'border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-100'
-                : 'border-slate-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 focus:bg-white'
+                ? 'border-red-400 focus:border-red-500 focus:ring-4 focus:ring-red-100'
+                : 'border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100/70 focus:shadow-none'
         }`;
 
     const selectClasses = (hasError) =>
-        `w-full appearance-none rounded-xl border bg-slate-50/80 px-3.5 py-2.5 pl-10 pr-10 text-sm text-slate-700 outline-none transition-all duration-200 ${
+        `w-full appearance-none rounded-xl border bg-white px-3.5 py-2.5 pl-10 pr-10 text-sm text-slate-800 outline-none shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)] transition-all duration-200 placeholder:text-slate-500 ${
             hasError
-                ? 'border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-100'
-                : 'border-slate-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 focus:bg-white'
+                ? 'border-red-400 focus:border-red-500 focus:ring-4 focus:ring-red-100'
+                : 'border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100/70 focus:shadow-none'
         } disabled:cursor-not-allowed disabled:opacity-60`;
 
     return (
@@ -382,22 +283,8 @@ const AuthPage = () => {
                         role="button"
                         aria-label="Go back to landing page"
                     >
-                        <div className="rounded-xl bg-white/20 p-2 sm:p-2.5 text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <p className="text-sm sm:text-lg font-black tracking-tight text-white">AlgebraAssess</p>
-                            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-white/70">AI Classroom Grading</p>
-                        </div>
+                        <Logo size={44} ink="light" />
                     </div>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="rounded-full border border-white/20 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-white/85 transition hover:bg-white/10 hover:text-white"
-                    >
-                        Back to Landing
-                    </button>
                 </div>
             </header>
 
@@ -549,7 +436,7 @@ const AuthPage = () => {
                                                 <motion.div variants={fieldVariant}>
                                                     <label className="mb-1 block text-xs font-semibold text-slate-600">Email</label>
                                                     <div className="relative">
-                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                                                         </svg>
                                                         <input
@@ -567,7 +454,7 @@ const AuthPage = () => {
                                                 <motion.div variants={fieldVariant}>
                                                     <label className="mb-1 block text-xs font-semibold text-slate-600">Password</label>
                                                     <div className="relative">
-                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                                                         </svg>
                                                         <input
@@ -581,7 +468,7 @@ const AuthPage = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => setShowPassword(!showPassword)}
-                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-slate-600"
                                                             tabIndex={-1}
                                                         >
                                                             {showPassword ? (
@@ -603,25 +490,6 @@ const AuthPage = () => {
                                                     <button type="button" onClick={() => setShowForgotModal(true)} className="text-xs font-semibold text-blue-600 transition hover:text-blue-700">
                                                         Forgot Password?
                                                     </button>
-                                                </motion.div>
-
-                                                <motion.div variants={fieldVariant} className="flex justify-center">
-                                                    {GOOGLE_CLIENT_ID ? (
-                                                        <div ref={googleBtnRef} className="w-full [&>div]:w-full [&>div>div]:w-full" />
-                                                    ) : (
-                                                        <div className="w-full">
-                                                            <button type="button" disabled className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-400 shadow-sm cursor-not-allowed opacity-50">
-                                                                <svg viewBox="0 0 24 24" className="h-5 w-5">
-                                                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                                                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                                                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                                                                </svg>
-                                                                <span>Sign in with Google</span>
-                                                            </button>
-                                                            <p className="mt-2 text-center text-[10px] text-slate-400">Set <code className="font-mono bg-slate-100 px-1 rounded">VITE_GOOGLE_CLIENT_ID</code> in <code className="font-mono bg-slate-100 px-1 rounded">.env</code> to enable</p>
-                                                        </div>
-                                                    )}
                                                 </motion.div>
 
                                                 <motion.div variants={fieldVariant}>
@@ -691,7 +559,7 @@ const AuthPage = () => {
                                                         <div>
                                                             <label className="mb-1 block text-xs font-semibold text-slate-600">First Name</label>
                                                             <div className="relative">
-                                                                <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                                                                 </svg>
                                                                 <input name="firstName" value={signupData.firstName} onChange={handleSignupChange} placeholder="John" className={inputClasses(errors.firstName)} />
@@ -701,7 +569,7 @@ const AuthPage = () => {
                                                         <div>
                                                             <label className="mb-1 block text-xs font-semibold text-slate-600">Last Name</label>
                                                             <div className="relative">
-                                                                <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                                                                 </svg>
                                                                 <input name="lastName" value={signupData.lastName} onChange={handleSignupChange} placeholder="Doe" className={inputClasses(errors.lastName)} />
@@ -713,7 +581,7 @@ const AuthPage = () => {
                                                     <motion.div variants={fieldVariant}>
                                                         <label className="mb-1 block text-xs font-semibold text-slate-600">Middle Name <span className="text-slate-400">(optional)</span></label>
                                                         <div className="relative">
-                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                                                             </svg>
                                                             <input name="middleName" value={signupData.middleName} onChange={handleSignupChange} placeholder="Michael" className={inputClasses(false)} />
@@ -723,7 +591,7 @@ const AuthPage = () => {
                                                     <motion.div variants={fieldVariant}>
                                                         <label className="mb-1 block text-xs font-semibold text-slate-600">{role === 'teacher' ? 'Employee ID' : 'Student ID'}</label>
                                                         <div className="relative">
-                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" />
                                                             </svg>
                                                             <input name="idNumber" value={signupData.idNumber} onChange={handleSignupChange} placeholder={role === 'teacher' ? 'e.g., EMP-2024-001' : 'e.g., STU-2024-001'} className={inputClasses(errors.idNumber)} />
@@ -735,22 +603,23 @@ const AuthPage = () => {
                                                         <motion.div variants={fieldVariant}>
                                                             <label className="mb-1 block text-xs font-semibold text-slate-600">College</label>
                                                             <div className="relative">
-                                                                <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
                                                                 </svg>
-                                                                <Select name="collegeId" value={signupData.collegeId} onChange={handleSignupChange} disabled={optionsLoading} placeholder="Select College" className={selectClasses(false)}>
+                                                                <Select name="collegeId" value={signupData.collegeId} onChange={handleSignupChange} disabled={optionsLoading} placeholder="Select College" className={selectClasses(errors.collegeId)}>
                                                                     {registrationOptions.colleges.map((c) => (
                                                                         <option key={c.college_id} value={c.college_id}>{c.college_name}</option>
                                                                     ))}
                                                                 </Select>
                                                             </div>
+                                                            {errors.collegeId && <p className="mt-1.5 text-xs text-red-500">{errors.collegeId}</p>}
                                                         </motion.div>
                                                     ) : (
                                                         <>
                                                             <motion.div variants={fieldVariant}>
                                                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Course</label>
                                                                 <div className="relative">
-                                                                    <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                    <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
                                                                     </svg>
                                                                     <Select name="courseId" value={signupData.courseId} onChange={handleSignupChange} disabled={optionsLoading} placeholder="Select Course" className={selectClasses(errors.courseId)}>
@@ -765,7 +634,7 @@ const AuthPage = () => {
                                                                 <div>
                                                                     <label className="mb-1 block text-xs font-semibold text-slate-600">Year Level</label>
                                                                     <div className="relative">
-                                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                                                                         </svg>
                                                                         <Select name="yearId" value={signupData.yearId} onChange={handleSignupChange} disabled={optionsLoading} placeholder="Year Level" className={selectClasses(errors.yearId)}>
@@ -779,7 +648,7 @@ const AuthPage = () => {
                                                                 <div>
                                                                     <label className="mb-1 block text-xs font-semibold text-slate-600">Section</label>
                                                                     <div className="relative">
-                                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
                                                                         </svg>
                                                                         <Select name="sectionId" value={signupData.sectionId} onChange={handleSignupChange} disabled={optionsLoading} placeholder="Section" className={selectClasses(errors.sectionId)}>
@@ -797,7 +666,7 @@ const AuthPage = () => {
                                                     <motion.div variants={fieldVariant}>
                                                     <label className="mb-1 block text-xs font-semibold text-slate-600">Email</label>
                                                         <div className="relative">
-                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                                                             </svg>
                                                             <input type="email" name="email" value={signupData.email} onChange={handleSignupChange} placeholder="you@example.com" className={inputClasses(errors.email)} />
@@ -808,11 +677,11 @@ const AuthPage = () => {
                                                     <motion.div variants={fieldVariant}>
                                                         <label className="mb-1 block text-xs font-semibold text-slate-600">Password</label>
                                                         <div className="relative">
-                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                                                             </svg>
                                                             <input type={showPassword ? 'text' : 'password'} name="password" value={signupData.password} onChange={handleSignupChange} placeholder="Min 8 characters" className={inputClasses(errors.password) + ' pr-11'} />
-                                                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600" tabIndex={-1}>
+                                                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-slate-600" tabIndex={-1}>
                                                                 {showPassword ? (
                                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.573 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
                                                                 ) : (
@@ -826,11 +695,11 @@ const AuthPage = () => {
                                                     <motion.div variants={fieldVariant}>
                                                         <label className="mb-1 block text-xs font-semibold text-slate-600">Confirm Password</label>
                                                         <div className="relative">
-                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                                                             </svg>
                                                             <input type={showConfirmPassword ? 'text' : 'password'} name="confirmPassword" value={signupData.confirmPassword} onChange={handleSignupChange} placeholder="Re-enter your password" className={inputClasses(errors.confirmPassword) + ' pr-11'} />
-                                                            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600" tabIndex={-1}>
+                                                            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-slate-600" tabIndex={-1}>
                                                                 {showConfirmPassword ? (
                                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.573 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
                                                                 ) : (
@@ -879,12 +748,8 @@ const AuthPage = () => {
             <footer className="border-t border-slate-200/60 bg-white/60 backdrop-blur-sm">
                 <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-6 sm:flex-row sm:justify-between sm:px-6 sm:py-8 lg:px-10">
                     <div className="flex items-center gap-2.5">
-                        <div className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 p-1.5 text-white shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                        <span className="text-sm font-black text-slate-950">AlgebraAssess</span>
+                        <LogoMark size={34} ink="dark" />
+                        <span className="text-sm font-black text-slate-950">Algebra<span className="text-blue-600">Assess</span></span>
                     </div>
                     <div className="flex items-center gap-4 sm:gap-6">
                         <span className="cursor-pointer text-xs text-slate-400 transition hover:text-slate-600">About Us</span>

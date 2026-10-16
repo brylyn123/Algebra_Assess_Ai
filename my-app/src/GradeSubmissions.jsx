@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, Link } from 'react-router-dom';
+import axios from './axiosClient';
 import { findLocalUser, getCurrentLocalUserEmail } from './localAuthStore';
 import { API_BASE_URL } from './apiBase';
 import { apiFetch } from './fetchClient';
@@ -160,21 +161,114 @@ const normalizeAiGeneration = (generation, submission) => {
 
 const getInitials = (name) => {
   if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
+  const text = String(name).trim();
+
+  if (text.includes(',')) {
+    const [lastRaw = '', givenRaw = ''] = text.split(',');
+    const last = lastRaw.trim();
+    const first = givenRaw.trim().split(/\s+/)[0] || '';
+    if (first && last) return (first[0] + last[0]).toUpperCase();
+    const fallback = first || last;
+    return fallback ? fallback.substring(0, 2).toUpperCase() : '?';
+  }
+
+  const parts = text.split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return parts[0].substring(0, 2).toUpperCase();
 };
 
 const statusConfig = {
   graded: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', label: 'Graded' },
+  ready: { color: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-500', label: 'Ready to Return' },
   submitted: { color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Submitted' },
 };
 
+const isReadyToReturn = (submission) => Boolean(submission) && Boolean(submission.score_id) && !submission.returned_at;
+
+const isReturned = (submission) => Boolean(submission) && Boolean(submission.score_id) && Boolean(submission.returned_at);
+
 const getStatusConfig = (status, scoreId = null) => {
-  if (scoreId) {
+  if (status === 'Ready to Return') {
+    return statusConfig.ready;
+  }
+  if (status === 'Graded' || scoreId) {
     return statusConfig.graded;
   }
   return statusConfig.submitted;
+};
+
+const trimScoreNumber = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Number.isInteger(num) ? String(num) : num.toFixed(1);
+};
+
+const formatScoreDisplay = (submission) => {
+  if (!submission || submission.score == null || submission.score === '') return null;
+  const pct = Number(submission.score);
+  if (!Number.isFinite(pct)) return null;
+
+  let max = Number(submission.max_score) || 0;
+  let raw = submission.raw_score != null && submission.raw_score !== ''
+    ? Number(submission.raw_score)
+    : null;
+
+  if (!(max > 0)) {
+    const items = Array.isArray(submission.items) ? submission.items : [];
+    max = items.reduce((sum, item) => sum + (Number(item.max_score) || 0), 0);
+    if (raw == null && items.length > 0 && items.every((item) => item.score_earned != null)) {
+      raw = items.reduce((sum, item) => sum + (Number(item.score_earned) || 0), 0);
+    }
+  }
+
+  if (max > 0) {
+    if (raw == null || !Number.isFinite(raw)) raw = (pct / 100) * max;
+    const rawText = trimScoreNumber(raw);
+    const maxText = trimScoreNumber(max);
+    if (rawText && maxText) return `${rawText} / ${maxText}`;
+  }
+
+  return `${pct.toFixed(0)}%`;
+};
+
+const getNameSortParts = (submission) => {
+  const last = String(submission?.last_name || '').trim();
+  const first = String(submission?.first_name || '').trim();
+  const middle = String(submission?.middle_name || '').trim();
+
+  if (last || first || middle) {
+    return { last, first, middle };
+  }
+
+  const raw = String(submission?.student_name || '').trim();
+  if (raw.includes(',')) {
+    const [lastRaw = '', givenRaw = ''] = raw.split(',');
+    const givenTokens = givenRaw.trim().split(/\s+/).filter(Boolean);
+    return {
+      last: lastRaw.trim(),
+      first: givenTokens[0] || '',
+      middle: givenTokens.slice(1).join(' '),
+    };
+  }
+
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return { last: '', first: '', middle: '' };
+  if (tokens.length === 1) return { last: tokens[0], first: '', middle: '' };
+  return {
+    last: tokens[tokens.length - 1],
+    first: tokens[0],
+    middle: tokens.slice(1, -1).join(' '),
+  };
+};
+
+const compareByName = (a, b) => {
+  const pa = getNameSortParts(a);
+  const pb = getNameSortParts(b);
+  return (
+    pa.last.localeCompare(pb.last, undefined, { sensitivity: 'base' }) ||
+    pa.first.localeCompare(pb.first, undefined, { sensitivity: 'base' }) ||
+    pa.middle.localeCompare(pb.middle, undefined, { sensitivity: 'base' })
+  );
 };
 
 const GradeSubmissions = () => {
@@ -214,11 +308,20 @@ const GradeSubmissions = () => {
   const [regenerating, setRegenerating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ total: 0, completed: 0, failed: 0, current: '', results: [] });
   const [studentSearch, setStudentSearch] = useState('');
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetReason, setResetReason] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [editingGraded, setEditingGraded] = useState(false);
+  const [showEditGradeConfirm, setShowEditGradeConfirm] = useState(false);
+  const [returnSelection, setReturnSelection] = useState([]);
+  const [returnTargets, setReturnTargets] = useState(null);
+  const [returningResults, setReturningResults] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [perPage] = useState(25);
+  const [allSubjects, setAllSubjects] = useState([]);
   const location = useLocation();
   const { assessments } = useTeacherRecords();
 
@@ -314,6 +417,49 @@ const GradeSubmissions = () => {
     setCurrentPage(1);
   }, [teacherId]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchAllSubjects = async () => {
+      if (!teacherId) {
+        if (isMounted) setAllSubjects([]);
+        return;
+      }
+
+      try {
+        const response = await axios.get(`/get_subjects.php?teacher_id=${teacherId}`);
+        const payload = response.data;
+        const subjectsSource = Array.isArray(payload?.subjects)
+          ? payload.subjects
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : Array.isArray(payload)
+              ? payload
+              : [];
+
+        if (!isMounted) return;
+
+        const normalized = subjectsSource
+          .map((raw) => ({
+            id: raw.subject_id ?? raw.id ?? null,
+            name: raw.subject_name ?? raw.name ?? 'Unnamed Subject',
+          }))
+          .filter((subject) => subject.id != null);
+
+        setAllSubjects(normalized);
+      } catch (error) {
+        console.error('Failed to load subjects for grade submissions filter:', error);
+        if (isMounted) setAllSubjects([]);
+      }
+    };
+
+    fetchAllSubjects();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [teacherId]);
+
   const applyDraftToState = (submission, generation, saved = false) => {
     const normalizedGeneration = normalizeAiGeneration(generation, submission);
     setAiScore(normalizedGeneration.overall_score);
@@ -375,6 +521,8 @@ const GradeSubmissions = () => {
     setDraftAiGeneration(normalizedExistingGeneration);
     setReviewSaved(false);
     setReviewMode(false);
+    setEditingGraded(false);
+    setShowEditGradeConfirm(false);
     setGenerating(false);
     setReturning(false);
     setSelectedFileIndex(0);
@@ -440,13 +588,16 @@ const GradeSubmissions = () => {
       throw new Error(payload.message || 'Unable to save grade.');
     }
 
+    const wasReturned = Boolean(payload.returned);
     const nextSubmission = {
       ...submission,
-      status: 'Graded',
+      status: wasReturned ? 'Graded' : 'Ready to Return',
       score_id: payload.score_id,
       score: payload.score,
+      raw_score: payload.raw_score_earned ?? submission.raw_score ?? null,
+      max_score: payload.max_score_possible ?? submission.max_score ?? null,
       ai_feedback: payload.ai_feedback,
-      returned_at: new Date().toISOString(),
+      returned_at: wasReturned ? (submission.returned_at || new Date().toISOString()) : null,
       criteria_scores: aiGeneration?.criteria_scores ?? submission.criteria_scores ?? [],
       items: normalizeItemDrafts(itemScores).map((item) => ({
         ...item,
@@ -466,6 +617,79 @@ const GradeSubmissions = () => {
       setSelectedSubmission(nextSubmission);
     }
     return payload;
+  };
+
+  const openReturnConfirm = (targets) => {
+    const valid = (targets || []).filter(isReadyToReturn);
+    if (valid.length === 0) return;
+    setReturnTargets(valid);
+  };
+
+  const toggleReturnSelection = (id) => {
+    setReturnSelection((prev) => (
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    ));
+  };
+
+  const handleConfirmReturn = async () => {
+    if (!returnTargets || returnTargets.length === 0 || returningResults) return;
+
+    setReturningResults(true);
+    try {
+      const ids = returnTargets.map((submission) => submission.id);
+      let returnedIds = [];
+
+      if (ids.length === 1) {
+        const response = await apiFetch('/return_submission_result.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ solution_id: ids[0] }),
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== 'success') {
+          throw new Error(payload.message || 'Unable to return result.');
+        }
+        returnedIds = payload.newly_returned === false ? [] : [ids[0]];
+      } else {
+        const response = await apiFetch('/return_assessment_results.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ solution_ids: ids }),
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.status !== 'success') {
+          throw new Error(payload.message || 'Unable to return results.');
+        }
+        returnedIds = Array.isArray(payload.returned_solution_ids) ? payload.returned_solution_ids : ids;
+      }
+
+      const returnedSet = new Set(returnedIds.map(Number));
+      const now = new Date().toISOString();
+      const applyReturn = (submission) => (
+        submission && returnedSet.has(Number(submission.id))
+          ? { ...submission, status: 'Graded', returned_at: submission.returned_at || now }
+          : submission
+      );
+
+      setSubmissions((current) => current.map(applyReturn));
+      setSelectedSubmission((prev) => applyReturn(prev));
+      setReturnSelection((prev) => prev.filter((id) => !returnedSet.has(Number(id))));
+      setReturnTargets(null);
+
+      if (returnedIds.length > 0) {
+        const message = returnedIds.length === 1
+          ? 'Result returned. The student has been notified.'
+          : `${returnedIds.length} results returned. Students have been notified.`;
+        setPageMessage(message);
+        toast.success(message);
+      } else {
+        toast.success('Selected results were already returned.');
+      }
+    } catch (error) {
+      toast.error(error.message || 'Unable to return results.');
+    } finally {
+      setReturningResults(false);
+    }
   };
 
   const handleSaveOcrText = async () => {
@@ -658,6 +882,42 @@ const GradeSubmissions = () => {
     }
   };
 
+  const handleResetGrade = async () => {
+    if (!selectedSubmission || !teacherId) return;
+    setResetting(true);
+    setSaveMessage('');
+    try {
+      const response = await apiFetch('/reset_student_grade.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacher_id: teacherId,
+          solution_id: selectedSubmission.id,
+          reason: resetReason,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.status !== 'success') {
+        throw new Error(payload.message || 'Unable to reset grade.');
+      }
+
+      setSubmissions((current) =>
+        current.filter((s) => s.id !== selectedSubmission.id)
+      );
+      setSelectedSubmission(null);
+      setReviewMode(false);
+      setResetModalOpen(false);
+      setResetReason('');
+      setSaveMessage('Grade reset for ' + (selectedSubmission.student_name || 'student') + '. Record cleared — student can re-submit.');
+      setPageMessage('Grade reset for ' + (selectedSubmission.student_name || 'student') + '. Student has been removed from the grading page and can re-submit.');
+    } catch (error) {
+      console.error(error);
+      setSaveMessage(error.message || 'Unable to reset grade.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const handleGenerateWithManualText = async () => {
     if (!selectedSubmission || !manualOcrText.trim()) return;
     setGenerating(true);
@@ -697,6 +957,34 @@ const GradeSubmissions = () => {
   const closeGradingPanel = () => {
     setSelectedSubmission(null);
     closeGradingModal();
+  };
+
+  const startEditGradedGrade = () => {
+    setShowEditGradeConfirm(false);
+    setSaveMessage('');
+    setPageMessage('');
+    setReviewMode(true);
+    setEditingGraded(true);
+  };
+
+  const cancelEditGraded = () => {
+    if (selectedSubmission) {
+      const restoredGeneration = normalizeAiGeneration(
+        {
+          overall_score: selectedSubmission.score ?? null,
+          overall_feedback: selectedSubmission.ai_feedback ?? '',
+          criteria_scores: selectedSubmission.criteria_scores ?? [],
+          item_scores: selectedSubmission.items ?? [],
+        },
+        selectedSubmission
+      );
+      setDraftScore(selectedSubmission.score ?? null);
+      setDraftFeedback(selectedSubmission.ai_feedback ?? '');
+      setDraftItemScores(restoredGeneration.item_scores);
+      setDraftAiGeneration(restoredGeneration);
+    }
+    setSaveMessage('');
+    setEditingGraded(false);
   };
 
   const updateDraftItemScore = (itemId, field, value) => {
@@ -821,6 +1109,15 @@ const GradeSubmissions = () => {
       );
       clearStoredDraft(selectedSubmission.id);
       setAiScore(numericDraftScore);
+
+      if (editingGraded) {
+        setReviewSaved(true);
+        setReviewMode(false);
+        setEditingGraded(false);
+        toast.success('Grade updated successfully.');
+        return;
+      }
+
       setDraftScore(null);
       setDraftFeedback('');
       setDraftItemScores([]);
@@ -839,12 +1136,13 @@ const GradeSubmissions = () => {
           setSelectedSubmission(remainingBatchSubmissions[0]);
           setSaveMessage('Student result saved. Continue reviewing the remaining students in this assessment.');
         } else {
-          setSaveMessage('All student results in this assessment have been saved and returned to students.');
+          setSaveMessage('All student results in this assessment have been saved. Return them to students when you are ready.');
           closeGradingModal();
-          setPageMessage('All visible students in this assessment have been graded and returned.');
+          setPageMessage('All visible students in this assessment have been graded and saved. Return the results when you are ready.');
         }
       } else {
         closeGradingPanel();
+        toast.success('Grade saved. Return the result to the student when you are ready.');
       }
     } catch (error) {
       console.error(error);
@@ -861,8 +1159,8 @@ const GradeSubmissions = () => {
 
     const submissionsToSave = batchPendingSubmissions.filter((submission) => !submission.score_id);
     if (submissionsToSave.length === 0) {
-      setSaveMessage('All student results in this assessment are already saved and returned.');
-      setPageMessage('All visible students in this assessment have been graded and returned.');
+      setSaveMessage('All student results in this assessment are already saved.');
+      setPageMessage('All visible students in this assessment have been graded. Return the results when you are ready.');
       return;
     }
 
@@ -917,8 +1215,8 @@ const GradeSubmissions = () => {
       }
 
       setReviewMode(false);
-      setSaveMessage('All generated student results have been saved and returned to students.');
-      setPageMessage('All visible students in this assessment have been graded and returned.');
+      setSaveMessage('All generated student results have been saved.');
+      setPageMessage('All visible students in this assessment have been graded. Return the results when you are ready.');
       closeGradingModal();
     } catch (error) {
       console.error(error);
@@ -929,8 +1227,14 @@ const GradeSubmissions = () => {
   };
 
   const subjectOptions = useMemo(() => {
-    if (assessments.length === 0) return [];
     const subjectMap = new Map();
+
+    allSubjects.forEach((subject) => {
+      if (subject?.id != null && !subjectMap.has(String(subject.id))) {
+        subjectMap.set(String(subject.id), subject.name || 'Unnamed Subject');
+      }
+    });
+
     assessments.forEach((assessment) => {
       (assessment.subjects || []).forEach((s) => {
         if (s?.subject_id != null && !subjectMap.has(String(s.subject_id))) {
@@ -938,10 +1242,20 @@ const GradeSubmissions = () => {
         }
       });
     });
+
+    submissions.forEach((submission) => {
+      if (submission?.subject_id != null && !subjectMap.has(String(submission.subject_id))) {
+        subjectMap.set(
+          String(submission.subject_id),
+          submission.subject_name || 'Unnamed Subject'
+        );
+      }
+    });
+
     return Array.from(subjectMap.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [assessments]);
+  }, [allSubjects, assessments, submissions]);
 
   const assessmentOptions = useMemo(() => {
     if (assessments.length === 0) {
@@ -997,11 +1311,13 @@ const GradeSubmissions = () => {
   const visibleSubmissions = useMemo(() => {
     const q = studentSearch.trim().toLowerCase();
 
-    return submissions.filter((submission) => {
-      if (selectedAssessment !== 'all' && String(submission.exercise_id ?? '') !== selectedAssessment) return false;
-      if (q && !String(submission.student_name || '').toLowerCase().includes(q)) return false;
-      return true;
-    });
+    return submissions
+      .filter((submission) => {
+        if (selectedAssessment !== 'all' && String(submission.exercise_id ?? '') !== selectedAssessment) return false;
+        if (q && !String(submission.student_name || '').toLowerCase().includes(q)) return false;
+        return true;
+      })
+      .sort(compareByName);
   }, [selectedAssessment, submissions, studentSearch]);
   
   const pendingSubmissions = useMemo(
@@ -1023,15 +1339,52 @@ const GradeSubmissions = () => {
     [batchPendingSubmissions]
   );
 
+  const readyToReturnVisible = useMemo(
+    () => visibleSubmissions.filter(isReadyToReturn),
+    [visibleSubmissions]
+  );
+
+  const selectedReturnSubmissions = useMemo(
+    () => returnSelection
+      .map((id) => submissions.find((submission) => submission.id === id))
+      .filter(Boolean),
+    [returnSelection, submissions]
+  );
+
+  const allReadySelected = readyToReturnVisible.length > 0
+    && readyToReturnVisible.every((submission) => returnSelection.includes(submission.id));
+
+  const toggleAllReadySelection = () => {
+    const visibleIds = readyToReturnVisible.map((submission) => submission.id);
+    if (allReadySelected) {
+      const idSet = new Set(visibleIds);
+      setReturnSelection((prev) => prev.filter((id) => !idSet.has(id)));
+    } else {
+      setReturnSelection((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  useEffect(() => {
+    setReturnSelection((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.filter((id) => {
+        const submission = submissions.find((item) => item.id === id);
+        return submission && isReadyToReturn(submission);
+      });
+      return next.length === prev.length ? prev : next;
+    });
+  }, [submissions]);
+
   const submissionSummary = useMemo(() => {
     return submissions.reduce(
       (acc, submission) => {
         acc.total += 1;
-        if (submission.score_id) acc.graded += 1;
+        if (isReadyToReturn(submission)) acc.ready += 1;
+        else if (submission.score_id) acc.graded += 1;
         else acc.submitted += 1;
         return acc;
       },
-      { total: 0, submitted: 0, graded: 0 }
+      { total: 0, submitted: 0, graded: 0, ready: 0 }
     );
   }, [submissions]);
 
@@ -1060,10 +1413,14 @@ const GradeSubmissions = () => {
   const hasDraftResult = draftScore !== null && draftScore !== undefined && draftScore !== '';
   const isResultSaved = Boolean(selectedSubmission?.score_id);
   const selectedSubmissionDraft = selectedSubmission ? readStoredDraft(selectedSubmission.id) : null;
-  const shouldShowGeneratePanel = gradingMode === 'batch'
-    ? !(selectedSubmissionDraft || selectedSubmission?.score_id || hasDraftResult)
-    : !hasDraftResult;
+  const shouldShowGeneratePanel = editingGraded
+    ? false
+    : gradingMode === 'batch'
+      ? !(selectedSubmissionDraft || selectedSubmission?.score_id || hasDraftResult)
+      : !hasDraftResult;
   const batchCompleted = gradingMode === 'batch' && gradingModalOpen && batchSubmissionIds.length > 0 && batchRemainingToSave.length === 0;
+  const readyPanelState = selectedSubmission?.status === 'Ready to Return';
+  const returnedPanelState = selectedSubmission?.status === 'Graded';
   const batchAssessmentTitle = useMemo(() => {
     const batchSource = submissions.find((submission) => batchSubmissionIds.includes(submission.id));
     return batchSource?.assessment_title ?? '';
@@ -1083,7 +1440,7 @@ const GradeSubmissions = () => {
                 </div>
                 <h2 className="text-lg font-bold text-white">Grade Submissions</h2>
               </div>
-              <p className="text-xs text-blue-100 ml-[42px]">Review submissions, run AI grading, and save results. Grades are returned to students automatically.</p>
+              <p className="text-xs text-blue-100 ml-[42px]">Review submissions, run AI grading, and save results. Return results to students when you are ready.</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-medium text-white">
@@ -1093,6 +1450,10 @@ const GradeSubmissions = () => {
               <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[10px] font-medium text-amber-100">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
                 Submitted {submissionSummary.submitted}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/20 px-2.5 py-1 text-[10px] font-medium text-violet-100">
+                <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+                Ready to Return {submissionSummary.ready}
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -1189,6 +1550,33 @@ const GradeSubmissions = () => {
                       <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">{pendingSubmissions.length}</span>
                     )}
                   </button>
+                  {selectedReturnSubmissions.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => openReturnConfirm(selectedReturnSubmissions)}
+                      disabled={returningResults || loading}
+                      className="shrink-0 flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-2 text-[11px] font-semibold text-white shadow-md shadow-violet-200/50 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-300/50 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                      </svg>
+                      Return Results
+                      <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">{selectedReturnSubmissions.length}</span>
+                    </button>
+                  ) : readyToReturnVisible.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => openReturnConfirm(readyToReturnVisible)}
+                      disabled={returningResults || loading}
+                      className="shrink-0 flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-2 text-[11px] font-semibold text-white shadow-md shadow-violet-200/50 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-300/50 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                      </svg>
+                      Return All
+                      <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">{readyToReturnVisible.length}</span>
+                    </button>
+                  )}
                   <span className="shrink-0 flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-2 text-[11px] font-medium text-slate-600">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
                     {visibleSubmissions.length}
@@ -1232,17 +1620,47 @@ const GradeSubmissions = () => {
               )}
               {!loading && visibleSubmissions.length > 0 && (
               <div className="teacher-scrollbar min-h-0 flex-1 overflow-y-auto pr-1 pb-2 flex flex-col gap-2">
+                {readyToReturnVisible.length > 0 && (
+                  <div className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-violet-200/80 bg-violet-50/70 px-3 py-2">
+                    <label className="flex cursor-pointer items-center gap-2 text-[11px] font-semibold text-violet-700">
+                      <input
+                        type="checkbox"
+                        checked={allReadySelected}
+                        onChange={toggleAllReadySelection}
+                        className="h-4 w-4 rounded border-violet-300 text-violet-600 focus:ring-violet-400"
+                      />
+                      Select all ready ({readyToReturnVisible.length})
+                    </label>
+                    {selectedReturnSubmissions.length > 0 && (
+                      <span className="text-[11px] font-medium text-violet-500">
+                        {selectedReturnSubmissions.length} selected
+                      </span>
+                    )}
+                  </div>
+                )}
                 {visibleSubmissions.map((submission) => {
                   const isActive = selectedSubmission?.id === submission.id;
                   const st = getStatusConfig(submission.status, submission.score_id);
                   const isGraded = Boolean(submission.score_id);
+                  const ready = isReadyToReturn(submission);
+                  const returned = isReturned(submission);
                   const score = submission.score;
                   return (
-                    <div key={submission.id} className="relative">
+                    <div key={submission.id} className="relative flex items-center gap-2">
+                      {ready && (
+                        <input
+                          type="checkbox"
+                          checked={returnSelection.includes(submission.id)}
+                          onChange={() => toggleReturnSelection(submission.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Select ${submission.student_name} for return`}
+                          className="h-4 w-4 shrink-0 cursor-pointer rounded border-violet-300 text-violet-600 focus:ring-violet-400"
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={() => openGradingModal(submission, 'single')}
-                        className={`group relative w-full text-left rounded-xl border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
+                        className={`group relative min-w-0 flex-1 text-left rounded-xl border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
                           isActive
                             ? 'border-blue-300 bg-blue-50/80 shadow-md ring-2 ring-blue-200'
                             : 'border-slate-200/80 bg-white hover:border-slate-300'
@@ -1250,9 +1668,11 @@ const GradeSubmissions = () => {
                       >
                       {/* Left accent line */}
                       <div className={`absolute left-0 top-0 h-full w-1 rounded-l-xl ${
-                        isGraded
+                        returned
                           ? 'bg-gradient-to-b from-emerald-400 to-emerald-500'
-                          : 'bg-gradient-to-b from-slate-200 to-slate-300'
+                          : ready
+                            ? 'bg-gradient-to-b from-violet-400 to-violet-500'
+                            : 'bg-gradient-to-b from-slate-200 to-slate-300'
                       }`} />
                       
                       <div className="flex items-center gap-3 p-3 pl-5">
@@ -1260,13 +1680,15 @@ const GradeSubmissions = () => {
                         <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-transform duration-200 group-hover:scale-105 ${
                           isActive
                             ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200'
-                            : isGraded
+                            : returned
                               ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-lg shadow-emerald-200'
-                              : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600'
+                              : ready
+                                ? 'bg-gradient-to-br from-violet-400 to-violet-500 text-white shadow-lg shadow-violet-200'
+                                : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600'
                         }`}>
                           {getInitials(submission.student_name)}
                           <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${
-                            isGraded ? 'bg-emerald-400' : 'bg-slate-300'
+                            returned ? 'bg-emerald-400' : ready ? 'bg-violet-400' : 'bg-slate-300'
                           }`} />
                         </div>
                         
@@ -1293,8 +1715,12 @@ const GradeSubmissions = () => {
                             {st.label}
                           </span>
                           {isGraded && score != null && (
-                            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
-                              {Number(score).toFixed(0)}%
+                            <span className={`inline-flex items-center gap-1 shrink-0 rounded-lg px-2 py-1 text-xs font-bold border ${
+                              ready
+                                ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              {formatScoreDisplay(submission)}
                             </span>
                           )}
                           <svg className={`h-4 w-4 transition-all duration-200 ${
@@ -1305,6 +1731,19 @@ const GradeSubmissions = () => {
                         </div>
                       </div>
                     </button>
+                      {ready && (
+                        <button
+                          type="button"
+                          onClick={() => openReturnConfirm([submission])}
+                          disabled={returningResults || loading}
+                          title={`Return results to ${submission.student_name}`}
+                          className="shrink-0 self-center rounded-xl border border-violet-200 bg-violet-50 p-2 text-violet-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-100 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1328,19 +1767,22 @@ const GradeSubmissions = () => {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
                     {batchCompleted ? 'Batch Complete' : gradingMode === 'batch' ? 'Select All Ungraded' : 'Student Review'}
                   </p>
-                  <h2 className="mt-1 text-xl font-bold truncate">{batchCompleted ? 'All Grades Returned' : selectedSubmission?.student_name}</h2>
+                  <h2 className="mt-1 text-xl font-bold truncate">{batchCompleted ? 'All Grades Saved' : selectedSubmission?.student_name}</h2>
                   <p className="mt-1 text-sm text-white/80 truncate">{batchCompleted ? batchAssessmentTitle : selectedSubmission?.assessment_title}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {selectedSubmission?.status && !batchCompleted && (
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                        readyPanelState ? 'bg-violet-500/25 text-violet-100' :
                         selectedSubmission.score_id ? 'bg-emerald-500/25 text-emerald-100' :
                         'bg-amber-500/25 text-amber-100'
                       }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${
+                          readyPanelState ? 'bg-violet-400' :
                           selectedSubmission.score_id ? 'bg-emerald-400' :
                           'bg-amber-400'
                         }`} />
-                        {selectedSubmission.score_id ? 'Graded' : 'Submitted'}
+                        {readyPanelState ? 'Ready to Return' :
+                          selectedSubmission.score_id ? 'Graded' : 'Submitted'}
                       </span>
                     )}
                     {selectedSubmission?.student_id && (
@@ -1398,7 +1840,7 @@ const GradeSubmissions = () => {
                   </div>
                   <h3 className="text-lg font-bold text-slate-900">All Done!</h3>
                   <p className="mt-2 max-w-sm text-sm text-slate-500">
-                    All students in this assessment have been graded and their results have been returned automatically.
+                    All students in this assessment have been graded and saved. Return the results to students when you are ready.
                   </p>
                   <button
                     type="button"
@@ -1564,26 +2006,52 @@ const GradeSubmissions = () => {
                     </div>
                   </div>
 
-                  {selectedSubmission?.status === 'Graded' && selectedSubmission?.score != null && (
-                    <div className="space-y-4 rounded-2xl border border-emerald-200/60 bg-emerald-50/30 p-5">
+                  {(returnedPanelState || readyPanelState) && selectedSubmission?.score != null && !editingGraded && (
+                    <div className={`space-y-4 rounded-2xl border p-5 ${readyPanelState ? 'border-violet-200/60 bg-violet-50/30' : 'border-emerald-200/60 bg-emerald-50/30'}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
-                            <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${readyPanelState ? 'bg-violet-100' : 'bg-emerald-100'}`}>
+                            <svg className={`h-4 w-4 ${readyPanelState ? 'text-violet-600' : 'text-emerald-600'}`} fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
                           </div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Graded</p>
+                          <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${readyPanelState ? 'text-violet-600' : 'text-emerald-600'}`}>
+                            {readyPanelState ? 'Ready to Return' : 'Graded'}
+                          </p>
                         </div>
-                        <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-                          {selectedSubmission.score != null ? `${Number(selectedSubmission.score).toFixed(1)}%` : '—'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${readyPanelState ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {formatScoreDisplay(selectedSubmission) || '—'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowEditGradeConfirm(true)}
+                            title="Edit this saved grade"
+                            className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-50 active:scale-[0.97]"
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                            </svg>
+                            Edit Grade
+                          </button>
+                        </div>
                       </div>
+
+                      {readyPanelState && (
+                        <div className="flex items-start gap-3 rounded-2xl border border-violet-200/70 bg-white px-4 py-3">
+                          <svg className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                          </svg>
+                          <p className="text-xs leading-relaxed text-violet-700">
+                            This result has been saved but <strong>not returned yet</strong>. The student cannot see the score until you return it.
+                          </p>
+                        </div>
+                      )}
 
                       <div className="rounded-2xl bg-white p-5 text-center shadow-sm">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Final Score</p>
-                        <p className="mt-2 text-4xl font-black text-emerald-600">
-                          {selectedSubmission.score != null ? `${Number(selectedSubmission.score).toFixed(1)}%` : '—'}
+                        <p className={`mt-2 text-4xl font-black ${readyPanelState ? 'text-violet-600' : 'text-emerald-600'}`}>
+                          {formatScoreDisplay(selectedSubmission) || '—'}
                         </p>
                       </div>
 
@@ -1612,8 +2080,10 @@ const GradeSubmissions = () => {
                                        style={{ width: `${Math.min(100, Math.max(0, contributionPct))}%` }}
                                     />
                                   </div>
-                                  {effortMin > 0 && (
-                                    <p className="text-[10px] text-amber-500 font-medium">Effort minimum: {effortMin} pts</p>
+                                  {effortMin > 0 && matchedRubricItem?.points > 0 && (
+                                    <p className="text-[10px] text-amber-500 font-medium">
+                                      Effort minimum: {Math.round((effortMin / matchedRubricItem.points) * 100)}% of criterion ({effortMinEquiv.toFixed(1)} pts)
+                                    </p>
                                   )}
                                   {criterion.explanation && (
                                     <p className="text-[11px] leading-relaxed text-slate-500">{criterion.explanation}</p>
@@ -1663,7 +2133,7 @@ const GradeSubmissions = () => {
                     </div>
                   )}
 
-                  {selectedSubmission?.status !== 'Graded' && (shouldShowGeneratePanel ? (
+                  {(editingGraded || (!returnedPanelState && !readyPanelState)) && (shouldShowGeneratePanel ? (
                     <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5">
                       {ocrFailed ? (
                         <>
@@ -1825,7 +2295,7 @@ const GradeSubmissions = () => {
                           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-500">Generated Result</p>
                         </div>
                         <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-blue-600 shadow-sm">
-                          {selectedSubmission?.score_id ? 'Saved' : reviewMode ? 'Ready to save' : 'Draft'}
+                          {editingGraded ? 'Editing saved grade' : selectedSubmission?.score_id ? 'Saved' : reviewMode ? 'Ready to save' : 'Draft'}
                         </span>
                       </div>
 
@@ -1884,7 +2354,7 @@ const GradeSubmissions = () => {
                           rows={4}
                           className="teacher-input mt-2"
                           placeholder="Overall feedback for the student..."
-                          disabled={!selectedSubmission || isResultSaved}
+                          disabled={!selectedSubmission || (isResultSaved && !editingGraded)}
                         />
                       </label>
 
@@ -1919,7 +2389,7 @@ const GradeSubmissions = () => {
                                       max={item.max_score || undefined}
                                       value={item.score_earned}
                                       onChange={(event) => updateDraftItemScore(item.item_id, 'score_earned', event.target.value)}
-                                      disabled={isResultSaved}
+                                      disabled={isResultSaved && !editingGraded}
                                       className="teacher-input !rounded-lg !px-2.5 !py-1.5 text-center text-sm"
                                     />
                                     <p className="mt-0.5 text-center text-[10px] text-slate-400">of {Number(item.max_score || 0).toFixed(2)}</p>
@@ -1931,7 +2401,7 @@ const GradeSubmissions = () => {
                                   rows={2}
                                   className="teacher-input mt-2 !rounded-lg !px-2.5 !py-1.5 text-xs"
                                   placeholder="Step-by-step feedback..."
-                                  disabled={isResultSaved}
+                                  disabled={isResultSaved && !editingGraded}
                                 />
                               </div>
                             ))}
@@ -1958,10 +2428,20 @@ const GradeSubmissions = () => {
                 >
                   Close
                 </button>
-                {selectedSubmission?.status !== 'Graded' && (gradingMode === 'batch' || selectedSubmission?.status !== 'Ready to Return') && hasDraftResult && (
+                {editingGraded && (
                   <button
                     type="button"
-                    onClick={gradingMode === 'batch' ? handleSaveAllResults : handleSaveResult}
+                    onClick={cancelEditGraded}
+                    disabled={returning}
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97]"
+                  >
+                    Cancel
+                  </button>
+                )}
+                {(editingGraded || (selectedSubmission?.status !== 'Graded' && (gradingMode === 'batch' || selectedSubmission?.status !== 'Ready to Return'))) && hasDraftResult && (
+                  <button
+                    type="button"
+                    onClick={editingGraded ? handleSaveResult : gradingMode === 'batch' ? handleSaveAllResults : handleSaveResult}
                     disabled={!selectedSubmission || returning || generating || bulkGenerating}
                     className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97]"
                   >
@@ -1973,18 +2453,253 @@ const GradeSubmissions = () => {
                         </svg>
                         Saving...
                       </span>
-                    ) : gradingMode === 'batch' ? 'Save All Results' : 'Save Result'}
+                    ) : editingGraded ? 'Save Changes' : gradingMode === 'batch' ? 'Save All Results' : 'Save Result'}
                   </button>
                 )}
-                {selectedSubmission?.status === 'Ready to Return' && (
-                  <span className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-600">
+                {readyPanelState && !editingGraded && (
+                  <button
+                    type="button"
+                    onClick={() => openReturnConfirm([selectedSubmission])}
+                    disabled={returningResults || loading}
+                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-violet-200/50 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-300/50 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Return this result to the student"
+                  >
+                    {returningResults ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Returning...
+                      </span>
+                    ) : (
+                      <>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                        </svg>
+                        Return Results
+                      </>
+                    )}
+                  </button>
+                )}
+                {readyPanelState && editingGraded && (
+                  <span className="flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-xs font-semibold text-violet-600">
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
-                    Saved
+                    Saved · Not Returned
                   </span>
                 )}
+                {selectedSubmission?.score_id && !editingGraded && (
+                  <button
+                    type="button"
+                    onClick={() => setResetModalOpen(true)}
+                    className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-amber-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-50 active:scale-[0.97]"
+                    title="Give this student a second chance to re-submit"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                    Give Second Chance
+                  </button>
+                )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resetModalOpen && (
+        <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={() => { setResetModalOpen(false); setResetReason(''); }}>
+          <div className="mx-auto w-[min(480px,calc(100vw-2rem))] rounded-2xl bg-white shadow-2xl ring-1 ring-black/5" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">Teacher Action</p>
+                  <h3 className="mt-1 text-lg font-bold">Give Second Chance</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setResetModalOpen(false); setResetReason(''); }}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-slate-700">
+                Reset the grade for <strong>{selectedSubmission?.student_name}</strong> and allow them to re-submit?
+              </p>
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason <span className="text-red-500">*</span></label>
+                <textarea
+                  value={resetReason}
+                  onChange={(e) => setResetReason(e.target.value)}
+                  placeholder="e.g., Incomplete handwritten solution, student needs another attempt..."
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 transition-colors focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100 resize-none"
+                />
+              </div>
+              <p className="mt-2 text-xs text-amber-600">
+                This will clear all scores and notify the student. Maximum 3 resets per student per submission.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-3">
+              <button
+                type="button"
+                onClick={() => { setResetModalOpen(false); setResetReason(''); }}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleResetGrade}
+                disabled={resetting || resetReason === ''}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetting ? (
+                  <>
+                    <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Resetting...
+                  </>
+                ) : 'Confirm Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditGradeConfirm && (
+        <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={() => setShowEditGradeConfirm(false)}>
+          <div className="mx-auto w-[min(480px,calc(100vw-2rem))] rounded-2xl bg-white shadow-2xl ring-1 ring-black/5" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">Teacher Action</p>
+                  <h3 className="mt-1 text-lg font-bold">Edit Saved Grade</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEditGradeConfirm(false)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-slate-700">
+                Update the grade for <strong>{selectedSubmission?.student_name}</strong>?
+              </p>
+              <p className="mt-2 text-xs text-blue-600">
+                {returnedPanelState
+                  ? 'Students may have already seen this score. If you change it, the student will be notified with the updated result.'
+                  : 'This result has not been returned yet. The student will only see the updated result once you return it.'}
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-3">
+              <button
+                type="button"
+                onClick={() => setShowEditGradeConfirm(false)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={startEditGradedGrade}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97]"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                </svg>
+                Edit Grade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {returnTargets && returnTargets.length > 0 && (
+        <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" onClick={() => { if (!returningResults) setReturnTargets(null); }}>
+          <div className="mx-auto w-[min(480px,calc(100vw-2rem))] rounded-2xl bg-white shadow-2xl ring-1 ring-black/5" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-4 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">Teacher Action</p>
+                  <h3 className="mt-1 text-lg font-bold">Return Results</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { if (!returningResults) setReturnTargets(null); }}
+                  disabled={returningResults}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30 disabled:opacity-50"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-sm text-slate-700">
+                {returnTargets.length === 1 ? (
+                  <>Return the result to <strong>{returnTargets[0].student_name}</strong>?</>
+                ) : (
+                  <>Return results to <strong>{returnTargets.length} students</strong>?</>
+                )}
+              </p>
+              {returnTargets.length > 1 && (
+                <div className="teacher-scrollbar mt-3 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <ul className="space-y-1.5">
+                    {returnTargets.map((target) => (
+                      <li key={target.id} className="flex items-center gap-2 text-xs text-slate-600">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                        <span className="truncate font-medium">{target.student_name}</span>
+                        <span className="ml-auto shrink-0 text-[10px] text-slate-400 truncate max-w-[45%]">{target.assessment_title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="mt-3 text-xs text-violet-600">
+                Students will see their score and feedback, and they will be notified in-app and by email.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-3">
+              <button
+                type="button"
+                onClick={() => setReturnTargets(null)}
+                disabled={returningResults}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReturn}
+                disabled={returningResults}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {returningResults ? (
+                  <>
+                    <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Returning...
+                  </>
+                ) : returnTargets.length === 1 ? 'Return Result' : `Return ${returnTargets.length} Results`}
+              </button>
             </div>
           </div>
         </div>

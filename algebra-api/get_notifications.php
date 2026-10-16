@@ -2,6 +2,7 @@
 require_once 'auth.php';
 require_once 'db_connect.php';
 require_once 'schema_utils.php';
+require_once 'notifications_helper.php';
 
 $authUser = requireAuthenticatedUser();
 $user_id = (int)$authUser['user_id'];
@@ -64,6 +65,12 @@ try {
         'limit' => $limit,
         'offset' => $offset,
     ]);
+
+    // Opening the notification panel is another safe point to deliver
+    // any queued notification emails in the background.
+    if (ob_get_level() > 0) { @ob_flush(); }
+    @flush();
+    processEmailQueue(30);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => 'Unable to load notifications.']);
