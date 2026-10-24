@@ -1,0 +1,8 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicy = "ON_FAILURE"
+healthcheckPath = "/check_deps.php"
+healthcheckTimeout = 300

@@ -1,0 +1,17 @@
+.git
+.github
+my-app
+node_modules
+my-app/node_modules
+my-app/dist
+*.md
+.vercel
+.env
+.env.*
+algebra-api/.env
+algebra-api/ai_secrets.local.php
+algebra-api/db_config.local.php
+algebra-api/uploads
+algebra-api/.schema_cache.php
+database.sql
+database_patch.sql

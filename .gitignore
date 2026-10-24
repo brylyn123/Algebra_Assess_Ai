@@ -7,6 +7,8 @@ my-app/build/
 # Environment and local config (API keys, DB credentials)
 .env
 .env.*
+!.env.example
+!algebra-api/.env.example
 algebra-api/.env
 algebra-api/db_config.local.php
 algebra-api/ai_secrets.local.php

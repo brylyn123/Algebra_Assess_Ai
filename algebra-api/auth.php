@@ -15,7 +15,7 @@ function startApiSession(): void
         'domain' => '',
         'secure' => $isProduction,
         'httponly' => true,
-        'samesite' => 'Lax',
+        'samesite' => $isProduction ? 'None' : 'Lax',
     ]);
     session_start();
 }
